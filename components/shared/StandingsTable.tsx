@@ -176,7 +176,7 @@ const StandingsTable = ({ teams, myTeamId, compact, onTeamClick, liveScores, fix
 
                     <div className="flex items-center gap-1.5">
                         <div className="w-2.5 h-2.5 bg-red-500 rounded-sm"></div>
-                        <span>Alt Sıralar</span>
+                        <span>Küme Hattı</span>
                     </div>
                     <div className="ml-auto italic opacity-60">{displayLeagueName} ({sorted.length} Takım)</div>
                 </div>

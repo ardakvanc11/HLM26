@@ -123,13 +123,14 @@ export const useMatchLogic = (
 
         // --- TROPHY CHECK ---
         let wonTrophy: SeasonChampion | null = null;
+        
+        // 1. SUPER CUP (Week 91)
         if (res === 'WIN' && currentFixture.competitionId === 'SUPER_CUP') {
-            // Check if Final (Week 91 for Super Cup)
             if (currentFixture.week === 91) {
                  const myTeamRef = teamsWithUpdatedStats.find(t => t.id === myTeamId);
                  if (myTeamRef) {
-                     myTeamRef.superCups += 1; // Update Team Stats
-                     updatedManager.stats.trophies += 1; // Update Manager Stats
+                     myTeamRef.superCups += 1; 
+                     updatedManager.stats.trophies += 1; 
                      updatedManager.trust.board = Math.min(100, updatedManager.trust.board + 15);
                      updatedManager.trust.fans = Math.min(100, updatedManager.trust.fans + 15);
                      
@@ -139,6 +140,28 @@ export const useMatchLogic = (
                         logo: myTeamRef.logo,
                         colors: myTeamRef.colors,
                         season: "2025/26 Süper Kupa"
+                     };
+                 }
+            }
+        }
+        
+        // 2. DOMESTIC CUP (Week 104)
+        if (res === 'WIN' && currentFixture.competitionId === 'CUP') {
+            if (currentFixture.week === 104) {
+                 const myTeamRef = teamsWithUpdatedStats.find(t => t.id === myTeamId);
+                 if (myTeamRef) {
+                     myTeamRef.domesticCups += 1; 
+                     updatedManager.stats.domesticCups += 1;
+                     updatedManager.stats.trophies += 1; 
+                     updatedManager.trust.board = Math.min(100, updatedManager.trust.board + 20);
+                     updatedManager.trust.fans = Math.min(100, updatedManager.trust.fans + 20);
+                     
+                     wonTrophy = {
+                        teamId: myTeamRef.id,
+                        teamName: myTeamRef.name,
+                        logo: myTeamRef.logo,
+                        colors: myTeamRef.colors,
+                        season: "2025/26 Hayvanlar Kupası"
                      };
                  }
             }
@@ -162,9 +185,6 @@ export const useMatchLogic = (
             teams: teamsWithUpdatedStats, 
             manager: updatedManager, 
             news: [...matchTweets, ...prev.news],
-            // NOTE: Do NOT trigger seasonChampion here immediately if we won.
-            // We pass it to setMatchResultData to trigger after interview.
-            // seasonChampion: wonTrophy || prev.seasonChampion 
         }));
         
         // Pass wonTrophy in extra data so we can trigger it after interview
@@ -228,78 +248,10 @@ export const useMatchLogic = (
             newGameState.manager = { ...newGameState.manager, trust };
         }
         
-        // CHECK IF TROPHY WAS WON (PASSED VIA CORE STATE MATCH RESULT DATA)
-        // Accessing core state logic via parameter is hard here without refactoring useGameState, 
-        // but we rely on setGameState updating it.
-        // HOWEVER, we need the wonTrophy info which was in matchResultData.
-        // We can't easily access the old matchResultData here directly if it's not in args.
-        // Solution: It is stored in core state, so we can set it to gameState.seasonChampion now.
-        // We will do a trick: We know we are inside useGameState context in parent.
-        // But here we are isolated.
-        
-        // Actually, we can use the callback to set it.
-        // Since we are clearing matchResultData, we should check it before clearing.
-        // But we don't have access to the *value* of matchResultData here, only the setter coreSetters.setMatchResultData.
-        
-        // Workaround: We will assume if we just finished a Super Cup Final and won, we show it.
-        // But exact logic is already done in handleMatchFinish.
-        // Let's modify handleMatchFinish to NOT set seasonChampion, but put it in a temporary queue?
-        // Or simply, we rely on the fact that MainContent renders based on state.
-        
-        // BEST FIX: The matchResultData is available in the component view `MainContent.tsx`. 
-        // But logic resides here.
-        // We will utilize `coreSetters` to update state if `matchResultData` (which is in core state) has `wonTrophy`.
-        
-        // Wait, `coreSetters` gives us setters, not getters.
-        // We cannot read `matchResultData` here easily unless passed.
-        // But `gameState` is passed. `matchResultData` is NOT in `gameState`.
-        
-        // OK, alternate plan: When handleMatchFinish runs, if trophy won, set a specific flag in `gameState` like `pendingCelebration`.
-        // Then clear it here and move to `seasonChampion`.
-        
-        // OR: Just set `seasonChampion` here based on recalculation? No, we lost context.
-        
-        // Let's assume we pass `wonTrophy` to this function? No, the signature is fixed by the view call.
-        
-        // SIMPLEST: In `handleMatchFinish`, we set `seasonChampion` BUT we add a property `delayed: true`? 
-        // `SeasonChampion` type update?
-        // No, let's update `useCoreState` to include `pendingTrophy`.
-        // Too complex.
-        
-        // Dirty Fix: We will assume if we are in this function, we just finished the interview.
-        // We will check `gameState.seasonChampion`. If it is set, MainContent shows it.
-        // The problem is `handleMatchFinish` set it too early.
-        // So `handleMatchFinish` should NOT set it.
-        // But then where do we store it?
-        
-        // We will store it in `matchResultData` object (as we did in code above).
-        // AND we will change `MainContent.tsx` to pass `matchResultData` to `handleInterviewComplete`?
-        // No, `MainContent` passes the handler.
-        
-        // We will access `coreSetters.setMatchResultData` to get the previous value? No.
-        
-        // Okay, let's look at `useGameState.ts`. It calls `matchLogic.handleInterviewComplete`.
-        // It has access to `core.matchResultData`.
-        // We can modify `useGameState.ts` to pass the trophy info!
-        
-        // BUT I can only edit `useMatchLogic.ts` here in this block.
-        // `useMatchLogic` doesn't know about `core.matchResultData` value.
-        
-        // RE-STRATEGY:
-        // In `handleMatchFinish`, we set `seasonChampion` in `gameState` BUT we modify `MainContent.tsx` to ONLY show the modal if `currentView === 'home'`.
-        // This is the easiest UI fix. If we are in 'interview' or 'match_result', we don't show it.
-        // When we navigate to 'home', it shows.
-        
-        // Let's look at MainContent.tsx again.
-        // `{gameState.seasonChampion && (<ChampionCelebrationModal ... />)}`
-        // It's rendered at the top level.
-        // I will add a condition there in `MainContent.tsx`: `currentView === 'home' && gameState.seasonChampion`.
-        
         newGameState.teams = newGameState.teams.map(t => t.id === myTeam.id ? myTeam : t);
         setGameState(newGameState);
         navigation.navigateTo('home');
         
-        // We delay clearing match result data slightly to allow animations? No.
         coreSetters.setMatchResultData(null);
     };
 

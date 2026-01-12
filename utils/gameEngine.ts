@@ -1,5 +1,4 @@
 
-
 import { Team, Player, Fixture, MatchEvent, MatchStats, Position, Message, TransferRecord, NewsItem, SeasonSummary, TransferImpact, IncomingOffer, IndividualTrainingType, ManagerProfile, TrainingConfig, TrainingType, TrainingIntensity } from '../types';
 import { generateId, generatePlayer, INJURY_TYPES, RIVALRIES, GAME_CALENDAR } from '../constants';
 import { FAN_NAMES, DERBY_TWEETS_WIN, DERBY_TWEETS_LOSS, FAN_TWEETS_WIN, FAN_TWEETS_LOSS, FAN_TWEETS_DRAW } from '../data/tweetPool';
@@ -376,21 +375,108 @@ export const resetForNewSeason = (teams: Team[]): Team[] => {
  */
 export const generateAiOffersForUser = (myTeam: Team, date: string): IncomingOffer[] => {
     if (!isTransferWindowOpen(date)) return [];
-    if (Math.random() > 0.1) return [];
-
-    const eligiblePlayers = myTeam.players.filter(p => p.value > 0);
-    if (eligiblePlayers.length === 0) return [];
     
-    const player = eligiblePlayers[Math.floor(Math.random() * eligiblePlayers.length)];
-    const buyingTeamNames = ['Aslanlar SK', 'Kartallar FK', 'Kanaryalar SK', 'Kurtlarspor', 'Panterler İdman Yurdu'];
-    const fromTeamName = buyingTeamNames[Math.floor(Math.random() * buyingTeamNames.length)];
+    // 1. Identify Target Players
+    // Priority: Listed Players (Transfer Listed or Loan Listed)
+    // Secondary: Random scouting
+    
+    const listedPlayers = myTeam.players.filter(p => p.transferListed || p.loanListed);
+    const unlistedPlayers = myTeam.players.filter(p => !p.transferListed && !p.loanListed && p.value > 0);
+    
+    let targetPlayer: Player | null = null;
+    let isForcedLoan = false;
+    let isForcedTransfer = false;
 
-    return [{
-        id: generateId(),
-        playerId: player.id,
-        playerName: player.name,
-        fromTeamName,
-        amount: Number((player.value * (0.85 + Math.random() * 0.4)).toFixed(1)),
-        date
-    }];
+    // High chance to pick from listed players if any
+    if (listedPlayers.length > 0 && Math.random() < 0.6) {
+        targetPlayer = listedPlayers[Math.floor(Math.random() * listedPlayers.length)];
+        
+        // Determine type based on listing status
+        if (targetPlayer.loanListed && targetPlayer.transferListed) {
+            // Both listed: 50/50 chance
+            if(Math.random() < 0.5) isForcedLoan = true; else isForcedTransfer = true;
+        } else if (targetPlayer.loanListed) {
+            isForcedLoan = true;
+        } else {
+            isForcedTransfer = true;
+        }
+    } else if (unlistedPlayers.length > 0 && Math.random() < 0.15) {
+         // Random scout offer (low chance)
+         targetPlayer = unlistedPlayers[Math.floor(Math.random() * unlistedPlayers.length)];
+    }
+
+    if (!targetPlayer) return [];
+    
+    // --- DETERMINE OFFER TYPE ---
+    // If forced via listing, use that. Otherwise use squad status logic.
+    
+    let isLoanOffer = false;
+    
+    if (isForcedLoan) {
+        isLoanOffer = true;
+    } else if (isForcedTransfer) {
+        isLoanOffer = false;
+    } else {
+        // Fallback to random logic based on squad status
+        const squadStatus = targetPlayer.squadStatus || '';
+        const isImportant = ['STAR', 'IMPORTANT', 'FIRST_XI'].includes(squadStatus);
+        const isExpendable = ['ROTATION', 'IMPACT', 'JOKER', 'SURPLUS', 'BACKUP'].includes(squadStatus) || !squadStatus;
+        
+        let loanProbability = 0;
+        if (isImportant) {
+            loanProbability = 0.02; // Very rare for stars
+        } else if (isExpendable) {
+            loanProbability = 0.40; // 40% chance for rotation players
+        }
+        isLoanOffer = Math.random() < loanProbability;
+    }
+
+    const buyingTeamNames = ['Aslanlar SK', 'Kartallar FK', 'Kanaryalar SK', 'Kurtlarspor', 'Panterler İdman Yurdu', 'Ankara Gücü', 'İzmir İdman Yurdu', 'Adana Şimşekspor', 'Bozkurtlar FC', 'Yunuslar SK', 'Timsahlar SK'];
+    const fromTeamName = buyingTeamNames[Math.floor(Math.random() * buyingTeamNames.length)];
+    const id = generateId();
+
+    if (isLoanOffer) {
+        // Loan Offer Details
+        // If loan listed, AI makes slightly better offers (higher wage contribution) to attract deal
+        const baseWageContrib = targetPlayer.loanListed ? 70 : 40;
+        const wageContribution = Math.min(100, Math.floor(Math.random() * (100 - baseWageContrib)) + baseWageContrib); 
+        
+        const monthlyFee = Math.max(0.01, targetPlayer.value * (Math.random() * 0.05)); // Small rental fee
+
+        return [{
+            id,
+            playerId: targetPlayer.id,
+            playerName: targetPlayer.name,
+            fromTeamName,
+            amount: 0, // No transfer fee for loan
+            date,
+            type: 'LOAN',
+            loanDetails: {
+                wageContribution,
+                duration: 'Sezon Sonu',
+                monthlyFee: parseFloat(monthlyFee.toFixed(3))
+            }
+        }];
+    } else {
+        // Transfer Offer
+        // If transfer listed, might offer slightly below value (bargain hunting)
+        // If scouted (unlisted), might offer value or slightly above
+        
+        let offerRatio = 1.0;
+        if (targetPlayer.transferListed) {
+            offerRatio = 0.8 + Math.random() * 0.3; // 0.8 to 1.1
+        } else {
+            offerRatio = 0.9 + Math.random() * 0.4; // 0.9 to 1.3
+        }
+        
+        return [{
+            id,
+            playerId: targetPlayer.id,
+            playerName: targetPlayer.name,
+            fromTeamName,
+            amount: Number((targetPlayer.value * offerRatio).toFixed(1)),
+            date,
+            type: 'TRANSFER'
+        }];
+    }
 };

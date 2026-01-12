@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Team, Fixture, Player } from '../types';
 import { Trophy, Globe, Shield, Star, Calendar, Eye, TrendingUp, BarChart, Clock, Swords, List, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getFormattedDate } from '../utils/calendarAndFixtures';
@@ -15,6 +15,7 @@ interface LeagueCupViewProps {
     onFixtureClick: (f: Fixture) => void;
     myTeam: Team;
     onPlayerClick: (p: Player) => void; 
+    initialCompetitionId?: string | null; // ADDED
 }
 
 const COMPETITIONS = [
@@ -68,10 +69,17 @@ const COMPETITIONS = [
     }
 ];
 
-const LeagueCupView: React.FC<LeagueCupViewProps> = ({ teams, fixtures, myTeamId, currentWeek, currentDate, myTeam, onTeamClick, onPlayerClick }) => {
+const LeagueCupView: React.FC<LeagueCupViewProps> = ({ teams, fixtures, myTeamId, currentWeek, currentDate, myTeam, onTeamClick, onPlayerClick, initialCompetitionId }) => {
     const [selectedCompId, setSelectedCompId] = useState<string | null>(null);
     const [showOtherCompetitions, setShowOtherCompetitions] = useState(false);
     
+    // Auto-open specific competition if passed via props (from player stats click)
+    useEffect(() => {
+        if (initialCompetitionId) {
+            setSelectedCompId(initialCompetitionId);
+        }
+    }, [initialCompetitionId]);
+
     const getDaysRemaining = (targetDate: Date) => {
         const today = new Date(currentDate);
         const diffTime = targetDate.getTime() - today.getTime();

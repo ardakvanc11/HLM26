@@ -13,6 +13,7 @@ interface TransferOfferNegotiationViewProps {
     onFinish: (success: boolean, agreedFee: number) => void;
     mode?: 'BUY' | 'SELL'; // NEW: Negotiation Mode
     initialOfferAmount?: number; // NEW: For Sell Mode (AI's starting offer)
+    initialOfferType?: 'TRANSFER' | 'LOAN'; // NEW: Initial context (especially for loan offers)
 }
 
 const SELL_CLAUSES = [
@@ -44,16 +45,17 @@ const LOAN_OPTIONS = [
     { id: 'AGAINST_PARENT', label: 'Kiralayan Kulübe Karşı Oynayabilir', type: 'bool' }
 ];
 
-const TransferOfferNegotiationView: React.FC<TransferOfferNegotiationViewProps> = ({ player, targetTeam, myTeamBudget, myTeam, onClose, onFinish, mode = 'BUY', initialOfferAmount = 0 }) => {
+const TransferOfferNegotiationView: React.FC<TransferOfferNegotiationViewProps> = ({ player, targetTeam, myTeamBudget, myTeam, onClose, onFinish, mode = 'BUY', initialOfferAmount = 0, initialOfferType = 'TRANSFER' }) => {
     // State
-    const [offerType, setOfferType] = useState<'TRANSFER' | 'LOAN'>('TRANSFER');
+    const [offerType, setOfferType] = useState<'TRANSFER' | 'LOAN'>(initialOfferType);
     
     // Transfer States
     const [fee, setFee] = useState<number>(mode === 'SELL' ? initialOfferAmount : player.value);
     const [activeClauses, setActiveClauses] = useState<Record<string, number | string>>({});
     
     // Loan States
-    const [loanMonthlyFee, setLoanMonthlyFee] = useState<number>(0);
+    // If incoming loan offer (Sell Mode + Loan Type), initialOfferAmount is passed as monthly fee from MainContent logic
+    const [loanMonthlyFee, setLoanMonthlyFee] = useState<number>(mode === 'SELL' && initialOfferType === 'LOAN' ? initialOfferAmount : 0);
     const [loanWageContribution, setLoanWageContribution] = useState<number>(100); // 0-100%
     const [loanDuration, setLoanDuration] = useState<string>('Sezon Sonu');
     const [activeLoanConditions, setActiveLoanConditions] = useState<Record<string, string | number | boolean>>({});
@@ -69,9 +71,13 @@ const TransferOfferNegotiationView: React.FC<TransferOfferNegotiationViewProps> 
     // Initial message for Sell Mode
     useEffect(() => {
         if (mode === 'SELL') {
-            setFeedback(`Karşı kulüp ilk teklif olarak ${initialOfferAmount.toFixed(1)} M€ önerdi.`);
+            if (initialOfferType === 'LOAN') {
+                setFeedback(`Karşı kulüp kiralama için aylık ${initialOfferAmount.toFixed(3)} M€ teklif ediyor.`);
+            } else {
+                setFeedback(`Karşı kulüp ilk teklif olarak ${initialOfferAmount.toFixed(1)} M€ önerdi.`);
+            }
         }
-    }, [mode, initialOfferAmount]);
+    }, [mode, initialOfferAmount, initialOfferType]);
 
     // Handlers
     const handleFeeChange = (val: number) => {
@@ -239,22 +245,27 @@ const TransferOfferNegotiationView: React.FC<TransferOfferNegotiationViewProps> 
 
         } else {
             // --- LOAN LOGIC (UPDATED) ---
-            
-            // STRICT RULE: SADECE STATÜYE GÖRE ENGELLEME
-            // Güç (Skill) kontrolü kaldırıldı. Sadece anlaşılan forma süresi (Squad Status) önemli.
-            
+
+            // 1. OYUNCU İRADESİ: Mutlu ve Yüksek Statüdeki Oyuncu Kiralık Gitmeyi Reddeder
+            const isHappy = player.morale > 70;
+            const isHighStatus = ['STAR', 'IMPORTANT'].includes(player.squadStatus || '');
+
+            if (isHappy && isHighStatus) {
+                setStatus('REJECTED');
+                setHasBeenRejected(true);
+                setFeedback(`OYUNCU REDDETTİ! ${player.name}: "Takımda mutluyum ve önemli bir rolüm var. Kiralık olarak başka bir yere gitmek istemiyorum."`);
+                return;
+            }
+
+            // 2. KULÜP ENGELİ: İlk 11 Oyuncuları AI tarafından kolay kolay verilmez (BUY Mode)
             const nonLoanableStatuses = ['STAR', 'IMPORTANT', 'FIRST_XI'];
-            const playerStatus = player.squadStatus; // Anlaşılan forma süresi
-            
-            // Eğer statüsü Yıldız, Önemli veya İlk 11 ise kiralanamaz.
-            // Diğerleri (Joker, Rotasyon, Hamle, İhtiyaç Yok) kiralanabilir.
+            const playerStatus = player.squadStatus; 
             const isImportantStatus = playerStatus && nonLoanableStatuses.includes(playerStatus);
 
             if (mode === 'BUY' && isImportantStatus) {
                 setStatus('REJECTED');
                 setHasBeenRejected(true);
                 
-                // Türkçeleştirilmiş Statü Adı
                 const statusName = 
                     playerStatus === 'STAR' ? 'Yıldız Oyuncu' : 
                     playerStatus === 'IMPORTANT' ? 'Önemli Oyuncu' : 
@@ -264,22 +275,17 @@ const TransferOfferNegotiationView: React.FC<TransferOfferNegotiationViewProps> 
                 return;
             }
 
-            // Eğer yukarıdaki engeli geçerse (yani Joker, Rotasyon vb. ise) pazarlık başlar.
-            // ... (Rest of Loan Logic remains same as it was primarily Buy focused, Sell Loan Logic handled implicitly or not used heavily yet)
-            
-            // 1. Base Reluctance
+            // 3. Normal Pazarlık (Eğer engelleri aşarsa)
             let reluctance = 0;
             
-            // Oyuncunun gücüne göre hafif bir direnç ekle (Yüksek güçlü oyuncular için biraz daha fazla ücret istenebilir)
-            reluctance += (player.skill * 0.5); // Örn: 80 güç -> 40 direnç puanı
+            // Oyuncunun gücüne göre hafif bir direnç ekle
+            reluctance += (player.skill * 0.5); 
 
-            // 2. Offer Value
             // Wage contribution is huge factor. 
-            // 100% wage contrib reduces reluctance massively.
-            reluctance -= (loanWageContribution * 0.8); // 100% -> -80 reluctance (Güçlü oyuncuyu dengeler)
+            reluctance -= (loanWageContribution * 0.8); 
             
             // Monthly Fee reduces reluctance
-            reluctance -= (loanMonthlyFee * 50); // 0.5M fee -> -25 reluctance
+            reluctance -= (loanMonthlyFee * 50);
 
             // Mandatory Buy is very attractive
             if (activeLoanConditions['MANDATORY_BUY']) {
@@ -319,7 +325,7 @@ const TransferOfferNegotiationView: React.FC<TransferOfferNegotiationViewProps> 
 
     const handleFinalize = () => {
         if (status === 'ACCEPTED') {
-            onFinish(true, offerType === 'TRANSFER' ? fee : 0); // Logic handles cost separately
+            onFinish(true, offerType === 'TRANSFER' ? fee : loanMonthlyFee); 
         }
     };
 
@@ -477,8 +483,8 @@ const TransferOfferNegotiationView: React.FC<TransferOfferNegotiationViewProps> 
                         {mode === 'BUY' ? ` için ${targetTeam.name}'e teklif yapın.` : ` için ${targetTeam.name} ile görüşün.`}
                     </h1>
                     
-                    {/* Mode Switcher only in Buy Mode (Sell mode is usually fixed to Transfer) */}
-                    {mode === 'BUY' && (
+                    {/* Mode Switcher only in Buy Mode (Sell mode is usually fixed to Transfer unless initialized as Loan) */}
+                    {(mode === 'BUY' || initialOfferType === 'LOAN') && (
                         <div className="flex bg-[#262c33] rounded-lg p-1">
                             <button 
                                 onClick={() => { setOfferType('TRANSFER'); setStatus('OPEN'); setFeedback(null); }}

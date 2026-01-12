@@ -11,7 +11,8 @@ const FixturesView = ({
     currentWeek, 
     onTeamClick, 
     onFixtureClick,
-    onFixtureInfoClick 
+    onFixtureInfoClick,
+    onCompetitionClick // NEW PROP
 }: { 
     fixtures: Fixture[], 
     teams: Team[], 
@@ -19,7 +20,8 @@ const FixturesView = ({
     currentWeek: number, 
     onTeamClick: (id: string) => void, 
     onFixtureClick: (f: Fixture) => void,
-    onFixtureInfoClick: (f: Fixture) => void 
+    onFixtureInfoClick: (f: Fixture) => void,
+    onCompetitionClick: (compId: string) => void // Type definition
 }) => {
     
     const myFixtures = fixtures
@@ -157,10 +159,22 @@ const FixturesView = ({
                                                 {getFullDate(f.date)}
                                             </div>
                                             <div className="col-span-1 text-sm font-mono text-slate-400">20:00</div>
-                                            <div className="col-span-2 flex items-center gap-2 text-slate-400 text-sm">
+                                            
+                                            {/* Competition Name - CLICKABLE */}
+                                            <div 
+                                                className="col-span-2 flex items-center gap-2 text-slate-400 text-sm cursor-pointer group/comp hover:bg-white/5 p-1 rounded -ml-1 transition-colors"
+                                                onClick={(e) => { 
+                                                    e.stopPropagation(); 
+                                                    onCompetitionClick(f.competitionId || 'LEAGUE'); 
+                                                }}
+                                                title="Turnuva detaylarını görüntüle"
+                                            >
                                                 <CompIcon size={14} className={compDetails.color} />
-                                                <span className={`truncate font-bold ${isSelected ? 'text-white' : ''}`}>{compDetails.name}</span>
+                                                <span className={`truncate font-bold group-hover/comp:text-white group-hover/comp:underline transition-colors ${isSelected ? 'text-white' : ''}`}>
+                                                    {compDetails.name}
+                                                </span>
                                             </div>
+
                                             <div 
                                                 className="col-span-2 flex items-center gap-3 cursor-pointer group hover:bg-white/5 p-1 rounded -ml-1 transition-colors"
                                                 onClick={(e) => { e.stopPropagation(); if(opponent) onTeamClick(opponent.id); }}

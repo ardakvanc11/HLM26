@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Player, Team, IncomingOffer } from '../types';
-import { Lock, ChevronLeft, ChevronRight, ArrowUpDown, Filter, Search, X, Check, AlertCircle, Plane, Coins, Maximize2, Minimize2, Unlock, List, Wallet, Briefcase, Mail, Handshake } from 'lucide-react';
+import { Lock, ChevronLeft, ChevronRight, ArrowUpDown, Filter, Search, X, Check, AlertCircle, Plane, Coins, Maximize2, Minimize2, Unlock, List, Wallet, Briefcase, Mail, Handshake, ArrowRight } from 'lucide-react';
 import PlayerFace from '../components/shared/PlayerFace';
 import { calculatePlayerWage } from '../utils/teamCalculations';
 
@@ -28,6 +28,9 @@ const TransferView: React.FC<TransferViewProps> = ({ transferList, team, budget,
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
     const [isOffersModalOpen, setIsOffersModalOpen] = useState(false);
+    
+    // Allow viewing list even if window is closed
+    const [isListReviewMode, setIsListReviewMode] = useState(false);
 
     // Filters
     const [filters, setFilters] = useState({
@@ -36,9 +39,6 @@ const TransferView: React.FC<TransferViewProps> = ({ transferList, team, budget,
         position: 'ALL',
         onlyAffordable: false
     });
-
-    if (!isWindowOpen && !isExpanded) {
-    }
 
     // --- LOGIC ---
 
@@ -156,15 +156,17 @@ const TransferView: React.FC<TransferViewProps> = ({ transferList, team, budget,
                                 incomingOffers.map(offer => {
                                     // Find player object for click handler
                                     const playerObj = team.players.find(p => p.id === offer.playerId);
+                                    const isLoan = offer.type === 'LOAN';
                                     
                                     return (
-                                        <div key={offer.id} className="bg-slate-700 border border-slate-600 rounded-lg p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+                                        <div key={offer.id} className={`border rounded-lg p-4 flex flex-col md:flex-row items-center justify-between gap-4 ${isLoan ? 'bg-slate-700/50 border-cyan-700/50' : 'bg-slate-700 border-slate-600'}`}>
                                             <div className="flex items-center gap-4">
-                                                <div className="bg-slate-800 p-2 rounded-full border border-slate-500">
-                                                    <Briefcase size={24} className="text-blue-400"/>
+                                                <div className={`p-2 rounded-full border ${isLoan ? 'bg-cyan-900/30 border-cyan-600 text-cyan-400' : 'bg-slate-800 border-slate-500 text-blue-400'}`}>
+                                                    {isLoan ? <ArrowRight size={24}/> : <Briefcase size={24}/>}
                                                 </div>
                                                 <div>
                                                     <div className="text-sm font-bold text-slate-300">
+                                                        {isLoan && <span className="text-[10px] bg-cyan-600 text-white px-2 py-0.5 rounded font-black uppercase mr-2 tracking-wider">KİRALIK</span>}
                                                         Oyuncu: 
                                                         <span 
                                                             className={`text-white text-lg ml-1 ${playerObj ? 'cursor-pointer hover:text-blue-400 hover:underline transition-colors' : ''}`}
@@ -180,13 +182,23 @@ const TransferView: React.FC<TransferViewProps> = ({ transferList, team, budget,
                                                         </span>
                                                     </div>
                                                     <div className="text-xs text-slate-400 mt-1">Talip Olan: <span className="font-bold text-white">{offer.fromTeamName}</span></div>
+                                                    {isLoan && offer.loanDetails && (
+                                                        <div className="mt-2 text-xs text-cyan-200 bg-cyan-900/20 px-2 py-1 rounded inline-block border border-cyan-800">
+                                                            Maaş Katkısı: <span className="font-bold text-white">%{offer.loanDetails.wageContribution}</span> • Süre: <span className="font-bold text-white">{offer.loanDetails.duration}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                             
                                             <div className="flex items-center gap-6">
                                                 <div className="text-right">
-                                                    <div className="text-xs text-slate-400 uppercase font-bold">Teklif Bedeli</div>
-                                                    <div className="text-2xl font-black font-mono text-green-400">{offer.amount.toFixed(1)} M€</div>
+                                                    <div className="text-xs text-slate-400 uppercase font-bold">{isLoan ? 'Aylık Kiralama' : 'Bonservis Bedeli'}</div>
+                                                    <div className="text-2xl font-black font-mono text-green-400">
+                                                        {isLoan && offer.loanDetails 
+                                                            ? formatLoanFee(offer.loanDetails.monthlyFee) 
+                                                            : `${offer.amount.toFixed(1)} M€`
+                                                        }
+                                                    </div>
                                                 </div>
                                                 <div className="flex flex-col gap-2">
                                                     <div className="flex gap-2">
@@ -207,13 +219,13 @@ const TransferView: React.FC<TransferViewProps> = ({ transferList, team, budget,
                 </div>
             )}
 
-            {!isWindowOpen && (
+            {!isWindowOpen && !isListReviewMode && (
                 <div className="absolute inset-0 z-30 bg-slate-900/90 flex flex-col items-center justify-center text-center p-8 backdrop-blur-sm pointer-events-none">
                     <Lock size={64} className="text-slate-600 mb-4"/>
                     <h2 className="text-2xl font-bold text-white mb-2">Transfer Dönemi Kapalı</h2>
                     <p className="text-slate-400">Transfer sezonu dışında oyuncu alıp satamazsınız.</p>
                     <button 
-                        onClick={() => {}} 
+                        onClick={() => setIsListReviewMode(true)} 
                         className="pointer-events-auto mt-6 bg-slate-700 hover:bg-slate-600 text-white px-6 py-2 rounded-lg font-bold transition"
                     >
                         Listeyi İncele
@@ -489,5 +501,11 @@ const TransferView: React.FC<TransferViewProps> = ({ transferList, team, budget,
         </div>
     );
 };
+
+// Helper for formatting small loan fees
+const formatLoanFee = (fee: number) => {
+    if (fee < 1) return `${(fee * 1000).toFixed(0)} Bin €`;
+    return `${fee.toFixed(2)} M€`;
+}
 
 export default TransferView;

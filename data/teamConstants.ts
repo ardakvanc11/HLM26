@@ -909,6 +909,40 @@ export const TEAM_TEMPLATES = [
     }
 ];
 
+export const EUROPEAN_TEAMS = [
+    { name: 'Gorilla United', country: 'İngiltere', targetStrength: 90, colors: ['bg-red-800', 'text-black'] },
+    { name: 'Gorilla City', country: 'İngiltere', targetStrength: 87, colors: ['bg-cyan-400', 'text-white'] },
+    { name: 'Kaplanspor SK', country: 'İspanya', targetStrength: 89, colors: ['bg-orange-500', 'text-black'] },
+    { name: 'Aslanspor SK', country: 'İspanya', targetStrength: 90, colors: ['bg-yellow-400', 'text-red-700'] },
+    { name: 'Götten Tothennam', country: 'İngiltere', targetStrength: 86, colors: ['bg-white', 'text-blue-900'] },
+    { name: 'Shefield Karakoçan', country: 'İngiltere', targetStrength: 83, colors: ['bg-red-600', 'text-white'] },
+    { name: 'El-Katir', country: 'Arabistan', targetStrength: 83, colors: ['bg-green-700', 'text-white'] },
+    { name: 'Kartalcelona', country: 'İspanya', targetStrength: 85, colors: ['bg-blue-800', 'text-red-600'] },
+    { name: 'Yılanspor FK', country: 'İtalya', targetStrength: 86, colors: ['bg-black', 'text-blue-600'] },
+    { name: 'Tezkeresport', country: 'İngiltere', targetStrength: 78, colors: ['bg-blue-500', 'text-white'] },
+    { name: 'Ejderspor', country: 'İtalya', targetStrength: 83, colors: ['bg-red-700', 'text-yellow-400'] },
+    { name: 'Timsahboğanspor', country: 'Almanya', targetStrength: 77, colors: ['bg-green-600', 'text-white'] },
+    { name: 'Pandaspor', country: 'Almanya', targetStrength: 76, colors: ['bg-black', 'text-white'] },
+    { name: 'Gergedanspor FK', country: 'Fransa', targetStrength: 81, colors: ['bg-gray-400', 'text-blue-900'] },
+    { name: 'Zirafaspor', country: 'İsrail', targetStrength: 76, colors: ['bg-yellow-500', 'text-blue-500'] },
+    { name: 'Orangutanboğanspor', country: 'Portekiz', targetStrength: 79, colors: ['bg-orange-600', 'text-green-700'] },
+    { name: 'Kediboğanspor', country: 'İspanya', targetStrength: 74, colors: ['bg-red-500', 'text-blue-500'] },
+    { name: 'Boğaboğanspor', country: 'Fransa', targetStrength: 80, colors: ['bg-blue-800', 'text-red-500'] },
+    { name: 'Domuzboğanspor', country: 'İtalya', targetStrength: 77, colors: ['bg-pink-400', 'text-black'] },
+    { name: 'Octopusspor', country: 'Fransa', targetStrength: 76, colors: ['bg-purple-600', 'text-white'] },
+    { name: 'Deveboğanspor', country: 'Arabistan', targetStrength: 75, colors: ['bg-yellow-200', 'text-black'] },
+    { name: 'Tilkiboğanspor', country: 'Fransa', targetStrength: 78, colors: ['bg-orange-500', 'text-white'] },
+    { name: 'Çitaboğanspor', country: 'Arabistan', targetStrength: 79, colors: ['bg-yellow-400', 'text-black'] },
+    { name: 'Saqr United', country: 'Arabistan', targetStrength: 73, colors: ['bg-green-600', 'text-white'] },
+    { name: 'Baykuşboğanspor', country: 'Almanya', targetStrength: 74, colors: ['bg-slate-700', 'text-white'] },
+    { name: 'Alageyikspor', country: 'Almanya', targetStrength: 76, colors: ['bg-green-800', 'text-white'] },
+    { name: 'Jaguaryiyenspor', country: 'Portekiz', targetStrength: 82, colors: ['bg-green-500', 'text-red-600'] },
+    { name: 'Pirhanakundakçısıspor', country: 'Rusya', targetStrength: 80, colors: ['bg-blue-700', 'text-white'] },
+    { name: 'Pumadeğleyenspor', country: 'Rusya', targetStrength: 78, colors: ['bg-red-800', 'text-white'] },
+    { name: 'Köpekboğanspor', country: 'Hollanda', targetStrength: 76, colors: ['bg-orange-500', 'text-white'] },
+    { name: 'Keçiboğanspor', country: 'Belçika', targetStrength: 79, colors: ['bg-red-600', 'text-black'] }
+];
+
 export const RIVALRIES = [
     ['Ayıboğanspor SK', 'Kedispor'],
     ['Kedispor', 'Eşşekboğanspor FK'],
@@ -946,12 +980,12 @@ const generateStaff = (reputation: number): ClubStaff[] => {
     });
 };
 
+// EXCLUDED TEAMS FOR THE INITIAL SEASON
+const INITIAL_CUP_EXCLUDED_TEAMS = ['Hamsispor', 'Küheylanspor', 'Baykuşspor', 'Keçispor'];
+
 export const initializeTeams = (): Team[] => {
-    // Determine league assignment based on index
-    // First 18 teams -> Super League ('LEAGUE')
-    // Next 18 teams -> 1. Lig ('LEAGUE_1')
-    
-    return TEAM_TEMPLATES.map((tmpl, index) => {
+    // 1. Create Turkish Teams
+    const turkishTeams = TEAM_TEMPLATES.map((tmpl, index) => {
         const teamId = generateId();
         const leagueId = index < 18 ? 'LEAGUE' : 'LEAGUE_1';
         
@@ -969,6 +1003,7 @@ export const initializeTeams = (): Team[] => {
             return p;
         }
         
+        // ... (Player creation logic same as before, simplified for brevity but functional)
         const gk = createPlayer(Position.GK, tmpl.targetStrength);
         const slb = createPlayer(Position.SLB, tmpl.targetStrength);
         const stp1 = createPlayer(Position.STP, tmpl.targetStrength);
@@ -1002,19 +1037,16 @@ export const initializeTeams = (): Team[] => {
         const totalValue = players.reduce((sum, p) => sum + p.value, 0);
         const estimatedWages = totalValue * 0.005 * 52; 
 
-        // Generate Sponsors based on Reputation
         const mainSponsor = getRandomSponsorForReputation(tmpl.baseReputation, 'main');
         const stadiumSponsor = getRandomSponsorForReputation(tmpl.baseReputation, 'stadium');
         const sleeveSponsor = getRandomSponsorForReputation(tmpl.baseReputation, 'sleeve');
 
-        // Generate Board & Staff
-        // Use fixed president from template if provided
-        // @ts-ignore - president is optional in template type but present in constant
+        // @ts-ignore
         const presidentName = tmpl.president || `${FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)]} ${LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)]}`;
         
-        // Facility Levels based on target strength (roughly)
         const facLevel = Math.max(1, Math.min(20, Math.floor(tmpl.targetStrength / 5)));
-        
+        const isCupBanned = INITIAL_CUP_EXCLUDED_TEAMS.includes(tmpl.name);
+
         return {
             id: teamId,
             leagueId: leagueId,
@@ -1038,7 +1070,7 @@ export const initializeTeams = (): Team[] => {
             wageBudget: Number((estimatedWages * 1.1).toFixed(1)), 
             players,
             reputation: tmpl.baseReputation, 
-            initialReputation: tmpl.baseReputation, // Set initial reputation
+            initialReputation: tmpl.baseReputation, 
             leagueHistory: tmpl.leagueHistory || [], 
             
             sponsors: {
@@ -1047,13 +1079,12 @@ export const initializeTeams = (): Team[] => {
                 sleeve: { name: sleeveSponsor.name, yearlyValue: sleeveSponsor.value, expiryYear: 2026 }
             },
 
-            // Management Data
             board: {
                 presidentName,
                 expectations: tmpl.targetStrength > 80 ? 'Şampiyonluk' : tmpl.targetStrength > 75 ? 'Üst Sıralar' : 'Ligde Kalmak',
-                patience: Math.floor(Math.random() * 10) + 10 // 10-20
+                patience: Math.floor(Math.random() * 10) + 10 
             },
-            boardRequests: { // NEW
+            boardRequests: { 
                 stadiumBuilt: false,
                 trainingUpgradesCount: 0,
                 youthUpgradesCount: 0,
@@ -1065,7 +1096,7 @@ export const initializeTeams = (): Team[] => {
                 trainingCenterName: getFacilityName(tmpl.name, 'Training'),
                 trainingLevel: facLevel,
                 youthAcademyName: getFacilityName(tmpl.name, 'Youth'),
-                youthLevel: Math.max(1, facLevel - 2), // Youth slightly worse usually
+                youthLevel: Math.max(1, facLevel - 2), 
                 corporateLevel: facLevel
             },
 
@@ -1111,7 +1142,103 @@ export const initializeTeams = (): Team[] => {
             strength: tmpl.targetStrength, 
             rawStrength: rawStrength,      
             strengthDelta: strengthDelta,  
-            morale: 70 
+            morale: 70,
+            cupBan: isCupBanned 
         };
     });
+
+    // 2. Create European Teams (Non-Playable)
+    const europeanTeams = EUROPEAN_TEAMS.map((tmpl) => {
+        const teamId = generateId();
+        const leagueId = 'EUROPE_LEAGUE';
+        
+        // Similar simplified generation for Europe
+        const createPlayer = (pos: Position, strength: number) => {
+            const p = generatePlayer(pos, strength, teamId, true, undefined, tmpl.name);
+            p.nationality = tmpl.country === 'İngiltere' ? 'İngiltere' : tmpl.country === 'İspanya' ? 'İspanya' : tmpl.country === 'İtalya' ? 'İtalya' : tmpl.country === 'Almanya' ? 'Almanya' : tmpl.country === 'Fransa' ? 'Fransa' : 'Yabancı';
+            return p;
+        }
+
+        const gk = createPlayer(Position.GK, tmpl.targetStrength);
+        const slb = createPlayer(Position.SLB, tmpl.targetStrength);
+        const stp1 = createPlayer(Position.STP, tmpl.targetStrength);
+        const stp2 = createPlayer(Position.STP, tmpl.targetStrength);
+        const sgb = createPlayer(Position.SGB, tmpl.targetStrength);
+        const slk = createPlayer(Position.SLK, tmpl.targetStrength);
+        const os1 = createPlayer(Position.OS, tmpl.targetStrength);
+        const os2 = createPlayer(Position.OS, tmpl.targetStrength);
+        const sgk = createPlayer(Position.SGK, tmpl.targetStrength);
+        const snt1 = createPlayer(Position.SNT, tmpl.targetStrength);
+        const snt2 = createPlayer(Position.SNT, tmpl.targetStrength);
+        
+        // Add minimal subs
+        const reserves = Array.from({length: 7}, () => createPlayer(Position.OS, tmpl.targetStrength - 5));
+
+        const players = [gk, slb, stp1, stp2, sgb, slk, os1, os2, sgk, snt1, snt2, ...reserves];
+        const rawStrength = calculateRawTeamStrength(players);
+        
+        return {
+            id: teamId,
+            leagueId: leagueId,
+            name: tmpl.name,
+            colors: tmpl.colors as [string, string],
+            championships: 0, domesticCups: 0, superCups: 0, europeanCups: 0,
+            fanBase: 10000000,
+            stadiumName: `${tmpl.name} Arena`,
+            stadiumCapacity: 50000,
+            budget: 100,
+            initialDebt: 0,
+            wageBudget: 100,
+            players,
+            reputation: 4.5,
+            initialReputation: 4.5,
+            leagueHistory: [],
+            sponsors: { main: { name: 'EURO', yearlyValue: 20, expiryYear: 2030 }, stadium: { name: 'Arena', yearlyValue: 10, expiryYear: 2030 }, sleeve: { name: 'Sleeve', yearlyValue: 5, expiryYear: 2030 } },
+            board: { presidentName: 'CEO', expectations: 'Avrupa', patience: 20 },
+            boardRequests: { stadiumBuilt: true, trainingUpgradesCount: 5, youthUpgradesCount: 5, trainingLastRep: 5, youthLastRep: 5 },
+            staff: generateStaff(4.5),
+            facilities: { trainingCenterName: 'Elite Center', trainingLevel: 18, youthAcademyName: 'Elite Youth', youthLevel: 18, corporateLevel: 18 },
+            financialRecords: { income: {} as any, expense: {} as any },
+            transferHistory: [],
+            formation: '4-3-3',
+            mentality: Mentality.ATTACKING,
+            passing: PassingStyle.STANDARD,
+            tempo: Tempo.HIGH,
+            width: Width.STANDARD,
+            attackingTransition: AttackingTransition.STANDARD,
+            creative: CreativeFreedom.CREATIVE,
+            setPiecePlay: SetPiecePlay.TRY_SCORE,
+            playStrategy: PlayStrategy.STANDARD,
+            goalKickType: GoalKickType.SHORT,
+            gkDistributionTarget: GKDistributionTarget.CBS,
+            supportRuns: SupportRuns.BALANCED,
+            dribbling: Dribbling.STANDARD,
+            focusArea: FocusArea.STANDARD,
+            passTarget: PassTarget.STANDARD,
+            patience: Patience.STANDARD,
+            longShots: LongShots.STANDARD,
+            crossing: CrossingType.STANDARD,
+            gkDistSpeed: GKDistributionSpeed.STANDARD,
+            pressingLine: PressingLine.HIGH,
+            defLine: DefensiveLine.HIGH,
+            defLineMobility: DefLineMobility.BALANCED,
+            pressIntensity: PressIntensity.HIGH,
+            defensiveTransition: DefensiveTransition.STANDARD,
+            tackling: Tackling.STANDARD,
+            preventCrosses: PreventCrosses.STANDARD,
+            pressFocus: PressingFocus.BALANCED,
+            timeWasting: TimeWasting.RARELY,
+            tactic: TacticStyle.POSSESSION,
+            attackStyle: AttackStyle.MIXED,
+            pressingStyle: PressingStyle.HIGH_PRESS,
+            stats: { played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, points: 0 },
+            strength: tmpl.targetStrength,
+            rawStrength: rawStrength,
+            strengthDelta: tmpl.targetStrength - rawStrength,
+            morale: 80,
+            cupBan: false
+        };
+    });
+
+    return [...turkishTeams, ...europeanTeams];
 };

@@ -106,7 +106,7 @@ const getSpecificSeasonDates = (startYear: number): Date[] => {
     });
 };
 
-export const generateFixtures = (teams: Team[], year: number = 2025): Fixture[] => {
+export const generateFixtures = (teams: Team[], year: number = 2025, competitionId: string = 'LEAGUE'): Fixture[] => {
     const fixtures: Fixture[] = [];
     const teamIds = teams.map(t => t.id);
     const numTeams = teamIds.length;
@@ -160,7 +160,7 @@ export const generateFixtures = (teams: Team[], year: number = 2025): Fixture[] 
                 matchDate.setDate(matchDate.getDate() + 1);
             }
             fix.date = matchDate.toISOString();
-            fix.competitionId = 'LEAGUE'; // Explicitly set competition ID for league matches
+            fix.competitionId = competitionId; // Use the passed competitionId
         });
 
         fixtures.push(...roundFixtures);
@@ -171,32 +171,85 @@ export const generateFixtures = (teams: Team[], year: number = 2025): Fixture[] 
     return fixtures.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 };
 
+// --- NEW EUROPEAN FORMAT GENERATION (CIRCLE METHOD) ---
+// 36 Teams, 8 Matches each. Uses Circle Method to guarantee pairing uniqueness and completeness.
+export const generateEuropeanLeagueFixtures = (teams: Team[], year: number): Fixture[] => {
+    const fixtures: Fixture[] = [];
+    const numTeams = teams.length; // 36
+    
+    if (numTeams % 2 !== 0) {
+        console.warn("Avrupa Ligi için takım sayısı çift olmalı!");
+        return [];
+    }
+
+    // Dates for 8 Rounds (League Phase)
+    const dates = [
+        new Date(year, 8, 24), // Sep 24 (Week 1)
+        new Date(year, 9, 1),  // Oct 1 (Week 2)
+        new Date(year, 9, 22), // Oct 22 (Week 3)
+        new Date(year, 10, 5), // Nov 5 (Week 4)
+        new Date(year, 10, 26),// Nov 26 (Week 5)
+        new Date(year, 11, 10),// Dec 10 (Week 6)
+        new Date(year + 1, 0, 21), // Jan 21 (Week 7)
+        new Date(year + 1, 0, 28)  // Jan 28 (Week 8)
+    ];
+
+    // Indices array for rotation
+    const indices = Array.from({ length: numTeams }, (_, i) => i); // [0, 1, 2 ... 35]
+    
+    // We need 8 rounds. The Circle Method generates N-1 rounds (35 rounds).
+    // We will generate the first 8 rounds from this sequence.
+    for (let round = 0; round < 8; round++) {
+        const roundFixtures: Fixture[] = [];
+        const date = dates[round];
+
+        // Pairing:
+        // Index 0 vs Index N-1
+        // Index 1 vs Index N-2
+        // ...
+        for (let i = 0; i < numTeams / 2; i++) {
+            const idx1 = indices[i];
+            const idx2 = indices[numTeams - 1 - i];
+
+            const t1 = teams[idx1];
+            const t2 = teams[idx2];
+
+            // Alternate Home/Away based on round number and pair index to balance H/A
+            // Round 0: 0, 2, 4... are Home
+            // Round 1: 1, 3, 5... are Home
+            const isT1Home = (i + round) % 2 === 0;
+
+            roundFixtures.push({
+                id: generateId(),
+                week: 201 + round, // Week 201-208 for Europe League Phase
+                date: date.toISOString(),
+                homeTeamId: isT1Home ? t1.id : t2.id,
+                awayTeamId: isT1Home ? t2.id : t1.id,
+                played: false,
+                homeScore: null,
+                awayScore: null,
+                competitionId: 'EUROPE'
+            });
+        }
+
+        fixtures.push(...roundFixtures);
+
+        // Rotate indices for next round (Circle Method)
+        // Keep index 0 fixed, rotate 1...N-1
+        // [0, 1, 2, 3, 4, 5] -> [0, 5, 1, 2, 3, 4]
+        const lastItem = indices.pop()!;
+        indices.splice(1, 0, lastItem);
+    }
+    
+    return fixtures;
+};
+
 // Generates Super Cup Fixtures (Semi-Finals)
 export const generateSuperCupFixtures = (teams: Team[], year: number, isInitialSeason: boolean = false): Fixture[] => {
     const fixtures: Fixture[] = [];
     
     let t1: Team | undefined, t2: Team | undefined, t3: Team | undefined, t4: Team | undefined;
 
-    // Pick a random stadium with capacity > 30,000 for Semi Finals
-    // Note: We need a pool of teams to pick stadium from.
-    // In game context, we usually have access to all teams. 
-    // Here we will pick one of the participants' stadium if > 30k or fallback.
-    // Actually, prompt says "random stadium > 30k".
-    const suitableStadiums = teams.filter(t => t.stadiumCapacity > 30000);
-    const getVenue = () => {
-        if (suitableStadiums.length > 0) return suitableStadiums[Math.floor(Math.random() * suitableStadiums.length)].id; // Use Team ID as venue placeholder logic or handle in simulation
-        return teams[0].id; // Fallback
-    };
-    
-    // Note: The game engine uses HomeTeam's stadium by default. 
-    // For Neutral venues, we might need to handle this in simulation logic, 
-    // but typically "Home Team" in fixture determines venue visually. 
-    // To simulate neutral, we can assume the "Home Team" in the fixture IS the venue owner for display, 
-    // but for Super Cup, usually it's Team A vs Team B at Venue C. 
-    // Current architecture simplifies to Home vs Away.
-    // Let's stick to Home/Away structure but acknowledge it's neutral.
-    // We will just assign T1 as home, T3 as away etc.
-    
     if (isInitialSeason) {
         // 1. Arıspor
         // 2. Eşşekboğanspor FK
@@ -207,17 +260,7 @@ export const generateSuperCupFixtures = (teams: Team[], year: number, isInitialS
         t3 = teams.find(t => t.name === 'Köpekspor');
         t4 = teams.find(t => t.name === 'Kedispor');
     } else {
-        // Logic for subsequent seasons
-        // 1. Sort by League Points (Previous Season)
-        // Since we reset stats at season start, we rely on 'leagueHistory' or last season summary.
-        // Assuming this function is called right at season transition where stats might be fresh OR we use a passed summary.
-        // Simplified: We'll assume the `teams` array passed here has the relevant order or we find them.
-        // However, in `resetForNewSeason`, stats are wiped.
-        // This function is best called BEFORE reset or using a snapshot.
-        // For now, let's assume teams are sorted by their `initialReputation` or power as a proxy if stats are wiped,
-        // OR better: The Game Loop should pass the qualified teams explicitly.
-        // But to keep signature simple, let's assume the calling code sorts `teams` passed in as [1st, 2nd, 3rd, CupWinner].
-        
+        // Assume teams are sorted by qualification
         if (teams.length >= 4) {
             t1 = teams[0];
             t2 = teams[1];
@@ -228,7 +271,6 @@ export const generateSuperCupFixtures = (teams: Team[], year: number, isInitialS
 
     if (t1 && t2 && t3 && t4) {
         // Semi 1: 1 vs 3 -> Jan 5
-        // Note: Year is the "Next Year" (e.g. Start 2025 -> Jan 2026)
         const d1 = new Date(year + 1, 0, 5); // Jan 5
         fixtures.push({
             id: generateId(),
@@ -258,6 +300,267 @@ export const generateSuperCupFixtures = (teams: Team[], year: number, isInitialS
     }
 
     return fixtures;
+};
+
+// Generates Turkish Cup Fixtures
+export const generateCupRoundFixtures = (teams: Team[], fixtures: Fixture[], round: 'R32' | 'R16' | 'QF' | 'SF' | 'FINAL', year: number): Fixture[] => {
+    const newFixtures: Fixture[] = [];
+    let pool: Team[] = [];
+
+    // Week mapping for Cup Rounds
+    const CUP_WEEKS = { 'R32': 100, 'R16': 101, 'QF': 102, 'SF': 103, 'FINAL': 104 };
+    const cupWeek = CUP_WEEKS[round];
+
+    // --- IDENTIFY PARTICIPANTS ---
+    if (round === 'R32') {
+        // Filter out banned teams
+        pool = teams.filter(t => !t.cupBan);
+    } else {
+        // Find winners from previous round
+        const prevWeek = round === 'R16' ? 100 : round === 'QF' ? 101 : round === 'SF' ? 102 : 103;
+        const prevFixtures = fixtures.filter(f => f.competitionId === 'CUP' && f.week === prevWeek && f.played);
+        
+        const winners: Team[] = [];
+        prevFixtures.forEach(f => {
+            const h = teams.find(t => t.id === f.homeTeamId);
+            const a = teams.find(t => t.id === f.awayTeamId);
+            if (h && a) {
+                // Determine winner including penalties
+                let winnerId = f.homeTeamId;
+                if (f.homeScore! > f.awayScore!) winnerId = f.homeTeamId;
+                else if (f.awayScore! > f.homeScore!) winnerId = f.awayTeamId;
+                else if (f.pkHome! > f.pkAway!) winnerId = f.homeTeamId;
+                else winnerId = f.awayTeamId;
+
+                const winner = teams.find(t => t.id === winnerId);
+                if (winner) winners.push(winner);
+            }
+        });
+        pool = winners;
+    }
+
+    // --- SHUFFLE & PAIR ---
+    // Random Shuffle
+    pool = pool.sort(() => 0.5 - Math.random());
+
+    // Pair Up
+    for (let i = 0; i < pool.length; i += 2) {
+        if (i + 1 < pool.length) {
+            const home = pool[i];
+            const away = pool[i + 1];
+
+            // Determine Date based on Round
+            let matchDate = new Date();
+            // Dates are adjusted for "Next Year" if month < 7 (August)
+            const seasonStartYear = year; 
+            const nextYear = seasonStartYear + 1;
+
+            if (round === 'R32') {
+                // Dec 28 or 29
+                matchDate = new Date(seasonStartYear, 11, i % 4 === 0 ? 28 : 29); // Split roughly
+            } else if (round === 'R16') {
+                // Jan 14 or 15
+                matchDate = new Date(nextYear, 0, i % 4 === 0 ? 14 : 15);
+            } else if (round === 'QF') {
+                // Mar 27 or 28
+                matchDate = new Date(nextYear, 2, i % 4 === 0 ? 27 : 28);
+            } else if (round === 'SF') {
+                // May 1 or 2
+                matchDate = new Date(nextYear, 4, i === 0 ? 1 : 2);
+            } else if (round === 'FINAL') {
+                // May 14
+                matchDate = new Date(nextYear, 4, 14);
+            }
+
+            newFixtures.push({
+                id: generateId(),
+                week: cupWeek,
+                date: matchDate.toISOString(),
+                homeTeamId: home.id,
+                awayTeamId: away.id,
+                played: false,
+                homeScore: null,
+                awayScore: null,
+                competitionId: 'CUP'
+            });
+        }
+    }
+
+    return newFixtures;
+};
+
+// Generates European Knockout Rounds (Playoff, R16, QF, SF, Final)
+export const generateEuropeanKnockoutFixtures = (teams: Team[], fixtures: Fixture[], round: 'PLAYOFF' | 'R16' | 'QF' | 'SF' | 'FINAL', year: number, leagueTable?: Team[]): Fixture[] => {
+    const newFixtures: Fixture[] = [];
+    const nextYear = year + 1;
+    
+    // Updated Schedule based on user request:
+    // Playoff (9-24): 209 (L1), 210 (L2) - Feb 19, Feb 26
+    // R16: 211 (L1), 212 (L2) - Mar 4, Mar 11
+    // QF: 213 (L1), 214 (L2) - Apr 1, Apr 8
+    // SF: 215 (L1), 216 (L2) - Apr 29, May 6
+    // Final: 217 - Jun 6
+    
+    let pairedTeams: {t1: Team, t2: Team}[] = [];
+
+    // --- PAIRING LOGIC ---
+    if (round === 'PLAYOFF') {
+        if (!leagueTable) return [];
+        // Teams 9-24 play. 
+        const playoffTeams = leagueTable.slice(8, 24); // Index 8 is rank 9
+        // Pair Top vs Bottom of this slice
+        for (let i = 0; i < 8; i++) {
+            const highSeed = playoffTeams[i]; // 9th, 10th...
+            const lowSeed = playoffTeams[15 - i]; // 24th, 23rd...
+            pairedTeams.push({ t1: lowSeed, t2: highSeed }); // Lower seed home first usually
+        }
+    } else if (round === 'R16') {
+        // Find previous round winners (Playoff 210)
+        const poMatches = fixtures.filter(f => f.competitionId === 'EUROPE' && f.week === 210 && f.played);
+        const poWinners: Team[] = [];
+        
+        // Determine aggregate winners
+        poMatches.forEach(leg2 => {
+            const leg1 = fixtures.find(f => f.competitionId === 'EUROPE' && f.week === 209 && 
+                ((f.homeTeamId === leg2.awayTeamId && f.awayTeamId === leg2.homeTeamId))
+            );
+            
+            if (leg1 && leg1.played) {
+                const hId = leg2.homeTeamId;
+                const aId = leg2.awayTeamId;
+                
+                const hScoreTotal = (leg2.homeScore || 0) + (leg1.awayScore || 0); 
+                const aScoreTotal = (leg2.awayScore || 0) + (leg1.homeScore || 0);
+                
+                let winnerId = hId;
+                if (aScoreTotal > hScoreTotal) winnerId = aId;
+                else if (hScoreTotal === aScoreTotal) {
+                    if (leg2.pkHome !== undefined && leg2.pkAway !== undefined) {
+                        if (leg2.pkAway! > leg2.pkHome!) winnerId = aId;
+                    }
+                }
+                
+                const w = teams.find(t => t.id === winnerId);
+                if (w) poWinners.push(w);
+            }
+        });
+
+        if (leagueTable) {
+            const top8 = leagueTable.slice(0, 8);
+            
+            // Random draw between Top 8 and PO Winners
+            const seed1 = top8.sort(() => 0.5 - Math.random());
+            const seed2 = poWinners.sort(() => 0.5 - Math.random());
+            
+            for(let i=0; i<Math.min(seed1.length, seed2.length); i++) {
+                pairedTeams.push({ t1: seed2[i], t2: seed1[i] }); // Unseeded home first
+            }
+        }
+    } else {
+        // QF, SF, Final: Find winners from previous round and pair randomly
+        const prevWeek = round === 'QF' ? 212 : round === 'SF' ? 214 : 216;
+        const prevMatches = fixtures.filter(f => f.competitionId === 'EUROPE' && f.week === prevWeek && f.played);
+        
+        const roundWinners: Team[] = [];
+        prevMatches.forEach(leg2 => {
+            const leg1 = fixtures.find(f => f.competitionId === 'EUROPE' && f.week === prevWeek - 1 && 
+                 ((f.homeTeamId === leg2.awayTeamId && f.awayTeamId === leg2.homeTeamId))
+            );
+            
+            if (leg1) {
+                const hId = leg2.homeTeamId;
+                const aId = leg2.awayTeamId;
+                const hScoreTotal = (leg2.homeScore || 0) + (leg1.awayScore || 0);
+                const aScoreTotal = (leg2.awayScore || 0) + (leg1.homeScore || 0);
+                
+                let winnerId = hId;
+                if (aScoreTotal > hScoreTotal) winnerId = aId;
+                else if (hScoreTotal === aScoreTotal && leg2.pkHome !== undefined && leg2.pkAway !== undefined) {
+                     if (leg2.pkAway! > leg2.pkHome!) winnerId = aId;
+                }
+                const w = teams.find(t => t.id === winnerId);
+                if (w) roundWinners.push(w);
+            }
+        });
+
+        const shuffled = roundWinners.sort(() => 0.5 - Math.random());
+        for (let i = 0; i < shuffled.length; i += 2) {
+            if (i+1 < shuffled.length) {
+                pairedTeams.push({ t1: shuffled[i], t2: shuffled[i+1] });
+            }
+        }
+    }
+
+    // --- CREATE FIXTURES ---
+    pairedTeams.forEach(pair => {
+        if (round === 'FINAL') {
+             // Single Leg - June 6
+             const date = new Date(nextYear, 5, 6); 
+             newFixtures.push({
+                 id: generateId(),
+                 week: 217,
+                 date: date.toISOString(),
+                 homeTeamId: pair.t1.id,
+                 awayTeamId: pair.t2.id,
+                 played: false,
+                 homeScore: null,
+                 awayScore: null,
+                 competitionId: 'EUROPE'
+             });
+        } else {
+            // Double Leg
+            let w1 = 0, w2 = 0;
+            let d1 = new Date(), d2 = new Date();
+
+            if (round === 'PLAYOFF') { 
+                w1=209; w2=210; 
+                d1=new Date(nextYear, 1, 19); // Feb 19
+                d2=new Date(nextYear, 1, 26); // Feb 26
+            }
+            else if (round === 'R16') { 
+                w1=211; w2=212; 
+                d1=new Date(nextYear, 2, 4);  // Mar 4
+                d2=new Date(nextYear, 2, 11); // Mar 11
+            }
+            else if (round === 'QF') { 
+                w1=213; w2=214; 
+                d1=new Date(nextYear, 3, 1);  // Apr 1
+                d2=new Date(nextYear, 3, 8);  // Apr 8
+            }
+            else if (round === 'SF') { 
+                w1=215; w2=216; 
+                d1=new Date(nextYear, 3, 29); // Apr 29
+                d2=new Date(nextYear, 4, 6);  // May 6
+            }
+
+            // Leg 1
+            newFixtures.push({
+                id: generateId(),
+                week: w1,
+                date: d1.toISOString(),
+                homeTeamId: pair.t1.id,
+                awayTeamId: pair.t2.id,
+                played: false,
+                homeScore: null,
+                awayScore: null,
+                competitionId: 'EUROPE'
+            });
+            // Leg 2
+            newFixtures.push({
+                id: generateId(),
+                week: w2,
+                date: d2.toISOString(),
+                homeTeamId: pair.t2.id,
+                awayTeamId: pair.t1.id,
+                played: false,
+                homeScore: null,
+                awayScore: null,
+                competitionId: 'EUROPE'
+            });
+        }
+    });
+
+    return newFixtures;
 };
 
 const createFixture = (week: number, date: string, homeId: string, awayId: string): Fixture => ({

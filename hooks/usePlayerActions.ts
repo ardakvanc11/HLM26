@@ -168,7 +168,12 @@ export const usePlayerActions = (
     const handleSellPlayer = (player: Player) => {
         if (!gameState.myTeamId) return;
         const myTeam = gameState.teams.find(t => t.id === gameState.myTeamId)!;
-        if (myTeam.players.length <= 16) { alert("Kadro derinliği çok düşük, oyuncu satamazsınız!"); return; }
+        
+        // --- KADRO DERİNLİĞİ KONTROLÜ (YENİ) ---
+        if (myTeam.players.length <= 19) { 
+            alert("Klüp kadro derinliği sıkıntısı yaşadığı için bu oyuncunun transfer yapılmasına izin verilmiyor."); 
+            return; 
+        }
         
         const monthlyNet = calculateMonthlyNetFlow(myTeam, gameState.fixtures, gameState.currentDate, gameState.manager!);
         let injectionRate = 0.5;
@@ -236,45 +241,132 @@ export const usePlayerActions = (
         const player = gameState.teams.find(t => t.id === gameState.myTeamId)?.players.find(p => p.id === offer.playerId);
         if (player) {
             const myTeam = gameState.teams.find(t => t.id === gameState.myTeamId)!;
-            const monthlyNet = calculateMonthlyNetFlow(myTeam, gameState.fixtures, gameState.currentDate, gameState.manager!);
-            let injectionRate = 0.5;
-            let statusLabel = 'Riskli (%50)';
             
-            if (monthlyNet > 10) { injectionRate = 1.0; statusLabel = 'Zengin (%100)'; }
-            else if (monthlyNet > 0) { injectionRate = 0.8; statusLabel = 'Güvende (%80)'; }
-            else if (monthlyNet >= -5) { injectionRate = 0.6; statusLabel = 'Dengeli (%60)'; }
+            // --- KADRO DERİNLİĞİ KONTROLÜ (YENİ - GELEN TEKLİF İÇİN) ---
+            if (myTeam.players.length <= 19) { 
+                alert("Klüp kadro derinliği sıkıntısı yaşadığı için bu oyuncunun transfer yapılmasına izin verilmiyor."); 
+                return; 
+            }
 
-            const budgetAddition = offer.amount * injectionRate;
-            const retainedAmount = offer.amount - budgetAddition;
+            const isLoan = offer.type === 'LOAN';
 
+            // --- YILDIZ OYUNCU KİRALIK GİTMEYİ REDDEDER ---
+            const nonLoanableStatuses = ['STAR', 'IMPORTANT', 'FIRST_XI'];
+            if (isLoan && player.squadStatus && nonLoanableStatuses.includes(player.squadStatus)) {
+                // Oyuncunun morali düşer çünkü kulüp onu göndermek istedi
+                const newMorale = Math.max(0, player.morale - 15);
+                
+                setGameState(prev => {
+                     // Teklifi listeden kaldır (reddedildi sayılır oyuncu tarafından)
+                    const remainingOffers = prev.incomingOffers.filter(o => o.id !== offer.id);
+                    
+                    // Oyuncunun moralini güncelle
+                    const updatedTeams = prev.teams.map(t => {
+                        if (t.id === myTeam.id) {
+                            return {
+                                ...t,
+                                players: t.players.map(p => p.id === player.id ? { ...p, morale: newMorale } : p)
+                            };
+                        }
+                        return t;
+                    });
+
+                    return { ...prev, teams: updatedTeams, incomingOffers: remainingOffers };
+                });
+
+                alert(`TRANSFER İPTAL EDİLDİ!\n\n${player.name}, kiralık olarak gitmeyi reddetti!\n\nOyuncu Açıklaması: "Ben bu takımın ${player.squadStatus === 'STAR' ? 'yıldızıyım' : 'as oyuncusuyum'}. Kiralık gidip kariyerimde geriye düşmek istemiyorum."\n\n(Oyuncu bu duruma içerledi: Moral -15)`);
+                return;
+            }
+
+            let budgetAddition = 0;
+            let statusLabel = '';
+            let msg = '';
+            
+            // Financial Update Object
             const financials = { ...myTeam.financialRecords };
-            financials.income.transfers += offer.amount;
-            
-            let updatedTeam = { 
-                ...myTeam, 
-                budget: myTeam.budget + budgetAddition, 
-                players: myTeam.players.filter(p => p.id !== player.id), 
-                financialRecords: financials 
-            };
+            let updatedTeam = { ...myTeam };
+            const dateObj = new Date(gameState.currentDate);
+
+            if (isLoan && offer.loanDetails) {
+                // LOAN LOGIC
+                // For loans, we assume the monthly fee is paid upfront for the loan duration (simplified)
+                // or just added as a lump sum "Loan Fee" to transfer income.
+                const totalLoanFee = offer.loanDetails.monthlyFee * 10; // Approx 10 months season
+                
+                financials.income.transfers += totalLoanFee;
+                budgetAddition = totalLoanFee;
+                statusLabel = 'Kiralık Geliri';
+
+                updatedTeam = { 
+                    ...myTeam, 
+                    budget: myTeam.budget + budgetAddition, 
+                    players: myTeam.players.filter(p => p.id !== player.id), // Remove player temporarily (simulated loan out)
+                    financialRecords: financials 
+                };
+
+                const record: any = {
+                    date: `${dateObj.getDate()} ${dateObj.getMonth() === 6 ? 'Tem' : dateObj.getMonth() === 7 ? 'Ağu' : 'Eyl'}`,
+                    playerName: player.name,
+                    type: 'LOAN_OUT',
+                    counterparty: offer.fromTeamName,
+                    price: `${offer.loanDetails.monthlyFee.toFixed(2)} M€/Ay`
+                };
+                updatedTeam.transferHistory = [...(updatedTeam.transferHistory || []), record];
+
+                msg = `${player.name}, ${offer.fromTeamName} takımına kiralandı!\n\nAylık Bedel: ${offer.loanDetails.monthlyFee} M€\nMaaş Katkısı: %${offer.loanDetails.wageContribution}`;
+
+            } else {
+                // TRANSFER LOGIC (Existing)
+                const monthlyNet = calculateMonthlyNetFlow(myTeam, gameState.fixtures, gameState.currentDate, gameState.manager!);
+                let injectionRate = 0.5;
+                statusLabel = 'Riskli (%50)';
+                
+                if (monthlyNet > 10) { injectionRate = 1.0; statusLabel = 'Zengin (%100)'; }
+                else if (monthlyNet > 0) { injectionRate = 0.8; statusLabel = 'Güvende (%80)'; }
+                else if (monthlyNet >= -5) { injectionRate = 0.6; statusLabel = 'Dengeli (%60)'; }
+
+                budgetAddition = offer.amount * injectionRate;
+                const retainedAmount = offer.amount - budgetAddition;
+
+                financials.income.transfers += offer.amount;
+                
+                updatedTeam = { 
+                    ...myTeam, 
+                    budget: myTeam.budget + budgetAddition, 
+                    players: myTeam.players.filter(p => p.id !== player.id), 
+                    financialRecords: financials 
+                };
+                
+                const record: any = {
+                    date: `${dateObj.getDate()} ${dateObj.getMonth() === 6 ? 'Tem' : dateObj.getMonth() === 7 ? 'Ağu' : 'Eyl'}`,
+                    playerName: player.name,
+                    type: 'SOLD',
+                    counterparty: offer.fromTeamName,
+                    price: `${offer.amount.toFixed(1)} M€`
+                };
+                updatedTeam.transferHistory = [...(updatedTeam.transferHistory || []), record];
+
+                msg = `${player.name}, ${offer.fromTeamName} takımına satıldı! Gelir: ${offer.amount} M€\n\nFinansal Durum: ${statusLabel}\nBütçeye Eklenen: ${budgetAddition.toFixed(1)} M€`;
+                if (retainedAmount > 0) {
+                    msg += `\n(Yönetim ${retainedAmount.toFixed(1)} M€ tutara borçlar ve giderler için el koydu.)`;
+                }
+            }
+
+            // Recalculate Strength
             const impact = calculateTransferStrengthImpact(myTeam.strength, player.skill, false);
             const newVisibleStrength = Math.min(100, Math.max(0, myTeam.strength + impact));
             updatedTeam.strength = Number(newVisibleStrength.toFixed(1));
             updatedTeam = recalculateTeamStrength(updatedTeam);
             
+            // Manager Stats Update
             const updatedManager = { ...gameState.manager! };
-            updatedManager.stats.moneyEarned += offer.amount;
-            updatedManager.stats.transferIncomeThisMonth += offer.amount;
-            updatedManager.stats.playersSold++;
-            
-            const dateObj = new Date(gameState.currentDate);
-            const record: any = {
-                date: `${dateObj.getDate()} ${dateObj.getMonth() === 6 ? 'Tem' : dateObj.getMonth() === 7 ? 'Ağu' : 'Eyl'}`,
-                playerName: player.name,
-                type: 'SOLD',
-                counterparty: offer.fromTeamName,
-                price: `${offer.amount.toFixed(1)} M€`
-            };
-            updatedTeam.transferHistory = [...(updatedTeam.transferHistory || []), record];
+            if (isLoan && offer.loanDetails) {
+                 updatedManager.stats.moneyEarned += (offer.loanDetails.monthlyFee * 10);
+            } else {
+                 updatedManager.stats.moneyEarned += offer.amount;
+                 updatedManager.stats.transferIncomeThisMonth += offer.amount;
+                 updatedManager.stats.playersSold++;
+            }
 
             setGameState(prev => {
                 const remainingOffers = prev.incomingOffers.filter(o => o.id !== offer.id);
@@ -286,10 +378,6 @@ export const usePlayerActions = (
                 };
             });
             
-            let msg = `${player.name}, ${offer.fromTeamName} takımına satıldı! Gelir: ${offer.amount} M€\n\nFinansal Durum: ${statusLabel}\nBütçeye Eklenen: ${budgetAddition.toFixed(1)} M€`;
-            if (retainedAmount > 0) {
-                msg += `\n(Yönetim ${retainedAmount.toFixed(1)} M€ tutara borçlar ve giderler için el koydu.)`;
-            }
             alert(msg);
         }
     };

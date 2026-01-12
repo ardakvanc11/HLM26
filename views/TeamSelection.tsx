@@ -4,11 +4,14 @@ import { Team } from '../types';
 import { Trophy } from 'lucide-react';
 
 const TeamSelection = ({ teams, onSelect }: { teams: Team[], onSelect: (id: string) => void }) => {
+    // Filter out European League Teams (Non-Playable)
+    const playableTeams = teams.filter(t => t.leagueId === 'LEAGUE' || t.leagueId === 'LEAGUE_1' || !t.leagueId);
+
     return (
         <div className="h-screen bg-slate-50 dark:bg-slate-900 p-8 overflow-y-auto">
             <h2 className="text-4xl text-center text-slate-900 dark:text-white mb-8 font-bold">TAKIMINI SEÇ</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto pb-10">
-                {teams.map(team => {
+                {playableTeams.map(team => {
                     const gradientFrom = team.colors[0].replace('bg-', 'from-');
                     return (
                         <div 

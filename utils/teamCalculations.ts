@@ -355,7 +355,8 @@ export const calculatePlayerWage = (player: Player): number => {
 export const calculateForm = (teamId: string, fixtures: Fixture[]): string[] => {
     const played = fixtures
         .filter(f => f.played && (f.homeTeamId === teamId || f.awayTeamId === teamId))
-        .sort((a, b) => b.week - a.week)
+        // FIX: Sort by DATE to handle Cups (Week 100+) correctly mixed with League matches
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         .slice(0, 5);
 
     return played.map(f => {

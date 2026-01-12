@@ -1,18 +1,18 @@
 
 import React from 'react';
-import { Player } from '../../types';
-import { Trophy, Globe, Shield, Star } from 'lucide-react';
+import { Player, Fixture } from '../../types';
+import { Trophy, Globe, Shield, Star, ChevronRight } from 'lucide-react';
 
 interface PlayerStatsTableProps {
     player: Player;
+    fixtures?: Fixture[];
+    onCompetitionClick?: (compId: string) => void;
 }
 
-const PlayerStatsTable: React.FC<PlayerStatsTableProps> = ({ player }) => {
-    const stats = player.seasonStats;
-
+const PlayerStatsTable: React.FC<PlayerStatsTableProps> = ({ player, fixtures, onCompetitionClick }) => {
     // Helper to render rating badge
     const renderRating = (rating: number) => {
-        if (rating === 0) return <span className="text-slate-400 dark:text-slate-600">-</span>;
+        if (rating === 0 || isNaN(rating)) return <span className="text-slate-400 dark:text-slate-600">-</span>;
         const colorClass = rating >= 7.5 ? 'bg-green-600 text-white' : rating >= 7.0 ? 'bg-green-500/80 text-white' : rating >= 6.0 ? 'bg-yellow-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400';
         return (
             <span className={`px-2 py-0.5 rounded text-xs font-bold ${colorClass}`}>
@@ -21,40 +21,120 @@ const PlayerStatsTable: React.FC<PlayerStatsTableProps> = ({ player }) => {
         );
     };
 
-    // Data Rows
+    // Dinamik İstatistik Hesaplayıcı
+    const calculateStats = (competitionId: string | string[]) => {
+        if (!fixtures) return { apps: 0, goals: 0, assists: 0, yel: 0, red: 0, rating: 0 };
+
+        const relevantFixtures = fixtures.filter(f => {
+            if (!f.played || !f.stats) return false;
+            
+            // Competition Check
+            if (Array.isArray(competitionId)) {
+                if (!f.competitionId && competitionId.includes('LEAGUE')) return true; // Default to league
+                return f.competitionId && competitionId.includes(f.competitionId);
+            } else {
+                if (competitionId === 'LEAGUE' && !f.competitionId) return true;
+                return f.competitionId === competitionId;
+            }
+        });
+
+        let apps = 0;
+        let goals = 0;
+        let assists = 0;
+        let yel = 0;
+        let red = 0;
+        let ratingSum = 0;
+
+        relevantFixtures.forEach(f => {
+            // Rating tablosundan oyuncuyu bul
+            const allRatings = [...(f.stats?.homeRatings || []), ...(f.stats?.awayRatings || [])];
+            const pStats = allRatings.find(r => r.playerId === player.id);
+
+            if (pStats) {
+                apps++;
+                goals += pStats.goals;
+                assists += pStats.assists;
+                ratingSum += pStats.rating;
+            }
+
+            // Kartlar için eventleri tara
+            if (f.matchEvents) {
+                const cardEvents = f.matchEvents.filter(e => e.playerId === player.id);
+                yel += cardEvents.filter(e => e.type === 'CARD_YELLOW').length;
+                red += cardEvents.filter(e => e.type === 'CARD_RED').length;
+            }
+        });
+
+        return {
+            apps,
+            goals,
+            assists,
+            yel,
+            red,
+            rating: apps > 0 ? ratingSum / apps : 0
+        };
+    };
+
+    // Fallback to SeasonStats if fixtures not provided
+    const statsLeague = fixtures ? calculateStats(['LEAGUE', 'LEAGUE_1', 'PLAYOFF', 'PLAYOFF_FINAL']) : {
+        apps: player.seasonStats.matchesPlayed,
+        goals: player.seasonStats.goals,
+        assists: player.seasonStats.assists,
+        yel: player.seasonStats.yellowCards,
+        red: player.seasonStats.redCards,
+        rating: player.seasonStats.averageRating || 0
+    };
+
+    const statsCup = calculateStats('CUP');
+    const statsSuper = calculateStats('SUPER_CUP');
+    const statsEuro = calculateStats('EUROPE');
+
+    // Helper to determine if a row should be shown
+    const hasParticipation = (compId: string, stats: any) => {
+        // 1. If player has stats (played matches), always show
+        if (stats.apps > 0) return true;
+
+        // 2. If fixtures exist for the player's CURRENT team in this competition, show (even if not played yet)
+        if (fixtures) {
+            return fixtures.some(f => 
+                f.competitionId === compId && 
+                (f.homeTeamId === player.teamId || f.awayTeamId === player.teamId)
+            );
+        }
+        return false;
+    };
+
+    // Data Rows - Filtered based on participation
     const rows = [
         {
             id: 'LEAGUE',
             name: 'Türkiye Hayvanlar Ligi',
             icon: <Trophy size={14} className="text-yellow-600 dark:text-yellow-500" />,
-            stats: {
-                apps: stats.matchesPlayed,
-                goals: stats.goals,
-                assists: stats.assists,
-                yel: stats.yellowCards || 0,
-                red: stats.redCards || 0,
-                rating: stats.averageRating || 0
-            }
+            stats: statsLeague,
+            visible: true // Always show league
         },
         {
             id: 'CUP',
             name: 'Hayvanlar Kupası',
             icon: <Shield size={14} className="text-blue-600 dark:text-blue-500" />,
-            stats: { apps: 0, goals: 0, assists: 0, yel: 0, red: 0, rating: 0 }
+            stats: statsCup,
+            visible: true // Always show cup (or check ban status if needed, but keeping simple for now)
         },
         {
             id: 'SUPER',
             name: 'Hayvanlar Süper Kupası',
             icon: <Star size={14} className="text-red-600 dark:text-red-500" />,
-            stats: { apps: 0, goals: 0, assists: 0, yel: 0, red: 0, rating: 0 }
+            stats: statsSuper,
+            visible: hasParticipation('SUPER_CUP', statsSuper)
         },
         {
             id: 'EURO',
             name: 'Avrupa Hayvanlar Ligi',
             icon: <Globe size={14} className="text-purple-600 dark:text-purple-500" />,
-            stats: { apps: 0, goals: 0, assists: 0, yel: 0, red: 0, rating: 0 }
+            stats: statsEuro,
+            visible: hasParticipation('EUROPE', statsEuro)
         }
-    ];
+    ].filter(r => r.visible);
 
     const totalApps = rows.reduce((sum, r) => sum + r.stats.apps, 0);
     const totalGoals = rows.reduce((sum, r) => sum + r.stats.goals, 0);
@@ -67,6 +147,18 @@ const PlayerStatsTable: React.FC<PlayerStatsTableProps> = ({ player }) => {
     if (totalApps > 0) {
         totalRating = rows.reduce((sum, r) => sum + (r.stats.rating * r.stats.apps), 0) / totalApps;
     }
+
+    const handleRowClick = (id: string) => {
+        if (!onCompetitionClick) return;
+        
+        // Map internal table IDs to Global Competition IDs
+        let targetId = id;
+        if (id === 'SUPER') targetId = 'SUPER_CUP';
+        if (id === 'EURO') targetId = 'EUROPE';
+        // LEAGUE and CUP match exactly (mostly)
+        
+        onCompetitionClick(targetId);
+    };
 
     return (
         <div className="w-full overflow-hidden">
@@ -81,16 +173,21 @@ const PlayerStatsTable: React.FC<PlayerStatsTableProps> = ({ player }) => {
                             <th className="py-3 text-center hidden sm:table-cell" title="Sarı Kart">Sar</th>
                             <th className="py-3 text-center hidden sm:table-cell" title="Kırmızı Kart">Kır</th>
                             <th className="py-3 text-center" title="Ortalama Puan">Ort</th>
+                            <th className="py-3 w-6"></th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                         {rows.map((row) => (
-                            <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                            <tr 
+                                key={row.id} 
+                                onClick={() => handleRowClick(row.id)}
+                                className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors cursor-pointer group"
+                            >
                                 <td className="py-3 pl-2 font-bold text-slate-700 dark:text-slate-200 flex items-center gap-3">
                                     <div className="bg-slate-200 dark:bg-slate-800 p-1.5 rounded-full border border-slate-300 dark:border-slate-600">
                                         {row.icon}
                                     </div>
-                                    {row.name}
+                                    <span className="group-hover:text-blue-500 transition-colors">{row.name}</span>
                                 </td>
                                 <td className="py-3 text-center text-slate-500 dark:text-slate-400 font-medium">{row.stats.apps > 0 ? row.stats.apps : '-'}</td>
                                 <td className="py-3 text-center font-bold text-slate-900 dark:text-white">{row.stats.goals > 0 ? row.stats.goals : '-'}</td>
@@ -99,6 +196,9 @@ const PlayerStatsTable: React.FC<PlayerStatsTableProps> = ({ player }) => {
                                 <td className="py-3 text-center text-red-600 dark:text-red-500 hidden sm:table-cell">{row.stats.red > 0 ? row.stats.red : '-'}</td>
                                 <td className="py-3 text-center font-mono">
                                     {renderRating(row.stats.rating)}
+                                </td>
+                                <td className="py-3 text-center">
+                                    <ChevronRight size={14} className="text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                                 </td>
                             </tr>
                         ))}
@@ -114,6 +214,7 @@ const PlayerStatsTable: React.FC<PlayerStatsTableProps> = ({ player }) => {
                             <td className="py-3 text-center font-mono">
                                 {renderRating(totalRating)}
                             </td>
+                            <td></td>
                         </tr>
                     </tfoot>
                 </table>

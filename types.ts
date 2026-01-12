@@ -441,6 +441,7 @@ export interface Player {
     nextNegotiationWeek?: number; 
     activePromises?: string[]; 
     transferListed?: boolean;
+    loanListed?: boolean; // NEW: Kiralık listesi durumu
     trainingFocus?: string;
     activeTraining?: IndividualTrainingType;
     personality?: PlayerPersonality;
@@ -488,7 +489,7 @@ export interface HistoricalRanking {
 export interface TransferRecord {
     date: string; 
     playerName: string;
-    type: 'BOUGHT' | 'SOLD';
+    type: 'BOUGHT' | 'SOLD' | 'LOAN_IN' | 'LOAN_OUT';
     counterparty: string; 
     price: string; 
 }
@@ -598,6 +599,8 @@ export interface Team {
     strengthDelta?: number; 
     morale: number; 
     leagueHistory?: HistoricalRanking[]; 
+    
+    cupBan?: boolean; // NEW: If true, team cannot participate in the cup this season
 }
 
 export interface StaffRelation {
@@ -685,6 +688,12 @@ export interface IncomingOffer {
     fromTeamName: string;
     amount: number;
     date: string;
+    type?: 'TRANSFER' | 'LOAN'; // Added LOAN type
+    loanDetails?: { // Loan Specifics
+        wageContribution: number; // Percentage (0-100)
+        duration: string; // 'Season End'
+        monthlyFee: number;
+    };
 }
 
 export interface SeasonChampion {

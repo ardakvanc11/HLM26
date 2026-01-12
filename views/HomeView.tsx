@@ -15,8 +15,12 @@ const HomeView = ({ manager, team, teams, myTeamId, currentWeek, fixtures, onTea
     const [showHallOfFame, setShowHallOfFame] = useState(false);
     
     // Calculate stats
-    // Find the next unplayed match OR the match for the current week if played
-    const nextMatch = fixtures.find(f => f.week === currentWeek && (f.homeTeamId === myTeamId || f.awayTeamId === myTeamId)) || fixtures.find(f => !f.played && (f.homeTeamId === myTeamId || f.awayTeamId === myTeamId));
+    // FIX: Find next match based on Date (First unplayed), not strictly currentWeek ID to support cups
+    const upcomingMatches = fixtures
+        .filter(f => (f.homeTeamId === myTeamId || f.awayTeamId === myTeamId) && !f.played)
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    
+    const nextMatch = upcomingMatches.length > 0 ? upcomingMatches[0] : null;
     
     const opponent = nextMatch ? teams.find(t => t.id === (nextMatch.homeTeamId === myTeamId ? nextMatch.awayTeamId : nextMatch.homeTeamId)) : null;
     const nextMatchDateDisplay = nextMatch ? getFormattedDate(nextMatch.date).label : '';
@@ -24,10 +28,11 @@ const HomeView = ({ manager, team, teams, myTeamId, currentWeek, fixtures, onTea
     // Match Calendar Logic
     const myFixtures = fixtures
         .filter(f => f.homeTeamId === myTeamId || f.awayTeamId === myTeamId)
-        .sort((a, b) => a.week - a.week);
+        // FIX: Sort by Date instead of Week to handle Cup weeks (e.g. 100) correctly mixed with league
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
     // Past 2 matches (played, reverse order for most recent first)
-    const pastMatches = myFixtures.filter(f => f.played).slice(-2).reverse();
+    const pastMatches = myFixtures.filter(f => f.played).reverse().slice(0, 2);
     // Next 4 matches (not played)
     const futureMatches = myFixtures.filter(f => !f.played).slice(0, 4);
 
@@ -58,6 +63,15 @@ const HomeView = ({ manager, team, teams, myTeamId, currentWeek, fixtures, onTea
         const isHome = f.homeTeamId === myTeamId;
         const myScore = isHome ? f.homeScore! : f.awayScore!;
         const oppScore = isHome ? f.awayScore! : f.homeScore!;
+        
+        // PK Logic
+        if (myScore === oppScore && f.pkHome !== undefined && f.pkAway !== undefined) {
+             const myPk = isHome ? f.pkHome : f.pkAway;
+             const oppPk = isHome ? f.pkAway : f.pkHome;
+             if (myPk > oppPk) return { label: 'G (P)', color: 'bg-green-600 text-white' };
+             else return { label: 'M (P)', color: 'bg-red-600 text-white' };
+        }
+
         if (myScore > oppScore) return { label: 'G', color: 'bg-green-600 text-white' };
         if (myScore < oppScore) return { label: 'M', color: 'bg-red-600 text-white' };
         return { label: 'B', color: 'bg-slate-500 text-white' };
@@ -69,6 +83,31 @@ const HomeView = ({ manager, team, teams, myTeamId, currentWeek, fixtures, onTea
         
         if (h > 0) return `${h} Sa ${m} Dk`;
         return `${m} Dk`;
+    };
+
+    // --- HELPER FOR FIXTURE LABELS ---
+    const getFixtureMeta = (f: Fixture) => {
+        if (f.competitionId === 'CUP') {
+            if (f.week === 100) return { label: 'S32', sub: 'KUPA' };
+            if (f.week === 101) return { label: 'S16', sub: 'KUPA' };
+            if (f.week === 102) return { label: 'ÇF', sub: 'KUPA' };
+            if (f.week === 103) return { label: 'YF', sub: 'KUPA' };
+            if (f.week === 104) return { label: 'FNL', sub: 'KUPA' };
+            return { label: 'KUPA', sub: 'MAÇ' };
+        }
+        if (f.competitionId === 'SUPER_CUP') {
+            if (f.week === 90) return { label: 'YF', sub: 'S.KP' };
+            if (f.week === 91) return { label: 'FNL', sub: 'S.KP' };
+            return { label: 'S.KP', sub: 'MAÇ' };
+        }
+        if (f.competitionId === 'PLAYOFF' || f.competitionId === 'PLAYOFF_FINAL') {
+             if (f.week === 35) return { label: 'YF', sub: 'P.OF' };
+             if (f.week === 36) return { label: 'FNL', sub: 'P.OF' };
+             return { label: 'P.OF', sub: 'MAÇ' };
+        }
+        
+        // Default League
+        return { label: `${f.week}.`, sub: 'HF' };
     };
 
     const tabs = [
@@ -191,7 +230,7 @@ const HomeView = ({ manager, team, teams, myTeamId, currentWeek, fixtures, onTea
                                     </div>
                                     <span className="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-bold bg-white dark:bg-slate-800 px-2 py-1 rounded">{nextMatch?.homeTeamId === myTeamId ? 'İÇ SAHA' : 'DEPLASMAN'}</span>
                                 </div>
-                            ) : <div className="p-4 text-slate-500">Bay Haftası</div>}
+                            ) : <div className="p-4 text-slate-500">Bay Haftası veya Sezon Arası</div>}
                         </div>
                     </div>
 
@@ -218,7 +257,7 @@ const HomeView = ({ manager, team, teams, myTeamId, currentWeek, fixtures, onTea
                                         return (
                                             <div key={f.id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-700/30 p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition">
                                                 <div className="flex items-center gap-3 cursor-pointer" onClick={() => onTeamClick(opponentId)}>
-                                                    <div className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold ${res.color}`}>
+                                                    <div className={`w-8 h-6 rounded flex items-center justify-center text-[10px] font-bold ${res.color}`}>
                                                         {res.label}
                                                     </div>
                                                     <div className="flex flex-col">
@@ -248,13 +287,14 @@ const HomeView = ({ manager, team, teams, myTeamId, currentWeek, fixtures, onTea
                                         const opponentId = isHome ? f.awayTeamId : f.homeTeamId;
                                         const opp = teams.find(t => t.id === opponentId);
                                         const dateLabel = getFormattedDate(f.date).label;
+                                        const meta = getFixtureMeta(f); // USE HELPER
                                         
                                         return (
                                             <div key={f.id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-700/30 p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition cursor-not-allowed">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-8 text-center bg-white dark:bg-slate-800 rounded py-1 border border-slate-200 dark:border-slate-700">
-                                                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400 block">{f.week}.</span>
-                                                        <span className="text-[10px] text-slate-400 dark:text-slate-500 block uppercase">Hf</span>
+                                                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400 block">{meta.label}</span>
+                                                        <span className="text-[10px] text-slate-400 dark:text-slate-500 block uppercase">{meta.sub}</span>
                                                     </div>
                                                     <div className="flex flex-col">
                                                         <div className="flex items-center gap-2">

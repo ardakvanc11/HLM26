@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import { GameState } from '../types';
 import { initializeTeams } from '../data/teamConstants';
 import { GAME_CALENDAR } from '../data/gameConstants';
-import { generateFixtures, generateTransferMarket, generateWeeklyNews, generateSuperCupFixtures } from '../utils/gameEngine';
+import { generateFixtures, generateTransferMarket, generateWeeklyNews, generateSuperCupFixtures, generateEuropeanLeagueFixtures } from '../utils/gameEngine';
 import { calculateManagerSalary } from '../utils/teamCalculations';
 import { processNextDayLogic } from '../utils/gameStateLogic';
 import { INITIAL_MESSAGES } from '../data/messagePool';
@@ -114,17 +114,29 @@ export const useGameLifecycle = (
         const teams = initializeTeams();
         
         // Split teams by league to generate correct fixtures
-        const superLeagueTeams = teams.filter(t => t.leagueId === 'LEAGUE');
+        const superLeagueTeams = teams.filter(t => t.leagueId === 'LEAGUE' || !t.leagueId);
         const league1Teams = teams.filter(t => t.leagueId === 'LEAGUE_1');
+        const europeanOnlyTeams = teams.filter(t => t.leagueId === 'EUROPE_LEAGUE');
 
-        const fixturesSL = generateFixtures(superLeagueTeams, 2025);
-        const fixturesL1 = generateFixtures(league1Teams, 2025);
+        // Identify Specific Turkish Teams for Europe (Realistically based on strength/history)
+        const trEuroTeams = teams.filter(t => 
+            ['Arıspor', 'Eşşekboğanspor FK', 'Ayıboğanspor SK', 'Köpekspor', 'Kedispor'].includes(t.name)
+        );
+
+        // Combine for European League (31 New + 5 TR = 36 Teams)
+        const allEuroParticipants = [...europeanOnlyTeams, ...trEuroTeams];
+
+        // Generate fixtures with correct Competition ID
+        const fixturesSL = generateFixtures(superLeagueTeams, 2025, 'LEAGUE');
+        const fixturesL1 = generateFixtures(league1Teams, 2025, 'LEAGUE_1');
+        // NEW: Generate European League Phase (8 Rounds)
+        const fixturesEuro = generateEuropeanLeagueFixtures(allEuroParticipants, 2025);
         
         // Generate Initial Super Cup Fixtures
         const fixturesSuperCup = generateSuperCupFixtures(superLeagueTeams, 2025, true);
         
-        // Combine fixtures
-        const fixtures = [...fixturesSL, ...fixturesL1, ...fixturesSuperCup];
+        // Combine all fixtures
+        const fixtures = [...fixturesSL, ...fixturesL1, ...fixturesEuro, ...fixturesSuperCup];
 
         const marketCount = Math.floor(Math.random() * 500) + 1000;
         const transferList = generateTransferMarket(marketCount, GAME_CALENDAR.START_DATE.toISOString());
