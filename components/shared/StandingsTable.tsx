@@ -50,6 +50,7 @@ const StandingsTable = ({ teams, myTeamId, compact, onTeamClick, liveScores, fix
     // Default name if not provided
     const displayLeagueName = leagueName || "Süper Toto Hayvanlar Ligi";
     const isLeague1 = displayLeagueName.includes('1. Lig');
+    const isEurope = displayLeagueName.includes('Avrupa');
 
     return (
         <div className="flex flex-col gap-4">
@@ -75,27 +76,38 @@ const StandingsTable = ({ teams, myTeamId, compact, onTeamClick, liveScores, fix
                     <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                         {sorted.map((team, index) => {
                             const form = (!compact && fixtures) ? calculateForm(team.id, fixtures) : [];
-                            const isRelegationSpot = index > sorted.length - 4;
                             
                             let rankClass = '';
                             let barClass = '';
 
-                            if (isLeague1) {
-                                if (index < 2) { // 1st & 2nd
-                                    rankClass = 'text-blue-600 dark:text-blue-400';
-                                    barClass = 'bg-blue-500';
-                                } else if (index < 6) { // 3rd, 4th, 5th, 6th
+                            if (isEurope) {
+                                if (index < 8) { // 1-8
                                     rankClass = 'text-green-600 dark:text-green-400';
                                     barClass = 'bg-green-500';
-                                } else if (isRelegationSpot) {
+                                } else if (index < 24) { // 9-24
+                                    rankClass = 'text-blue-600 dark:text-blue-400';
+                                    barClass = 'bg-blue-500';
+                                } else { // 25-36 (Elimination)
+                                    rankClass = 'text-red-600 dark:text-red-400';
+                                    barClass = 'bg-red-500';
+                                }
+                            } else if (isLeague1) {
+                                if (index < 2) { // 1st & 2nd (Promotion)
+                                    rankClass = 'text-green-600 dark:text-green-400';
+                                    barClass = 'bg-green-500';
+                                } else if (index < 6) { // 3rd - 6th (Playoff)
+                                    rankClass = 'text-blue-600 dark:text-blue-400';
+                                    barClass = 'bg-blue-500';
+                                } else if (index > sorted.length - 4) { // Relegation
                                     rankClass = 'text-red-600 dark:text-red-400';
                                     barClass = 'bg-red-500';
                                 }
                             } else {
-                                if (index < 4) {
+                                // Super League
+                                if (index < 4) { // Top 4 (Europe)
                                     rankClass = 'text-green-600 dark:text-green-400';
                                     barClass = 'bg-green-500';
-                                } else if (isRelegationSpot) {
+                                } else if (index > sorted.length - 4) { // Relegation
                                     rankClass = 'text-red-600 dark:text-red-400';
                                     barClass = 'bg-red-500';
                                 }
@@ -156,28 +168,49 @@ const StandingsTable = ({ teams, myTeamId, compact, onTeamClick, liveScores, fix
             {/* League Legend */}
             {!compact && (
                 <div className="flex flex-wrap gap-4 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    {isLeague1 ? (
+                    {isEurope ? (
                         <>
                             <div className="flex items-center gap-1.5">
-                                <div className="w-2.5 h-2.5 bg-blue-500 rounded-sm"></div>
-                                <span>Direkt Süper Lig</span>
+                                <div className="w-2.5 h-2.5 bg-green-500 rounded-sm"></div>
+                                <span>Son 16</span>
                             </div>
                             <div className="flex items-center gap-1.5">
+                                <div className="w-2.5 h-2.5 bg-blue-500 rounded-sm"></div>
+                                <span>Play-off</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-2.5 h-2.5 bg-red-500 rounded-sm"></div>
+                                <span>Elenme</span>
+                            </div>
+                        </>
+                    ) : isLeague1 ? (
+                        <>
+                            <div className="flex items-center gap-1.5">
                                 <div className="w-2.5 h-2.5 bg-green-500 rounded-sm"></div>
-                                <span>Play-Off</span>
+                                <span>Üst Lig</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-2.5 h-2.5 bg-blue-500 rounded-sm"></div>
+                                <span>Play-off</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-2.5 h-2.5 bg-red-500 rounded-sm"></div>
+                                <span>Küme Hattı</span>
                             </div>
                         </>
                     ) : (
-                        <div className="flex items-center gap-1.5">
-                            <div className="w-2.5 h-2.5 bg-green-500 rounded-sm"></div>
-                            <span>Üst Sıralar</span>
-                        </div>
+                        <>
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-2.5 h-2.5 bg-green-500 rounded-sm"></div>
+                                <span>Avrupa Ligi</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-2.5 h-2.5 bg-red-500 rounded-sm"></div>
+                                <span>Küme Hattı</span>
+                            </div>
+                        </>
                     )}
 
-                    <div className="flex items-center gap-1.5">
-                        <div className="w-2.5 h-2.5 bg-red-500 rounded-sm"></div>
-                        <span>Küme Hattı</span>
-                    </div>
                     <div className="ml-auto italic opacity-60">{displayLeagueName} ({sorted.length} Takım)</div>
                 </div>
             )}

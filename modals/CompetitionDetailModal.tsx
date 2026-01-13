@@ -1,10 +1,11 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Team, Fixture, Player, Position } from '../types';
-import { Trophy, X, ChevronLeft, ChevronRight, Star, Activity, Flame, ShieldAlert, History, Goal, Zap, Shield, Award, AlertTriangle, GitCommit, LayoutDashboard, ListTree, CalendarDays, BarChart2, ArrowRightLeft, Users, Info, ArrowRight, Filter, ChevronDown } from 'lucide-react';
+import { Trophy, X, ChevronLeft, ChevronRight, Star, Activity, Flame, ShieldAlert, History, Goal, Zap, Shield, Award, AlertTriangle, GitCommit, LayoutDashboard, ListTree, CalendarDays, BarChart2, ArrowRightLeft, Users, Info, ArrowRight, Filter, ChevronDown, Presentation } from 'lucide-react';
 import StandingsTable from '../components/shared/StandingsTable';
 import PlayerFace from '../components/shared/PlayerFace';
 import { getFormattedDate } from '../utils/calendarAndFixtures';
+import SeasonPreviewModal from './SeasonPreviewModal';
 
 interface CompetitionDetailModalProps {
     competitionId: string;
@@ -98,7 +99,7 @@ const MatchBox: React.FC<{ f: Fixture, teams: Team[] }> = ({ f, teams }) => {
 };
 
 // --- NEW DETAILED LEAGUE TABLE COMPONENT ---
-const DetailedLeagueTable = ({ teams, fixtures, onTeamClick, competitionId }: { teams: Team[], fixtures: Fixture[], onTeamClick: (id: string) => void, competitionId: string }) => {
+const DetailedLeagueTable = ({ teams, fixtures, onTeamClick, competitionId, onShowPreview, minimal }: { teams: Team[], fixtures: Fixture[], onTeamClick: (id: string) => void, competitionId: string, onShowPreview: () => void, minimal?: boolean }) => {
     const [filter, setFilter] = useState<'OVERALL' | 'HOME' | 'AWAY' | 'FIRST_HALF' | 'SECOND_HALF'>('OVERALL');
     const [viewMode, setViewMode] = useState<'TABLE' | 'XG'>('TABLE'); // Placeholder for future xG
 
@@ -165,59 +166,75 @@ const DetailedLeagueTable = ({ teams, fixtures, onTeamClick, competitionId }: { 
     }, [teams, fixtures, filter, competitionId]);
 
     const isLeague1 = competitionId === 'LEAGUE_1';
+    const isEurope = competitionId === 'EUROPE';
+
+    // Custom Grid columns definition
+    const gridColsClass = "grid-cols-[1.5rem_1.5rem_minmax(140px,3fr)_1.5rem_1.5rem_1.5rem_1.5rem_1.5rem_1.5rem_2rem_2rem_4rem]";
 
     return (
         <div className="flex flex-col h-full bg-[#1b1b1b] text-slate-300">
-            {/* Control Bar */}
-            <div className="flex items-center gap-4 p-4 border-b border-[#333] bg-[#222]">
-                {/* View Selector */}
-                <div className="relative group">
-                    <button className="flex items-center gap-2 bg-[#333] hover:bg-[#444] text-white px-4 py-2 rounded text-sm font-bold transition">
-                        <span>Lig Tablosu</span>
-                        <ChevronDown size={14} className="text-slate-400"/>
-                    </button>
-                    {/* Placeholder for Dropdown - currently single option */}
-                </div>
+            {/* Control Bar - Only show if NOT minimal */}
+            {!minimal && (
+                <div className="flex items-center gap-4 p-4 border-b border-[#333] bg-[#222]">
+                    {/* View Selector */}
+                    <div className="relative group">
+                        <button className="flex items-center gap-2 bg-[#333] hover:bg-[#444] text-white px-4 py-2 rounded text-sm font-bold transition">
+                            <span>Lig Tablosu</span>
+                            <ChevronDown size={14} className="text-slate-400"/>
+                        </button>
+                    </div>
 
-                {/* Filter Selector */}
-                <div className="relative group">
-                    <button className="flex items-center gap-2 bg-[#333] hover:bg-[#444] text-white px-4 py-2 rounded text-sm font-bold transition">
-                        <span>
-                            {filter === 'OVERALL' ? 'Genel' : 
-                             filter === 'HOME' ? 'İç Saha' : 
-                             filter === 'AWAY' ? 'Dış Saha' : 
-                             filter === 'FIRST_HALF' ? 'İlk Yarı' : 'İkinci Yarı'}
-                        </span>
-                        <ChevronDown size={14} className="text-slate-400"/>
-                    </button>
-                    <div className="absolute top-full left-0 mt-2 w-40 bg-[#333] border border-[#444] rounded shadow-xl hidden group-hover:block z-50">
-                        <button onClick={() => setFilter('OVERALL')} className="w-full text-left px-4 py-2 text-xs hover:bg-black hover:text-[#ff9f43] text-slate-300">Genel</button>
-                        <button onClick={() => setFilter('HOME')} className="w-full text-left px-4 py-2 text-xs hover:bg-black hover:text-[#ff9f43] text-slate-300">İç Saha</button>
-                        <button onClick={() => setFilter('AWAY')} className="w-full text-left px-4 py-2 text-xs hover:bg-black hover:text-[#ff9f43] text-slate-300">Dış Saha</button>
-                        <div className="h-px bg-[#444] my-1"></div>
-                        <button onClick={() => setFilter('FIRST_HALF')} className="w-full text-left px-4 py-2 text-xs hover:bg-black hover:text-[#ff9f43] text-slate-300">1. Yarı</button>
-                        <button onClick={() => setFilter('SECOND_HALF')} className="w-full text-left px-4 py-2 text-xs hover:bg-black hover:text-[#ff9f43] text-slate-300">2. Yarı</button>
+                    {/* Filter Selector */}
+                    <div className="relative group">
+                        <button className="flex items-center gap-2 bg-[#333] hover:bg-[#444] text-white px-4 py-2 rounded text-sm font-bold transition">
+                            <span>
+                                {filter === 'OVERALL' ? 'Genel' : 
+                                 filter === 'HOME' ? 'İç Saha' : 
+                                 filter === 'AWAY' ? 'Dış Saha' : 
+                                 filter === 'FIRST_HALF' ? 'İlk Yarı' : 'İkinci Yarı'}
+                            </span>
+                            <ChevronDown size={14} className="text-slate-400"/>
+                        </button>
+                        <div className="absolute top-full left-0 mt-2 w-40 bg-[#333] border border-[#444] rounded shadow-xl hidden group-hover:block z-50">
+                            <button onClick={() => setFilter('OVERALL')} className="w-full text-left px-4 py-2 text-xs hover:bg-black hover:text-[#ff9f43] text-slate-300">Genel</button>
+                            <button onClick={() => setFilter('HOME')} className="w-full text-left px-4 py-2 text-xs hover:bg-black hover:text-[#ff9f43] text-slate-300">İç Saha</button>
+                            <button onClick={() => setFilter('AWAY')} className="w-full text-left px-4 py-2 text-xs hover:bg-black hover:text-[#ff9f43] text-slate-300">Dış Saha</button>
+                            <div className="h-px bg-[#444] my-1"></div>
+                            <button onClick={() => setFilter('FIRST_HALF')} className="w-full text-left px-4 py-2 text-xs hover:bg-black hover:text-[#ff9f43] text-slate-300">1. Yarı</button>
+                            <button onClick={() => setFilter('SECOND_HALF')} className="w-full text-left px-4 py-2 text-xs hover:bg-black hover:text-[#ff9f43] text-slate-300">2. Yarı</button>
+                        </div>
+                    </div>
+
+                    <div className="ml-auto flex items-center gap-2">
+                        <button
+                            onClick={onShowPreview}
+                            className="flex items-center gap-1 bg-[#ff9f43] text-black hover:bg-yellow-400 px-3 py-1.5 rounded text-xs font-bold transition mr-2 shadow-lg shadow-orange-900/20"
+                        >
+                            <Presentation size={14}/>
+                            <span className="hidden sm:inline">Sezon Öncesi Bakış</span>
+                        </button>
+                        
+                        <button className="p-1 text-slate-500 hover:text-white cursor-not-allowed"><ChevronLeft size={20}/></button>
+                        <div className="text-xs font-bold text-white bg-[#333] px-3 py-1 rounded">2025/26</div>
+                        <button className="p-1 text-slate-500 hover:text-white cursor-not-allowed"><ChevronRight size={20}/></button>
                     </div>
                 </div>
-
-                <div className="ml-auto flex items-center gap-2">
-                    <button className="p-1 text-slate-500 hover:text-white cursor-not-allowed"><ChevronLeft size={20}/></button>
-                    <div className="text-xs font-bold text-white bg-[#333] px-3 py-1 rounded">2025/26 Sezonu</div>
-                    <button className="p-1 text-slate-500 hover:text-white cursor-not-allowed"><ChevronRight size={20}/></button>
-                </div>
-            </div>
+            )}
 
             {/* Table Header */}
-            <div className="grid grid-cols-12 gap-2 px-2 py-2 bg-[#252525] text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-[#333]">
-                <div className="col-span-1 text-center">Poz</div>
-                <div className="col-span-1 text-center">Bil</div>
-                <div className="col-span-4 pl-2">Takım</div>
-                <div className="col-span-1 text-center">Oyn</div>
-                <div className="col-span-1 text-center">G</div>
-                <div className="col-span-1 text-center">B</div>
-                <div className="col-span-1 text-center">M</div>
-                <div className="col-span-1 text-center">AV</div>
-                <div className="col-span-1 text-center text-white">Puan</div>
+            <div className={`grid ${gridColsClass} gap-2 px-2 py-2 bg-[#252525] text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-[#333] items-center`}>
+                <div className="text-center">Poz</div>
+                <div className="text-center">Bil</div>
+                <div className="pl-2">Takım</div>
+                <div className="text-center">O</div>
+                <div className="text-center">G</div>
+                <div className="text-center">B</div>
+                <div className="text-center">M</div>
+                <div className="text-center text-green-500">A</div>
+                <div className="text-center text-red-500">Y</div>
+                <div className="text-center">AV</div>
+                <div className="text-center text-white">P</div>
+                <div className="text-center">Form</div>
             </div>
 
             {/* Table Body */}
@@ -229,14 +246,17 @@ const DetailedLeagueTable = ({ teams, fixtures, onTeamClick, competitionId }: { 
                     let barColor = '';
                     let infoText = '-';
                     
-                    if (isLeague1) {
-                         if (rank <= 2) { barColor = 'border-green-500'; infoText = 'Y'; } // Promotion
+                    if (isEurope) {
+                         if (rank <= 8) { barColor = 'border-green-500'; infoText = 'S16'; } // Round of 16
+                         else if (rank <= 24) { barColor = 'border-blue-500'; infoText = 'PO'; } // Playoff
+                         else { barColor = 'border-red-600'; infoText = 'E'; } // Eliminated
+                    } else if (isLeague1) {
+                         if (rank <= 2) { barColor = 'border-green-500'; infoText = 'Y'; } // Promotion (Upper League)
                          else if (rank <= 6) { barColor = 'border-blue-500'; infoText = 'PO'; } // Playoff
                          else if (rank >= tableData.length - 2) { barColor = 'border-red-600'; infoText = 'D'; } // Relegation
                     } else {
-                         if (rank === 1) { barColor = 'border-yellow-500'; infoText = 'Ş'; } // Champion
-                         else if (rank <= 2) { barColor = 'border-blue-500'; infoText = 'ŞL'; } // CL
-                         else if (rank <= 4) { barColor = 'border-orange-500'; infoText = 'AL'; } // EL
+                         // Super League
+                         if (rank <= 4) { barColor = 'border-green-500'; infoText = 'AVR'; } // Europe
                          else if (rank >= tableData.length - 2) { barColor = 'border-red-600'; infoText = 'D'; } // Relegation
                     }
 
@@ -247,32 +267,28 @@ const DetailedLeagueTable = ({ teams, fixtures, onTeamClick, competitionId }: { 
                         <div 
                             key={row.team.id} 
                             onClick={() => onTeamClick(row.team.id)}
-                            className={`grid grid-cols-12 gap-2 px-2 py-2 items-center hover:bg-[#2a2a2a] transition-colors border-b border-[#2c2c2c] cursor-pointer group ${barColor ? `border-l-4 ${barColor} pl-1` : 'border-l-4 border-transparent pl-1'}`}
+                            className={`grid ${gridColsClass} gap-2 px-2 py-2 items-center hover:bg-[#2a2a2a] transition-colors border-b border-[#2c2c2c] cursor-pointer group ${barColor ? `border-l-4 ${barColor} pl-1` : 'border-l-4 border-transparent pl-1'}`}
                         >
-                            <div className="col-span-1 text-center font-bold text-white text-xs">{rank}</div>
-                            <div className="col-span-1 text-center text-[10px] font-bold text-slate-500">{infoText !== '-' ? infoText : ''}</div>
-                            <div className="col-span-4 flex items-center gap-2 pl-2 overflow-hidden">
+                            <div className="text-center font-bold text-white text-xs">{rank}</div>
+                            <div className="text-center text-[10px] font-bold text-slate-500">{infoText !== '-' ? infoText : ''}</div>
+                            <div className="flex items-center gap-2 pl-2 overflow-hidden">
                                 {row.team.logo ? <img src={row.team.logo} className="w-5 h-5 object-contain"/> : <div className={`w-5 h-5 rounded-full ${row.team.colors[0]}`}></div>}
                                 <span className="font-bold text-slate-200 text-xs truncate group-hover:text-[#ff9f43] transition-colors">{row.team.name}</span>
                             </div>
-                            <div className="col-span-1 text-center text-slate-400 text-xs">{row.played}</div>
-                            <div className="col-span-1 text-center text-green-500 font-bold text-xs">{row.won}</div>
-                            <div className="col-span-1 text-center text-slate-500 text-xs">{row.drawn}</div>
-                            <div className="col-span-1 text-center text-red-500 text-xs">{row.lost}</div>
-                            <div className="col-span-1 text-center text-slate-300 text-xs font-bold">{row.gf - row.ga}</div>
-                            <div className="col-span-1 text-center text-white font-black text-sm bg-[#333] rounded py-0.5">{row.pts}</div>
+                            <div className="text-center text-slate-400 text-xs">{row.played}</div>
+                            <div className="text-center text-green-500 font-bold text-xs">{row.won}</div>
+                            <div className="text-center text-slate-500 text-xs">{row.drawn}</div>
+                            <div className="text-center text-red-500 text-xs">{row.lost}</div>
+                            <div className="text-center text-slate-300 text-xs">{row.gf}</div>
+                            <div className="text-center text-slate-300 text-xs">{row.ga}</div>
+                            <div className="text-center text-slate-300 text-xs font-bold">{row.gf - row.ga}</div>
+                            <div className="text-center text-white font-black text-sm bg-[#333] rounded py-0.5">{row.pts}</div>
                             
-                            {/* Detailed Hover - Form & Goals */}
-                            <div className="col-span-12 hidden group-hover:flex justify-between items-center bg-[#111] p-1 px-3 mt-1 rounded text-[9px] text-slate-500 animate-in fade-in">
-                                <div className="flex items-center gap-1">
-                                    <span>Form:</span>
-                                    <div className="flex gap-0.5">
-                                        {last5.map((res, i) => (
-                                            <div key={i} className={`w-3 h-3 rounded-[1px] ${res === 'W' ? 'bg-green-600' : res === 'D' ? 'bg-slate-500' : 'bg-red-600'}`}></div>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div>A: {row.gf} Y: {row.ga}</div>
+                            {/* Form display directly in row */}
+                            <div className="flex items-center justify-center gap-1">
+                                {last5.map((res, i) => (
+                                    <div key={i} className={`w-2 h-2 rounded-full ${res === 'W' ? 'bg-green-600' : res === 'D' ? 'bg-slate-500' : 'bg-red-600'}`} title={res}></div>
+                                ))}
                             </div>
                         </div>
                     );
@@ -296,6 +312,7 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
     // State for Fixture Navigation
     const [viewWeek, setViewWeek] = useState<number>(currentWeek);
     const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'ROUNDS' | 'FIXTURES' | 'STATS' | 'TRANSFERS' | 'CLUBS' | 'ABOUT'>('OVERVIEW');
+    const [showSeasonPreview, setShowSeasonPreview] = useState(false);
 
     // Initialize viewWeek based on Competition Type
     useEffect(() => {
@@ -876,13 +893,13 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                     </div>
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-0">
                         {shouldShowStandings ? (
-                            <StandingsTable 
+                            <DetailedLeagueTable 
                                 teams={teamsWithCompetitionStats} 
-                                myTeamId={null} 
                                 fixtures={fixtures} 
                                 onTeamClick={onTeamClick} 
-                                compact={false} 
-                                leagueName={competitionName} 
+                                competitionId={competitionId} 
+                                onShowPreview={() => setShowSeasonPreview(true)}
+                                minimal={true}
                             />
                         ) : (
                             renderBracket()
@@ -1071,6 +1088,16 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
 
     return (
         <div className={containerClass}>
+            {showSeasonPreview && (
+                <SeasonPreviewModal 
+                    competitionName={competitionName}
+                    teams={competitionTeams}
+                    onClose={() => setShowSeasonPreview(false)}
+                    onPlayerClick={onPlayerClick}
+                    onTeamClick={onTeamClick}
+                />
+            )}
+
             {/* Main Header */}
             {variant === 'modal' && (
                 <div className="bg-[#252525] border-b border-[#333] p-4 flex justify-between items-center shrink-0">
@@ -1118,10 +1145,12 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                     <div className="h-full p-0 overflow-y-auto">
                         {isLeague ? (
                             <DetailedLeagueTable 
-                                teams={competitionTeams} // CHANGED FROM teams TO competitionTeams
+                                teams={teamsWithCompetitionStats} 
                                 fixtures={fixtures} 
                                 onTeamClick={onTeamClick} 
                                 competitionId={competitionId} 
+                                onShowPreview={() => setShowSeasonPreview(true)}
+                                minimal={false}
                             />
                         ) : (
                             renderBracket()
