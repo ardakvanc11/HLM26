@@ -1,11 +1,18 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Team, Fixture, Player, Position } from '../types';
-import { Trophy, X, ChevronLeft, ChevronRight, Star, Activity, Flame, ShieldAlert, History, Goal, Zap, Shield, Award, AlertTriangle, GitCommit, LayoutDashboard, ListTree, CalendarDays, BarChart2, ArrowRightLeft, Users, Info, ArrowRight, Filter, ChevronDown, Presentation } from 'lucide-react';
+import { Trophy, X, ChevronLeft, ChevronRight, Star, Activity, Flame, ShieldAlert, History, Goal, Zap, Shield, Award, AlertTriangle, GitCommit, LayoutDashboard, ListTree, CalendarDays, BarChart2, ArrowRightLeft, Users, Info, ArrowRight, Filter, ChevronDown, Presentation, Calendar, Clock, Disc } from 'lucide-react';
 import StandingsTable from '../components/shared/StandingsTable';
 import PlayerFace from '../components/shared/PlayerFace';
 import { getFormattedDate } from '../utils/calendarAndFixtures';
 import SeasonPreviewModal from './SeasonPreviewModal';
+import MatchDetailModal from './MatchDetailModal';
+
+// New Component Imports
+import CompetitionStatsTab from '../components/competition/CompetitionStatsTab';
+import CompetitionTransfersTab from '../components/competition/CompetitionTransfersTab';
+import CompetitionClubsTab from '../components/competition/CompetitionClubsTab';
+import CompetitionAboutTab from '../components/competition/CompetitionAboutTab';
 
 interface CompetitionDetailModalProps {
     competitionId: string;
@@ -55,7 +62,7 @@ const CUP_ROUNDS = [
     { id: 104, name: 'Final' }
 ];
 
-const MatchBox: React.FC<{ f: Fixture, teams: Team[] }> = ({ f, teams }) => {
+const MatchBox: React.FC<{ f: Fixture, teams: Team[], onScoreClick: (f: Fixture) => void }> = ({ f, teams, onScoreClick }) => {
     const h = teams.find(t => t.id === f.homeTeamId);
     const a = teams.find(t => t.id === f.awayTeamId);
     const isFinished = f.played;
@@ -79,7 +86,12 @@ const MatchBox: React.FC<{ f: Fixture, teams: Team[] }> = ({ f, teams }) => {
                     {h?.logo ? <img src={h.logo} className="w-4 h-4 object-contain"/> : <div className={`w-4 h-4 rounded-full ${h?.colors[0]}`}></div>}
                     <span className={`truncate ${winnerId === h?.id ? 'text-green-400 font-bold' : isFinished ? 'text-slate-500' : 'text-slate-300'}`}>{h?.name}</span>
                 </div>
-                <span className="font-mono font-bold text-white bg-black/40 px-1.5 rounded min-w-[20px] text-center">{isFinished ? f.homeScore : '-'}</span>
+                <span 
+                    onClick={(e) => { e.stopPropagation(); if(isFinished) onScoreClick(f); }}
+                    className={`font-mono font-bold text-white bg-black/40 px-1.5 rounded min-w-[20px] text-center ${isFinished ? 'cursor-pointer hover:bg-yellow-500 hover:text-black transition-colors' : ''}`}
+                >
+                    {isFinished ? f.homeScore : '-'}
+                </span>
             </div>
 
             {/* Away Team */}
@@ -88,7 +100,12 @@ const MatchBox: React.FC<{ f: Fixture, teams: Team[] }> = ({ f, teams }) => {
                     {a?.logo ? <img src={a.logo} className="w-4 h-4 object-contain"/> : <div className={`w-4 h-4 rounded-full ${a?.colors[0]}`}></div>}
                     <span className={`truncate ${winnerId === a?.id ? 'text-green-400 font-bold' : isFinished ? 'text-slate-500' : 'text-slate-300'}`}>{a?.name}</span>
                 </div>
-                <span className="font-mono font-bold text-white bg-black/40 px-1.5 rounded min-w-[20px] text-center">{isFinished ? f.awayScore : '-'}</span>
+                <span 
+                    onClick={(e) => { e.stopPropagation(); if(isFinished) onScoreClick(f); }}
+                    className={`font-mono font-bold text-white bg-black/40 px-1.5 rounded min-w-[20px] text-center ${isFinished ? 'cursor-pointer hover:bg-yellow-500 hover:text-black transition-colors' : ''}`}
+                >
+                    {isFinished ? f.awayScore : '-'}
+                </span>
             </div>
 
             {isFinished && f.pkHome !== undefined && (
@@ -98,10 +115,9 @@ const MatchBox: React.FC<{ f: Fixture, teams: Team[] }> = ({ f, teams }) => {
     );
 };
 
-// --- NEW DETAILED LEAGUE TABLE COMPONENT ---
+// --- DETAILED LEAGUE TABLE COMPONENT ---
 const DetailedLeagueTable = ({ teams, fixtures, onTeamClick, competitionId, onShowPreview, minimal }: { teams: Team[], fixtures: Fixture[], onTeamClick: (id: string) => void, competitionId: string, onShowPreview: () => void, minimal?: boolean }) => {
     const [filter, setFilter] = useState<'OVERALL' | 'HOME' | 'AWAY' | 'FIRST_HALF' | 'SECOND_HALF'>('OVERALL');
-    const [viewMode, setViewMode] = useState<'TABLE' | 'XG'>('TABLE'); // Placeholder for future xG
 
     // Calculate Table Data based on filter
     const tableData = useMemo(() => {
@@ -129,15 +145,14 @@ const DetailedLeagueTable = ({ teams, fixtures, onTeamClick, competitionId, onSh
             if (filter === 'SECOND_HALF' && f.week <= 17) return false;
 
             return true;
-        }).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()); // Sort by date for form
+        }).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()); 
 
         // Process Matches
         relevantFixtures.forEach(f => {
             const hStats = statsMap.get(f.homeTeamId);
             const aStats = statsMap.get(f.awayTeamId);
 
-            // Process Home Team
-            if (hStats && (filter === 'OVERALL' || filter === 'HOME' || filter === 'FIRST_HALF' || filter === 'SECOND_HALF')) {
+            if (hStats && filter !== 'AWAY') {
                 hStats.played++;
                 hStats.gf += f.homeScore!;
                 hStats.ga += f.awayScore!;
@@ -146,8 +161,7 @@ const DetailedLeagueTable = ({ teams, fixtures, onTeamClick, competitionId, onSh
                 else { hStats.lost++; hStats.form.push('L'); }
             }
 
-            // Process Away Team
-            if (aStats && (filter === 'OVERALL' || filter === 'AWAY' || filter === 'FIRST_HALF' || filter === 'SECOND_HALF')) {
+            if (aStats && filter !== 'HOME') {
                 aStats.played++;
                 aStats.gf += f.awayScore!;
                 aStats.ga += f.homeScore!;
@@ -168,40 +182,29 @@ const DetailedLeagueTable = ({ teams, fixtures, onTeamClick, competitionId, onSh
     const isLeague1 = competitionId === 'LEAGUE_1';
     const isEurope = competitionId === 'EUROPE';
 
-    // Custom Grid columns definition
     const gridColsClass = "grid-cols-[1.5rem_1.5rem_minmax(140px,3fr)_1.5rem_1.5rem_1.5rem_1.5rem_1.5rem_1.5rem_2rem_2rem_4rem]";
 
     return (
         <div className="flex flex-col h-full bg-[#1b1b1b] text-slate-300">
-            {/* Control Bar - Only show if NOT minimal */}
             {!minimal && (
                 <div className="flex items-center gap-4 p-4 border-b border-[#333] bg-[#222]">
-                    {/* View Selector */}
-                    <div className="relative group">
-                        <button className="flex items-center gap-2 bg-[#333] hover:bg-[#444] text-white px-4 py-2 rounded text-sm font-bold transition">
-                            <span>Lig Tablosu</span>
-                            <ChevronDown size={14} className="text-slate-400"/>
-                        </button>
-                    </div>
-
-                    {/* Filter Selector */}
                     <div className="relative group">
                         <button className="flex items-center gap-2 bg-[#333] hover:bg-[#444] text-white px-4 py-2 rounded text-sm font-bold transition">
                             <span>
-                                {filter === 'OVERALL' ? 'Genel' : 
-                                 filter === 'HOME' ? 'İç Saha' : 
-                                 filter === 'AWAY' ? 'Dış Saha' : 
-                                 filter === 'FIRST_HALF' ? 'İlk Yarı' : 'İkinci Yarı'}
+                                {filter === 'OVERALL' ? 'Genel Puan Durumu' : 
+                                 filter === 'HOME' ? 'İç Saha Puan Durumu' : 
+                                 filter === 'AWAY' ? 'Dış Saha Puan Durumu' : 
+                                 filter === 'FIRST_HALF' ? '1. Yarı Puan Durumu' : '2. Yarı Puan Durumu'}
                             </span>
                             <ChevronDown size={14} className="text-slate-400"/>
                         </button>
-                        <div className="absolute top-full left-0 mt-2 w-40 bg-[#333] border border-[#444] rounded shadow-xl hidden group-hover:block z-50">
+                        <div className="absolute top-full left-0 mt-2 w-48 bg-[#333] border border-[#444] rounded shadow-xl hidden group-hover:block z-50">
                             <button onClick={() => setFilter('OVERALL')} className="w-full text-left px-4 py-2 text-xs hover:bg-black hover:text-[#ff9f43] text-slate-300">Genel</button>
                             <button onClick={() => setFilter('HOME')} className="w-full text-left px-4 py-2 text-xs hover:bg-black hover:text-[#ff9f43] text-slate-300">İç Saha</button>
                             <button onClick={() => setFilter('AWAY')} className="w-full text-left px-4 py-2 text-xs hover:bg-black hover:text-[#ff9f43] text-slate-300">Dış Saha</button>
                             <div className="h-px bg-[#444] my-1"></div>
-                            <button onClick={() => setFilter('FIRST_HALF')} className="w-full text-left px-4 py-2 text-xs hover:bg-black hover:text-[#ff9f43] text-slate-300">1. Yarı</button>
-                            <button onClick={() => setFilter('SECOND_HALF')} className="w-full text-left px-4 py-2 text-xs hover:bg-black hover:text-[#ff9f43] text-slate-300">2. Yarı</button>
+                            <button onClick={() => setFilter('FIRST_HALF')} className="w-full text-left px-4 py-2 text-xs hover:bg-black hover:text-[#ff9f43] text-slate-300">1. Yarı (İlk 17 Hafta)</button>
+                            <button onClick={() => setFilter('SECOND_HALF')} className="w-full text-left px-4 py-2 text-xs hover:bg-black hover:text-[#ff9f43] text-slate-300">2. Yarı (18-34. Hafta)</button>
                         </div>
                     </div>
 
@@ -221,7 +224,6 @@ const DetailedLeagueTable = ({ teams, fixtures, onTeamClick, competitionId, onSh
                 </div>
             )}
 
-            {/* Table Header */}
             <div className={`grid ${gridColsClass} gap-2 px-2 py-2 bg-[#252525] text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-[#333] items-center`}>
                 <div className="text-center">Poz</div>
                 <div className="text-center">Bil</div>
@@ -237,30 +239,26 @@ const DetailedLeagueTable = ({ teams, fixtures, onTeamClick, competitionId, onSh
                 <div className="text-center">Form</div>
             </div>
 
-            {/* Table Body */}
             <div className="flex-1 overflow-y-auto custom-scrollbar">
                 {tableData.map((row, index) => {
                     const rank = index + 1;
                     
-                    // Qualification Colors
                     let barColor = '';
                     let infoText = '-';
                     
                     if (isEurope) {
-                         if (rank <= 8) { barColor = 'border-green-500'; infoText = 'S16'; } // Round of 16
-                         else if (rank <= 24) { barColor = 'border-blue-500'; infoText = 'PO'; } // Playoff
-                         else { barColor = 'border-red-600'; infoText = 'E'; } // Eliminated
+                         if (rank <= 8) { barColor = 'border-green-500'; infoText = 'S16'; }
+                         else if (rank <= 24) { barColor = 'border-blue-500'; infoText = 'PO'; }
+                         else { barColor = 'border-red-600'; infoText = 'E'; }
                     } else if (isLeague1) {
-                         if (rank <= 2) { barColor = 'border-green-500'; infoText = 'Y'; } // Promotion (Upper League)
-                         else if (rank <= 6) { barColor = 'border-blue-500'; infoText = 'PO'; } // Playoff
-                         else if (rank >= tableData.length - 2) { barColor = 'border-red-600'; infoText = 'D'; } // Relegation
+                         if (rank <= 2) { barColor = 'border-green-500'; infoText = 'Y'; }
+                         else if (rank <= 6) { barColor = 'border-blue-500'; infoText = 'PO'; }
+                         else if (rank >= tableData.length - 2) { barColor = 'border-red-600'; infoText = 'D'; }
                     } else {
-                         // Super League
-                         if (rank <= 4) { barColor = 'border-green-500'; infoText = 'AVR'; } // Europe
-                         else if (rank >= tableData.length - 2) { barColor = 'border-red-600'; infoText = 'D'; } // Relegation
+                         if (rank <= 4) { barColor = 'border-green-500'; infoText = 'AVR'; }
+                         else if (rank >= tableData.length - 2) { barColor = 'border-red-600'; infoText = 'D'; }
                     }
 
-                    // Form (Last 5)
                     const last5 = row.form.slice(-5);
 
                     return (
@@ -284,7 +282,6 @@ const DetailedLeagueTable = ({ teams, fixtures, onTeamClick, competitionId, onSh
                             <div className="text-center text-slate-300 text-xs font-bold">{row.gf - row.ga}</div>
                             <div className="text-center text-white font-black text-sm bg-[#333] rounded py-0.5">{row.pts}</div>
                             
-                            {/* Form display directly in row */}
                             <div className="flex items-center justify-center gap-1">
                                 {last5.map((res, i) => (
                                     <div key={i} className={`w-2 h-2 rounded-full ${res === 'W' ? 'bg-green-600' : res === 'D' ? 'bg-slate-500' : 'bg-red-600'}`} title={res}></div>
@@ -309,10 +306,10 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
     onPlayerClick, 
     variant = 'modal' 
 }) => {
-    // State for Fixture Navigation
     const [viewWeek, setViewWeek] = useState<number>(currentWeek);
     const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'ROUNDS' | 'FIXTURES' | 'STATS' | 'TRANSFERS' | 'CLUBS' | 'ABOUT'>('OVERVIEW');
     const [showSeasonPreview, setShowSeasonPreview] = useState(false);
+    const [selectedMatchForDetail, setSelectedMatchForDetail] = useState<Fixture | null>(null);
 
     // Initialize viewWeek based on Competition Type
     useEffect(() => {
@@ -327,50 +324,42 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                 }
             } else setViewWeek(100);
         } else if (competitionId === 'EUROPE') {
-            // Find current stage for Europe
             const euroFixtures = fixtures.filter(f => f.competitionId === 'EUROPE');
             if (euroFixtures.length > 0) {
                 const unplayed = euroFixtures.find(f => !f.played);
                 if (unplayed) setViewWeek(unplayed.week);
                 else {
-                     // Default to Round 1 if none found, or last played
                      const lastPlayed = euroFixtures.sort((a,b) => b.week - a.week)[0];
                      setViewWeek(lastPlayed ? lastPlayed.week : 201);
                 }
-            } else setViewWeek(201); // Start of League Phase
+            } else setViewWeek(201);
         } else if (competitionId === 'LEAGUE' || competitionId === 'LEAGUE_1') {
             setViewWeek(currentWeek);
         } else if (competitionId === 'SUPER_CUP') {
-            setViewWeek(90); // Semi Finals
+            setViewWeek(90);
         }
     }, [competitionId, fixtures, currentWeek]);
 
-    // State for Stats Tab
     const [statTab, setStatTab] = useState<'GOAL' | 'RATING' | 'ASSIST' | 'CLEANSHEET' | 'MVP' | 'CARD'>('GOAL');
 
     const isLeague = competitionId === 'LEAGUE' || competitionId === 'LEAGUE_1';
-    // Europe is Hybrid: League Table (Phase 1) + Bracket (Phase 2)
     const isEurope = competitionId === 'EUROPE';
-    // isEuropeLeaguePhase determines IF WE SHOW the table or the bracket UI
     const isEuropeLeaguePhase = isEurope && viewWeek >= 201 && viewWeek <= 208;
-    // shouldShowStandings indicates if we need to calculate and display a table AT ALL
     const shouldShowStandings = isLeague || isEuropeLeaguePhase;
 
     // Filter teams based on competition participation
     const competitionTeams = useMemo(() => {
-        if (competitionId === 'LEAGUE') {
-            return teams.filter(t => t.leagueId === 'LEAGUE' || !t.leagueId);
-        } else if (competitionId === 'LEAGUE_1') {
-            return teams.filter(t => t.leagueId === 'LEAGUE_1');
-        } else if (competitionId === 'CUP') {
-            return teams; 
-        } else if (competitionId === 'EUROPE') {
+        if (competitionId === 'LEAGUE') return teams.filter(t => t.leagueId === 'LEAGUE' || !t.leagueId);
+        if (competitionId === 'LEAGUE_1') return teams.filter(t => t.leagueId === 'LEAGUE_1');
+        if (competitionId === 'CUP') return teams; 
+        if (competitionId === 'EUROPE') {
             const euroFixtures = fixtures.filter(f => f.competitionId === 'EUROPE');
             const teamIds = new Set<string>();
             euroFixtures.forEach(f => { teamIds.add(f.homeTeamId); teamIds.add(f.awayTeamId); });
             if (teamIds.size === 0) return teams.filter(t => t.leagueId === 'EUROPE_LEAGUE');
             return teams.filter(t => teamIds.has(t.id));
-        } else if (competitionId === 'SUPER_CUP' || competitionId === 'PLAYOFF') {
+        }
+        if (competitionId === 'SUPER_CUP' || competitionId === 'PLAYOFF') {
              const compFixtures = fixtures.filter(f => f.competitionId === competitionId || (competitionId === 'PLAYOFF' && f.competitionId === 'PLAYOFF_FINAL'));
              const teamIds = new Set<string>();
              compFixtures.forEach(f => { teamIds.add(f.homeTeamId); teamIds.add(f.awayTeamId); });
@@ -379,9 +368,8 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
         return teams;
     }, [teams, competitionId, fixtures]);
 
-    // DYNAMIC STANDINGS CALCULATION (CRITICAL FIX FOR ISOLATING STATS)
+    // DYNAMIC STANDINGS CALCULATION
     const teamsWithCompetitionStats = useMemo(() => {
-        // We need stats for "Genel Bakış" (Overview)
         if (!shouldShowStandings && activeTab !== 'CLUBS') return [];
 
         return competitionTeams.map(t => {
@@ -401,22 +389,16 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                 const isHome = f.homeTeamId === t.id;
                 const myScore = isHome ? f.homeScore! : f.awayScore!;
                 const oppScore = isHome ? f.awayScore! : f.homeScore!;
-                gf += myScore;
-                ga += oppScore;
-
+                gf += myScore; ga += oppScore;
                 if (myScore > oppScore) { won++; points += 3; }
                 else if (myScore === oppScore) { drawn++; points += 1; }
                 else { lost++; }
             });
 
-            return {
-                ...t,
-                stats: { played, won, drawn, lost, gf, ga, points }
-            };
+            return { ...t, stats: { played, won, drawn, lost, gf, ga, points } };
         });
     }, [competitionTeams, fixtures, isLeague, shouldShowStandings, competitionId, activeTab]);
 
-    // Calculate League History outside conditional render loop (Fix for Hook Error #300)
     const leagueHistory = useMemo(() => {
         if (!isLeague) return [];
         const hist: {year:string, team:Team}[] = [];
@@ -425,14 +407,12 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
         return hist.sort((a,b) => parseInt(b.year) - parseInt(a.year)).slice(0,6);
     }, [teams, competitionId, isLeague]);
 
-    // Fixtures for the specific week/round
     const weekFixtures = useMemo(() => {
         return fixtures
             .filter(f => {
                 const compMatch = f.competitionId === competitionId || (competitionId === 'PLAYOFF' && f.competitionId === 'PLAYOFF_FINAL');
                 const weekMatch = f.week === viewWeek;
                 if (isLeague) {
-                    // Filter League matches to only show correct division
                     const h = teams.find(t => t.id === f.homeTeamId);
                     const correctLeague = h && (competitionId === 'LEAGUE' ? (h.leagueId === 'LEAGUE' || !h.leagueId) : h.leagueId === 'LEAGUE_1');
                     return compMatch && weekMatch && correctLeague;
@@ -442,22 +422,7 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     }, [fixtures, viewWeek, competitionId, isLeague, teams]);
 
-    // All Competition Fixtures (For Fixtures Tab)
-    const allCompetitionFixtures = useMemo(() => {
-        return fixtures
-            .filter(f => {
-                const compMatch = f.competitionId === competitionId || (competitionId === 'PLAYOFF' && f.competitionId === 'PLAYOFF_FINAL');
-                if (isLeague) {
-                    const h = teams.find(t => t.id === f.homeTeamId);
-                    const correctLeague = h && (competitionId === 'LEAGUE' ? (h.leagueId === 'LEAGUE' || !h.leagueId) : h.leagueId === 'LEAGUE_1');
-                    return compMatch && correctLeague;
-                }
-                return compMatch;
-            })
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Newest first
-    }, [fixtures, competitionId, isLeague, teams]);
-
-    // Player Stats Logic (Same as before)
+    // Player Stats Logic
     const statsList = useMemo(() => {
         const playerStatsMap: Record<string, {
             goals: number, assists: number, yellow: number, red: number, 
@@ -471,7 +436,6 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
 
         compFixtures.forEach(f => {
             if (!f.played || !f.matchEvents) return;
-            
             f.matchEvents.forEach(e => {
                 if (e.playerId) {
                     if (!playerStatsMap[e.playerId]) playerStatsMap[e.playerId] = { goals: 0, assists: 0, yellow: 0, red: 0, ratingsSum: 0, matches: 0, cleanSheets: 0, mvps: 0 };
@@ -500,12 +464,9 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                     if (!playerStatsMap[r.playerId]) playerStatsMap[r.playerId] = { goals: 0, assists: 0, yellow: 0, red: 0, ratingsSum: 0, matches: 0, cleanSheets: 0, mvps: 0 };
                     playerStatsMap[r.playerId].ratingsSum += r.rating;
                     playerStatsMap[r.playerId].matches++;
-                    if (r.position === 'GK' && conceded === 0) {
-                        playerStatsMap[r.playerId].cleanSheets++;
-                    }
+                    if (r.position === 'GK' && conceded === 0) playerStatsMap[r.playerId].cleanSheets++;
                 });
             };
-
             if (f.stats?.homeRatings) processRatings(f.stats.homeRatings, f.homeTeamId, f.awayScore!);
             if (f.stats?.awayRatings) processRatings(f.stats.awayRatings, f.awayTeamId, f.homeScore!);
         });
@@ -513,28 +474,15 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
         const allPlayers = Object.entries(playerStatsMap).map(([pid, s]) => {
             let player: Player | undefined;
             let team: Team | undefined;
-            
-            for (const t of competitionTeams) {
-                const found = t.players.find(p => p.id === pid);
-                if (found) { player = found; team = t; break; }
-            }
-            if (!player) {
-                for (const t of teams) {
-                    const found = t.players.find(p => p.id === pid);
-                    if (found) { player = found; team = t; break; }
-                }
-            }
-            
+            for (const t of competitionTeams) { const found = t.players.find(p => p.id === pid); if (found) { player = found; team = t; break; } }
+            if (!player) { for (const t of teams) { const found = t.players.find(p => p.id === pid); if (found) { player = found; team = t; break; } } }
             if (!player || !team) return null;
 
             return {
                 ...player,
                 teamName: team.name,
                 teamLogo: team.logo,
-                compStats: {
-                    ...s,
-                    averageRating: s.matches > 0 ? s.ratingsSum / s.matches : 0
-                }
+                compStats: { ...s, averageRating: s.matches > 0 ? s.ratingsSum / s.matches : 0 }
             };
         }).filter(Boolean) as (Player & { teamName: string, teamLogo?: string, compStats: any })[];
 
@@ -563,7 +511,6 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
             case 'CARD':
                 sorted = allPlayers.filter(p => p.compStats.yellow > 0 || p.compStats.red > 0).sort((a,b) => (b.compStats.yellow + b.compStats.red*3) - (a.compStats.yellow + a.compStats.red*3));
                 valueKey = (p) => p.compStats.yellow; 
-                displayFormat = (val) => val.toString(); 
                 break;
             case 'CLEANSHEET':
                 sorted = allPlayers.filter(p => p.compStats.cleanSheets > 0).sort((a,b) => b.compStats.cleanSheets - a.compStats.cleanSheets);
@@ -571,7 +518,6 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                 break;
         }
 
-        // Return full list for Stats Tab, Slice 5 for Overview
         return {
             full: sorted.map(p => ({ ...p, displayValue: displayFormat(valueKey(p)) })),
             top5: sorted.slice(0, 5).map(p => ({ ...p, displayValue: displayFormat(valueKey(p)) }))
@@ -639,7 +585,12 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
 
                 <div className={`grid ${gridCols} gap-4 relative z-10`}>
                     {weekFixtures.map(f => (
-                        <MatchBox key={f.id} f={f} teams={teams} />
+                        <MatchBox 
+                            key={f.id} 
+                            f={f} 
+                            teams={teams} 
+                            onScoreClick={(fix) => setSelectedMatchForDetail(fix)}
+                        />
                     ))}
                 </div>
 
@@ -708,182 +659,114 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
         return 'MAÇLAR';
     };
 
-    // --- RENDER TAB CONTENT HELPERS ---
-
     const renderFixtureList = () => {
-        if (allCompetitionFixtures.length === 0) return <div className="p-8 text-center text-slate-500 italic">Fikstür bulunamadı.</div>;
-        
+        if (weekFixtures.length === 0) return (
+            <div className="h-full flex flex-col bg-[#1b1b1b]">
+                 <div className="bg-[#252525] p-3 border-b border-[#333] flex items-center justify-between sticky top-0 z-20">
+                    <button onClick={handlePrevRound} className="p-2 bg-[#111] hover:bg-[#ff9f43] hover:text-black text-white rounded transition"><ChevronLeft size={16}/></button>
+                    <span className="text-[#ff9f43] font-bold text-sm uppercase tracking-wider">{getRoundLabel()}</span>
+                    <button onClick={handleNextRound} className="p-2 bg-[#111] hover:bg-[#ff9f43] hover:text-black text-white rounded transition"><ChevronRight size={16}/></button>
+                </div>
+                <div className="flex-1 flex items-center justify-center text-slate-500 italic">Bu hafta/tur için fikstür bulunamadı.</div>
+            </div>
+        );
+
+        const grouped: Record<string, Fixture[]> = {};
+        weekFixtures.forEach(f => {
+            const dateKey = f.date.split('T')[0]; 
+            if (!grouped[dateKey]) grouped[dateKey] = [];
+            grouped[dateKey].push(f);
+        });
+
+        const sortedDates = Object.keys(grouped).sort();
+
         return (
-            <div className="overflow-y-auto custom-scrollbar h-full">
-                <div className="divide-y divide-[#333]">
-                    {allCompetitionFixtures.map(f => {
-                         const h = teams.find(t => t.id === f.homeTeamId);
-                         const a = teams.find(t => t.id === f.awayTeamId);
-                         const date = getFormattedDate(f.date).label;
-                         const resultClass = f.played ? 'text-white font-bold' : 'text-slate-500';
-                         
-                         return (
-                             <div key={f.id} className="flex items-center justify-between p-3 px-4 hover:bg-[#252525] transition-colors">
-                                 <div className="text-xs text-slate-500 w-24">{date}</div>
-                                 <div className="flex-1 flex justify-center items-center gap-4">
-                                     <div className="flex items-center gap-2 text-right justify-end w-1/3" onClick={() => h && onTeamClick(h.id)}>
-                                         <span className="text-sm font-bold text-slate-300 truncate cursor-pointer hover:text-white">{h?.name}</span>
-                                         {h?.logo && <img src={h.logo} className="w-5 h-5 object-contain"/>}
-                                     </div>
-                                     <div className={`w-12 text-center bg-[#111] py-1 rounded text-xs font-mono ${resultClass}`}>
-                                         {f.played ? `${f.homeScore}-${f.awayScore}` : 'v'}
-                                     </div>
-                                     <div className="flex items-center gap-2 text-left justify-start w-1/3" onClick={() => a && onTeamClick(a.id)}>
-                                         {a?.logo && <img src={a.logo} className="w-5 h-5 object-contain"/>}
-                                         <span className="text-sm font-bold text-slate-300 truncate cursor-pointer hover:text-white">{a?.name}</span>
-                                     </div>
-                                 </div>
-                                 <div className="w-12 text-right text-[10px] text-slate-600 font-bold">{f.week}. HF</div>
-                             </div>
-                         )
+            <div className="h-full flex flex-col bg-[#1b1b1b]">
+                <div className="bg-[#252525] p-3 border-b border-[#333] flex items-center justify-between sticky top-0 z-20 shrink-0 shadow-lg">
+                    <button onClick={handlePrevRound} className="p-2 bg-[#111] hover:bg-[#ff9f43] hover:text-black text-white rounded transition"><ChevronLeft size={16}/></button>
+                    <span className="text-[#ff9f43] font-bold text-sm uppercase tracking-wider">{getRoundLabel()}</span>
+                    <button onClick={handleNextRound} className="p-2 bg-[#111] hover:bg-[#ff9f43] hover:text-black text-white rounded transition"><ChevronRight size={16}/></button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
+                    {sortedDates.map(dateKey => {
+                        const dateFixtures = grouped[dateKey];
+                        const dateLabel = getFormattedDate(dateFixtures[0].date).label;
+
+                        return (
+                            <div key={dateKey} className="mb-6 animate-in fade-in slide-in-from-bottom-2">
+                                <div className="flex items-center gap-2 mb-2 px-1">
+                                    <div className="bg-[#333] text-slate-300 px-3 py-1 rounded text-sm font-bold border border-[#444] shadow-sm flex items-center gap-2">
+                                        <Calendar size={14} />
+                                        {dateLabel}
+                                    </div>
+                                    <div className="h-px bg-[#333] flex-1"></div>
+                                </div>
+
+                                <div className="flex flex-col gap-2">
+                                    {dateFixtures.map(f => {
+                                        const h = teams.find(t => t.id === f.homeTeamId);
+                                        const a = teams.find(t => t.id === f.awayTeamId);
+                                        const time = "20:00"; 
+                                        const goals = f.matchEvents?.filter(e => e.type === 'GOAL') || [];
+                                        const homeGoals = goals.filter(g => g.teamName === h?.name);
+                                        const awayGoals = goals.filter(g => g.teamName === a?.name);
+
+                                        return (
+                                            <div key={f.id} className="bg-[#252525] border border-[#333] rounded-lg p-3 hover:border-[#555] transition-colors relative overflow-hidden group">
+                                                <div className="flex items-center justify-between text-sm">
+                                                    <div className="w-16 flex flex-col justify-center text-slate-500 font-mono text-xs border-r border-[#333] pr-2 mr-2">
+                                                        <span className="text-white font-bold">{time}</span>
+                                                    </div>
+                                                    <div className="flex-1 flex items-center justify-end gap-3 cursor-pointer" onClick={() => h && onTeamClick(h.id)}>
+                                                        <span className={`font-bold truncate ${f.played && (f.homeScore! > f.awayScore!) ? 'text-white' : 'text-slate-300'}`}>{h?.name}</span>
+                                                        {h?.logo ? <img src={h.logo} className="w-6 h-6 object-contain"/> : <div className={`w-6 h-6 rounded-full ${h?.colors[0]}`}></div>}
+                                                    </div>
+                                                    <div className="px-4 flex justify-center" onClick={(e) => { e.stopPropagation(); if(f.played) setSelectedMatchForDetail(f); }}>
+                                                        <div className={`bg-[#111] px-3 py-1 rounded text-base font-black font-mono border border-[#444] min-w-[60px] text-center ${f.played ? 'text-white cursor-pointer hover:scale-110 hover:border-yellow-500 transition-all shadow-lg' : 'text-slate-500'}`}>
+                                                            {f.played ? `${f.homeScore} - ${f.awayScore}` : '-'}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex-1 flex items-center justify-start gap-3 cursor-pointer" onClick={() => a && onTeamClick(a.id)}>
+                                                        {a?.logo && <img src={a.logo} className="w-6 h-6 object-contain"/> : <div className={`w-6 h-6 rounded-full ${a?.colors[0]}`}></div>}
+                                                        <span className={`font-bold truncate ${f.played && (f.awayScore! > f.homeScore!) ? 'text-white' : 'text-slate-300'}`}>{a?.name}</span>
+                                                    </div>
+                                                </div>
+                                                {f.played && goals.length > 0 && (
+                                                    <div className="mt-2 pt-2 border-t border-[#333] flex justify-between text-[10px] text-slate-400">
+                                                        <div className="flex-1 text-right pr-14 space-y-0.5">
+                                                            {homeGoals.map((g, i) => (
+                                                                <div key={i} className="flex items-center justify-end gap-1">
+                                                                    <span>{g.scorer} {g.minute}'</span>
+                                                                    <Disc size={8} className="text-green-500 fill-current"/>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        <div className="w-[60px]"></div>
+                                                        <div className="flex-1 text-left pl-14 space-y-0.5">
+                                                            {awayGoals.map((g, i) => (
+                                                                <div key={i} className="flex items-center justify-start gap-1">
+                                                                    <Disc size={8} className="text-green-500 fill-current"/>
+                                                                    <span>{g.scorer} {g.minute}'</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )
                     })}
                 </div>
             </div>
         );
     };
 
-    const renderFullStats = () => {
-        return (
-            <div className="h-full flex flex-col">
-                <div className="bg-[#252525] border-b border-[#333] p-2 flex gap-2 overflow-x-auto no-scrollbar">
-                    {['GOAL', 'ASSIST', 'RATING', 'CLEANSHEET', 'MVP', 'CARD'].map(t => (
-                        <button 
-                            key={t}
-                            onClick={() => setStatTab(t as any)} 
-                            className={`px-4 py-2 rounded text-xs font-bold transition ${statTab === t ? 'bg-[#ff9f43] text-black' : 'bg-[#333] text-slate-400 border-[#444] hover:bg-[#444]'}`}
-                        >
-                            {t === 'GOAL' ? 'Gol Krallığı' : t === 'ASSIST' ? 'Asist Krallığı' : t === 'RATING' ? 'Reyting' : t === 'CLEANSHEET' ? 'Gol Yememe' : t === 'MVP' ? 'Maçın Adamı' : 'Kartlar'}
-                        </button>
-                    ))}
-                </div>
-                <div className="flex-1 overflow-y-auto custom-scrollbar">
-                    <table className="w-full text-left text-sm text-slate-300">
-                        <thead className="bg-[#111] text-xs uppercase text-slate-500 font-bold sticky top-0 z-10">
-                            <tr>
-                                <th className="p-3 w-12 text-center">#</th>
-                                <th className="p-3">Oyuncu</th>
-                                <th className="p-3">Takım</th>
-                                <th className="p-3 text-center">Maç</th>
-                                <th className="p-3 text-right text-[#ff9f43]">Değer</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#333]">
-                            {statsList.full.map((p, i) => (
-                                <tr key={p.id} className="hover:bg-[#252525] transition cursor-pointer" onClick={() => onPlayerClick(p)}>
-                                    <td className="p-3 text-center font-mono text-slate-500">{i+1}</td>
-                                    <td className="p-3 font-bold text-white flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-full bg-slate-800 overflow-hidden border border-slate-600"><PlayerFace player={p} /></div>
-                                        {p.name}
-                                    </td>
-                                    <td className="p-3 text-slate-400">{p.teamName}</td>
-                                    <td className="p-3 text-center font-mono text-slate-500">{p.compStats.matches}</td>
-                                    <td className="p-3 text-right font-black text-[#ff9f43] text-lg font-mono">{p.displayValue}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        );
-    };
-
-    const renderTransfers = () => {
-        if (competitionTransfers.length === 0) return <div className="p-8 text-center text-slate-500 italic">Transfer bulunamadı.</div>;
-        return (
-            <div className="overflow-y-auto custom-scrollbar h-full">
-                <table className="w-full text-left text-sm text-slate-300">
-                    <thead className="bg-[#111] text-xs uppercase text-slate-500 font-bold sticky top-0 z-10">
-                        <tr>
-                            <th className="p-3">Tarih</th>
-                            <th className="p-3">Oyuncu</th>
-                            <th className="p-3">Alan Takım</th>
-                            <th className="p-3">Eski Takım</th>
-                            <th className="p-3 text-right">Bedel</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#333]">
-                        {competitionTransfers.map((t, i) => (
-                            <tr key={i} className="hover:bg-[#252525] transition">
-                                <td className="p-3 text-xs text-slate-500">{t.date}</td>
-                                <td className="p-3 font-bold text-white">{t.playerName}</td>
-                                <td className="p-3 text-emerald-400 font-bold">{t.teamName}</td>
-                                <td className="p-3 text-slate-400">{t.counterparty}</td>
-                                <td className="p-3 text-right font-mono font-bold text-white">{t.price}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        );
-    };
-
-    const renderClubs = () => (
-        <div className="overflow-y-auto custom-scrollbar h-full p-4">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {competitionTeams.map(t => (
-                    <div 
-                        key={t.id} 
-                        onClick={() => onTeamClick(t.id)}
-                        className="bg-[#2c333a] border border-slate-700 hover:border-[#ff9f43] rounded-xl p-4 flex flex-col items-center justify-center gap-3 cursor-pointer transition group"
-                    >
-                        {t.logo ? <img src={t.logo} className="w-16 h-16 object-contain drop-shadow-lg group-hover:scale-110 transition-transform"/> : <div className={`w-16 h-16 rounded-full ${t.colors[0]} flex items-center justify-center text-2xl font-bold text-white`}>{t.name.charAt(0)}</div>}
-                        <div className="text-center">
-                            <div className="font-bold text-white text-sm group-hover:text-[#ff9f43] transition-colors">{t.name}</div>
-                            <div className="text-xs text-slate-500 mt-1">{t.stadiumName}</div>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-
-    const renderAbout = () => (
-        <div className="p-8 h-full overflow-y-auto custom-scrollbar bg-[#1b1b1b] text-slate-300">
-            <div className="max-w-3xl mx-auto space-y-8">
-                <div>
-                    <h3 className="text-2xl font-bold text-white mb-2 font-teko uppercase tracking-wide border-b border-[#333] pb-2">{competitionName} Hakkında</h3>
-                    <p className="leading-relaxed text-sm">
-                        {competitionId === 'LEAGUE' && "Türkiye'nin en üst düzey futbol ligidir. 18 takımın mücadele ettiği ligde şampiyon olan takım ve ilk sıraları alan takımlar Avrupa kupalarına katılmaya hak kazanır. Son 3 sıradaki takımlar 1. Lig'e düşer."}
-                        {competitionId === 'LEAGUE_1' && "Türkiye futbol sisteminin ikinci seviyesidir. İlk 2 takım doğrudan Süper Lig'e yükselirken, 3., 4., 5. ve 6. sıradaki takımlar Play-Off oynar."}
-                        {competitionId === 'CUP' && "Türkiye'deki tüm profesyonel takımların katıldığı eleme usulü turnuvadır. Kazanan takım Avrupa kupalarına katılma hakkı ve Süper Kupa finali oynama hakkı elde eder."}
-                        {competitionId === 'SUPER_CUP' && "Lig şampiyonu ile Türkiye Kupası şampiyonunun karşılaştığı, sezonun en prestijli tek maçlık finalidir."}
-                        {competitionId === 'EUROPE' && "Kıtanın en iyi takımlarının mücadele ettiği en büyük organizasyon. Lig usulü grup aşaması ve ardından gelen eleme turları ile şampiyon belirlenir."}
-                    </p>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="bg-[#252525] p-6 rounded-xl border border-[#333]">
-                        <h4 className="text-[#ff9f43] font-bold text-sm uppercase mb-4 flex items-center gap-2"><Trophy size={16}/> Ödüller & Kurallar</h4>
-                        <ul className="space-y-2 text-xs">
-                            <li className="flex gap-2"><div className="w-1.5 h-1.5 bg-slate-500 rounded-full mt-1.5"></div><span>3 Puan Sistemi uygulanır.</span></li>
-                            <li className="flex gap-2"><div className="w-1.5 h-1.5 bg-slate-500 rounded-full mt-1.5"></div><span>Eşitlik halinde ikili averaj, sonra genel averaj.</span></li>
-                            <li className="flex gap-2"><div className="w-1.5 h-1.5 bg-slate-500 rounded-full mt-1.5"></div><span>Sarı kart cezası sınırı 4 karttır.</span></li>
-                            <li className="flex gap-2"><div className="w-1.5 h-1.5 bg-slate-500 rounded-full mt-1.5"></div><span>Devre arası ve sezon sonu transfer dönemleri vardır.</span></li>
-                        </ul>
-                    </div>
-
-                    <div className="bg-[#252525] p-6 rounded-xl border border-[#333]">
-                        <h4 className="text-[#ff9f43] font-bold text-sm uppercase mb-4 flex items-center gap-2"><History size={16}/> Tarihçe</h4>
-                        <div className="space-y-2 text-xs">
-                            <div className="flex justify-between border-b border-[#333] pb-1"><span>Kuruluş</span> <span className="text-white">1959</span></div>
-                            <div className="flex justify-between border-b border-[#333] pb-1"><span>En Çok Şampiyon</span> <span className="text-white">Eşşekboğanspor FK</span></div>
-                            <div className="flex justify-between border-b border-[#333] pb-1"><span>Son Şampiyon</span> <span className="text-white text-right">Ayıboğanspor SK</span></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-
-    // Render Logic for Overview Tab (The Original Complex Grid)
     const renderOverview = () => (
         <div className="grid grid-cols-12 gap-4 h-full p-4 overflow-hidden">
-            {/* LEFT COLUMN: STANDINGS OR BRACKET (Col Span 4) */}
             <div className="col-span-12 lg:col-span-4 flex flex-col h-full overflow-hidden">
                 <div className="bg-[#252525] rounded border border-[#333] flex flex-col h-full">
                     <div className="p-3 border-b border-[#333]">
@@ -908,7 +791,6 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                 </div>
             </div>
 
-            {/* MIDDLE COLUMN: FIXTURES WITH NAV (Col Span 5) */}
             <div className="col-span-12 lg:col-span-5 flex flex-col h-full overflow-hidden">
                 <div className="bg-[#252525] rounded border border-[#333] flex flex-col h-full">
                     <div className="p-3 border-b border-[#333]">
@@ -944,7 +826,10 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                                                 {h?.logo && <img src={h.logo} className="w-6 h-6 object-contain" />}
                                             </div>
                                             
-                                            <div className="px-4 text-center min-w-[80px] flex flex-col items-center">
+                                            <div 
+                                                className="px-4 text-center min-w-[80px] flex flex-col items-center cursor-pointer hover:scale-105 transition-transform"
+                                                onClick={(e) => { e.stopPropagation(); if(f.played) setSelectedMatchForDetail(f); }}
+                                            >
                                                 {f.played ? (
                                                     <>
                                                         <span className="text-white font-mono font-black text-lg tracking-widest">{f.homeScore}-{f.awayScore}</span>
@@ -973,7 +858,6 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                 </div>
             </div>
 
-            {/* RIGHT COLUMN: STATS & HISTORY (Col Span 3) */}
             <div className="col-span-12 lg:col-span-3 flex flex-col gap-4 h-full overflow-hidden">
                 
                 {(isLeague || competitionId === 'SUPER_CUP' || competitionId === 'CUP' || competitionId === 'EUROPE') && (
@@ -1087,7 +971,15 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
     ];
 
     return (
-        <div className={containerClass}>
+        <div className={variant === 'modal' ? "fixed inset-0 z-[150] bg-black/95 flex flex-col animate-in fade-in duration-300" : "flex-1 flex flex-col h-full bg-[#1b1b1b] overflow-hidden"}>
+            {selectedMatchForDetail && (
+                <MatchDetailModal 
+                    fixture={selectedMatchForDetail} 
+                    teams={teams} 
+                    onClose={() => setSelectedMatchForDetail(null)} 
+                />
+            )}
+
             {showSeasonPreview && (
                 <SeasonPreviewModal 
                     competitionName={competitionName}
@@ -1098,7 +990,6 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                 />
             )}
 
-            {/* Main Header */}
             {variant === 'modal' && (
                 <div className="bg-[#252525] border-b border-[#333] p-4 flex justify-between items-center shrink-0">
                     <div className="flex items-center gap-3">
@@ -1111,7 +1002,6 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                 </div>
             )}
 
-            {/* Navigation Tabs (UPDATED DESIGN) */}
             <div className="flex items-center gap-1 border-b border-slate-700/50 px-2 pt-2 bg-[#121519] overflow-x-auto no-scrollbar shrink-0">
                  {menuItems.map(item => {
                      const isActive = activeTab === item.id;
@@ -1122,7 +1012,7 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                             className={`
                                 flex items-center gap-2 px-4 md:px-6 py-3 text-sm font-bold transition-all relative rounded-t-lg group whitespace-nowrap shrink-0
                                 ${isActive
-                                    ? 'text-yellow-500 bg-[#1b1b1b] border-t-2 border-x border-yellow-500/20 shadow-[0_-5px_15px_rgba(234,179,8,0.1)]' // Active: Tab-like, glowing text
+                                    ? 'text-yellow-500 bg-[#1b1b1b] border-t-2 border-x border-yellow-500/20 shadow-[0_-5px_15px_rgba(234,179,8,0.1)]' 
                                     : 'text-slate-500 hover:text-slate-200 hover:bg-[#1b1b1b]/50'
                                 }
                             `}
@@ -1137,7 +1027,6 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                  })}
             </div>
 
-            {/* Tab Content */}
             <div className="flex-1 overflow-hidden bg-[#1b1b1b]">
                 {activeTab === 'OVERVIEW' && renderOverview()}
                 
@@ -1166,25 +1055,30 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
 
                 {activeTab === 'STATS' && (
                     <div className="h-full p-4">
-                        {renderFullStats()}
+                        <CompetitionStatsTab 
+                            statTab={statTab}
+                            setStatTab={setStatTab}
+                            players={statsList.full}
+                            onPlayerClick={onPlayerClick}
+                        />
                     </div>
                 )}
 
                 {activeTab === 'TRANSFERS' && (
                     <div className="h-full p-0">
-                        {renderTransfers()}
+                        <CompetitionTransfersTab transfers={competitionTransfers} />
                     </div>
                 )}
 
                 {activeTab === 'CLUBS' && (
                     <div className="h-full p-0">
-                        {renderClubs()}
+                        <CompetitionClubsTab teams={competitionTeams} onTeamClick={onTeamClick} />
                     </div>
                 )}
 
                 {activeTab === 'ABOUT' && (
                     <div className="h-full p-0">
-                        {renderAbout()}
+                        <CompetitionAboutTab competitionId={competitionId} competitionName={competitionName} />
                     </div>
                 )}
             </div>

@@ -1,7 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { Team, Player, Position } from '../types';
-import { X, Trophy, TrendingUp, DollarSign, Users, Star, ArrowRightLeft, Shield } from 'lucide-react';
+import { X, Trophy, TrendingUp, DollarSign, Users, Star, ArrowRightLeft, Shield, Briefcase } from 'lucide-react';
 import PitchVisual from '../components/shared/PitchVisual';
 import PlayerFace from '../components/shared/PlayerFace';
 import { calculateRawTeamStrength } from '../utils/teamCalculations';
@@ -50,7 +50,8 @@ const SeasonPreviewModal: React.FC<SeasonPreviewModalProps> = ({ competitionName
 
     // --- 2. SELECT DREAM XI ---
     const dreamXI = useMemo(() => {
-        const allPlayers = teams.flatMap(t => t.players);
+        // Map players and inject club name for the visualizer
+        const allPlayers = teams.flatMap(t => t.players.map(p => ({ ...p, clubName: t.name })));
         
         const getBest = (pos: Position, excludeIds: string[], count: number = 1) => {
             return allPlayers
@@ -114,24 +115,16 @@ const SeasonPreviewModal: React.FC<SeasonPreviewModalProps> = ({ competitionName
         <div className="fixed inset-0 z-[250] bg-black/95 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-500 overflow-hidden">
             <div className="w-full max-w-7xl h-[90vh] bg-[#1a1f26] border border-slate-700 rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
                 
-                {/* Header */}
-                <div className="p-6 border-b border-slate-700 bg-gradient-to-r from-purple-900 to-slate-900 flex justify-between items-center shrink-0">
-                    <div className="flex items-center gap-4">
-                        <div className="bg-yellow-500 p-2 rounded-lg shadow-lg shadow-yellow-500/20">
-                            <Trophy size={32} className="text-black"/>
-                        </div>
-                        <div>
-                            <h2 className="text-3xl font-black text-white uppercase tracking-widest font-teko leading-none">{competitionName}</h2>
-                            <p className="text-purple-300 text-sm font-bold tracking-wider uppercase mt-1">Sezon Öncesi Medya Raporu</p>
-                        </div>
-                    </div>
-                    <button onClick={onClose} className="p-2 bg-slate-800 hover:bg-red-600 rounded-full text-white transition">
-                        <X size={24} />
-                    </button>
-                </div>
+                {/* Close Button */}
+                <button 
+                    onClick={onClose} 
+                    className="absolute top-4 right-4 z-50 p-2 bg-slate-800/80 hover:bg-red-600 rounded-full text-white transition border border-slate-600 hover:border-red-500 shadow-lg"
+                >
+                    <X size={24} />
+                </button>
 
                 {/* Content Grid */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-6 pt-12">
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
                         
                         {/* LEFT COLUMN: ODDS (3 Cols) */}
@@ -184,7 +177,7 @@ const SeasonPreviewModal: React.FC<SeasonPreviewModalProps> = ({ competitionName
                                         <div className="text-2xl font-black text-white leading-none mb-1">{starPlayer.name}</div>
                                         <div className="flex items-center gap-2 text-sm text-slate-300">
                                             <span className="bg-slate-900 px-2 py-0.5 rounded font-bold border border-slate-600">{starPlayer.position}</span>
-                                            <span>{teams.find(t=>t.id===starPlayer.teamId)?.name}</span>
+                                            <span>{starPlayer.clubName || teams.find(t=>t.id===starPlayer.teamId)?.name}</span>
                                         </div>
                                     </div>
                                     <div className="ml-auto relative z-10 flex flex-col items-end">
@@ -209,10 +202,6 @@ const SeasonPreviewModal: React.FC<SeasonPreviewModalProps> = ({ competitionName
                                     <div className="absolute top-1/2 left-4 right-4 h-px bg-white/20 pointer-events-none"></div>
                                     <div className="absolute top-1/2 left-1/2 w-24 h-24 border-2 border-white/20 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
 
-                                    {/* Use PitchVisual but create a synthetic team structure? 
-                                        Actually PitchVisual takes array of players. 
-                                        We just pass our dreamXI and let it auto-position based on 4-3-3 preset. 
-                                    */}
                                     <div className="h-full w-full">
                                         <PitchVisual 
                                             players={dreamXI} 
@@ -291,57 +280,10 @@ const SeasonPreviewModal: React.FC<SeasonPreviewModalProps> = ({ competitionName
                                         </div>
                                     </div>
                                 </div>
-                                <div className="mt-4 pt-4 border-t border-white/10 grid grid-cols-2 gap-2 text-center">
-                                    <div>
-                                        <div className="flex justify-center items-center gap-1 text-green-400 font-bold"><ArrowRightLeft size={12}/> {Math.floor(Math.random() * 5)}</div>
-                                        <div className="text-[9px] text-slate-500">Yeni Menajer</div>
-                                    </div>
-                                    <div>
-                                        <div className="flex justify-center items-center gap-1 text-red-400 font-bold"><ArrowRightLeft size={12}/> {Math.floor(Math.random() * 5)}</div>
-                                        <div className="text-[9px] text-slate-500">Ayrılan Menajer</div>
-                                    </div>
-                                </div>
                             </div>
 
                         </div>
 
-                    </div>
-                </div>
-
-                {/* Footer / Manager Spotlight */}
-                <div className="p-4 bg-[#1f252b] border-t border-slate-700 flex justify-between items-center shrink-0">
-                    <div className="flex items-center gap-4">
-                        <div className="bg-[#2c333a] p-3 rounded-lg border border-slate-600">
-                             <h4 className="text-xs font-bold text-pink-500 uppercase mb-1">Menajerler</h4>
-                             <div className="text-white font-bold text-lg leading-tight">Pep Guardiola</div>
-                             <div className="flex items-center gap-2 mt-1">
-                                 <span className="text-[10px] bg-slate-700 px-2 py-0.5 rounded text-slate-300 flex items-center gap-1">
-                                     <img src="https://i.imgur.com/3u9jWKs.png" className="w-3 h-3 object-contain"/> Man City
-                                 </span>
-                             </div>
-                        </div>
-                        <div className="hidden md:block">
-                            <div className="flex items-center gap-2 text-xs font-bold text-green-400"><Users size={14}/> Dünya Genelinde</div>
-                            <div className="text-slate-400 text-sm">En itibarlı</div>
-                        </div>
-                    </div>
-                    
-                    <div className="bg-[#2c333a] p-3 rounded-lg border border-slate-600 w-48">
-                         <h4 className="text-xs font-bold text-purple-500 uppercase mb-1">Lig Sıralaması</h4>
-                         <div className="flex items-center gap-3">
-                             <img src="https://i.imgur.com/Ghz4FsD.png" className="w-8 h-8 object-contain opacity-50"/>
-                             <div>
-                                 <div className="text-white font-bold text-lg">1. <span className="text-slate-500 text-sm">---</span></div>
-                             </div>
-                         </div>
-                    </div>
-
-                    <div className="bg-[#2c333a] p-3 rounded-lg border border-slate-600 w-48">
-                         <h4 className="text-xs font-bold text-purple-500 uppercase mb-1">Geçmiş Kazananlar</h4>
-                         <div className="flex items-center gap-2">
-                             <img src="https://i.imgur.com/7vkiuxd.png" className="w-5 h-5 object-contain"/> 
-                             <span className="text-white font-bold text-sm">Liverpool</span>
-                         </div>
                     </div>
                 </div>
 

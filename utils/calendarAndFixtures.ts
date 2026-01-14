@@ -203,11 +203,15 @@ export const generateEuropeanLeagueFixtures = (teams: Team[], year: number): Fix
         const roundFixtures: Fixture[] = [];
         const date = dates[round];
 
+        // Match Split Logic (Half on Day 1, Half on Day 2)
+        const matchesPerRound = numTeams / 2;
+        const splitIndex = Math.ceil(matchesPerRound / 2);
+
         // Pairing:
         // Index 0 vs Index N-1
         // Index 1 vs Index N-2
         // ...
-        for (let i = 0; i < numTeams / 2; i++) {
+        for (let i = 0; i < matchesPerRound; i++) {
             const idx1 = indices[i];
             const idx2 = indices[numTeams - 1 - i];
 
@@ -219,10 +223,16 @@ export const generateEuropeanLeagueFixtures = (teams: Team[], year: number): Fix
             // Round 1: 1, 3, 5... are Home
             const isT1Home = (i + round) % 2 === 0;
 
+            // Determine specific date (Split between Day 1 and Day 2)
+            const matchDate = new Date(date);
+            if (i >= splitIndex) {
+                matchDate.setDate(matchDate.getDate() + 1);
+            }
+
             roundFixtures.push({
                 id: generateId(),
                 week: 201 + round, // Week 201-208 for Europe League Phase
-                date: date.toISOString(),
+                date: matchDate.toISOString(),
                 homeTeamId: isT1Home ? t1.id : t2.id,
                 awayTeamId: isT1Home ? t2.id : t1.id,
                 played: false,
