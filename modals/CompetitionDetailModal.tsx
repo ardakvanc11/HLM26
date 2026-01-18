@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Team, Fixture, Player, Position } from '../types';
 import { Trophy, X, ChevronLeft, ChevronRight, Star, Activity, Flame, ShieldAlert, History, Goal, Zap, Shield, Award, AlertTriangle, GitCommit, LayoutDashboard, ListTree, CalendarDays, BarChart2, ArrowRightLeft, Users, Info, ArrowRight, Filter, ChevronDown, Presentation, Calendar, Clock, Disc } from 'lucide-react';
@@ -75,6 +74,13 @@ const MatchBox: React.FC<{ f: Fixture, teams: Team[], onScoreClick: (f: Fixture)
         else winnerId = f.awayTeamId;
     }
 
+    // Strict Penalty Check: Only show if scores are tied AND it's a knockout type competition
+    const showPenalties = isFinished && 
+                          f.pkHome !== undefined && 
+                          f.pkAway !== undefined && 
+                          f.homeScore === f.awayScore && 
+                          ['CUP', 'SUPER_CUP', 'PLAYOFF', 'PLAYOFF_FINAL', 'EUROPE'].includes(f.competitionId || '');
+
     return (
         <div className="bg-[#2c333a] border border-slate-700 rounded p-2 flex flex-col gap-1.5 relative group hover:border-[#ff9f43] transition-colors">
             {/* Match Date */}
@@ -108,8 +114,10 @@ const MatchBox: React.FC<{ f: Fixture, teams: Team[], onScoreClick: (f: Fixture)
                 </span>
             </div>
 
-            {isFinished && f.pkHome !== undefined && (
-                <div className="absolute top-1 right-1 text-[8px] text-yellow-500 font-bold bg-black/80 px-1 rounded">PEN</div>
+            {showPenalties && (
+                <div className="absolute top-1 right-1 text-[8px] text-yellow-500 font-bold bg-black/80 px-1 rounded">
+                    P: {f.pkHome}-{f.pkAway}
+                </div>
             )}
         </div>
     );
@@ -310,6 +318,7 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
     const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'ROUNDS' | 'FIXTURES' | 'STATS' | 'TRANSFERS' | 'CLUBS' | 'ABOUT'>('OVERVIEW');
     const [showSeasonPreview, setShowSeasonPreview] = useState(false);
     const [selectedMatchForDetail, setSelectedMatchForDetail] = useState<Fixture | null>(null);
+    const [overviewStatTab, setOverviewStatTab] = useState<'GOAL' | 'RATING' | 'ASSIST' | 'CLEANSHEET' | 'MVP' | 'CARD'>('GOAL');
 
     // Initialize viewWeek based on Competition Type
     useEffect(() => {
@@ -339,8 +348,6 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
             setViewWeek(90);
         }
     }, [competitionId, fixtures, currentWeek]);
-
-    const [statTab, setStatTab] = useState<'GOAL' | 'RATING' | 'ASSIST' | 'CLEANSHEET' | 'MVP' | 'CARD'>('GOAL');
 
     const isLeague = competitionId === 'LEAGUE' || competitionId === 'LEAGUE_1';
     const isEurope = competitionId === 'EUROPE';
@@ -422,8 +429,8 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     }, [fixtures, viewWeek, competitionId, isLeague, teams]);
 
-    // Player Stats Logic
-    const statsList = useMemo(() => {
+    // Player Stats Logic for Mini List (Top Scorers)
+    const overviewPlayerStats = useMemo(() => {
         const playerStatsMap: Record<string, {
             goals: number, assists: number, yellow: number, red: number, 
             ratingsSum: number, matches: number, cleanSheets: number, mvps: number
@@ -436,6 +443,8 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
 
         compFixtures.forEach(f => {
             if (!f.played || !f.matchEvents) return;
+            
+            // Goals / Cards
             f.matchEvents.forEach(e => {
                 if (e.playerId) {
                     if (!playerStatsMap[e.playerId]) playerStatsMap[e.playerId] = { goals: 0, assists: 0, yellow: 0, red: 0, ratingsSum: 0, matches: 0, cleanSheets: 0, mvps: 0 };
@@ -454,11 +463,13 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                 }
             });
 
+            // MVP
             if (f.stats?.mvpPlayerId) {
                 if (!playerStatsMap[f.stats.mvpPlayerId]) playerStatsMap[f.stats.mvpPlayerId] = { goals: 0, assists: 0, yellow: 0, red: 0, ratingsSum: 0, matches: 0, cleanSheets: 0, mvps: 0 };
                 playerStatsMap[f.stats.mvpPlayerId].mvps++;
             }
 
+            // Ratings & Clean Sheets
             const processRatings = (ratings: any[], teamId: string, conceded: number) => {
                 ratings.forEach(r => {
                     if (!playerStatsMap[r.playerId]) playerStatsMap[r.playerId] = { goals: 0, assists: 0, yellow: 0, red: 0, ratingsSum: 0, matches: 0, cleanSheets: 0, mvps: 0 };
@@ -474,56 +485,59 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
         const allPlayers = Object.entries(playerStatsMap).map(([pid, s]) => {
             let player: Player | undefined;
             let team: Team | undefined;
-            for (const t of competitionTeams) { const found = t.players.find(p => p.id === pid); if (found) { player = found; team = t; break; } }
-            if (!player) { for (const t of teams) { const found = t.players.find(p => p.id === pid); if (found) { player = found; team = t; break; } } }
+            for (const t of teams) { 
+                const found = t.players.find(p => p.id === pid); 
+                if (found) { player = found; team = t; break; } 
+            }
             if (!player || !team) return null;
 
             return {
                 ...player,
                 teamName: team.name,
                 teamLogo: team.logo,
-                compStats: { ...s, averageRating: s.matches > 0 ? s.ratingsSum / s.matches : 0 }
+                teamColors: team.colors,
+                stats: { ...s, averageRating: s.matches > 0 ? s.ratingsSum / s.matches : 0 }
             };
-        }).filter(Boolean) as (Player & { teamName: string, teamLogo?: string, compStats: any })[];
+        }).filter(Boolean) as (Player & { teamName: string, teamLogo?: string, teamColors: [string, string], stats: any })[];
 
+        return allPlayers;
+    }, [teams, fixtures, competitionId]);
+
+    const getOverviewTopPlayers = () => {
         let sorted = [];
         let valueKey = (p: any) => 0;
         let displayFormat = (val: number) => val.toString();
 
-        switch(statTab) {
+        switch(overviewStatTab) {
             case 'GOAL':
-                sorted = allPlayers.filter(p => p.compStats.goals > 0).sort((a,b) => b.compStats.goals - a.compStats.goals);
-                valueKey = (p) => p.compStats.goals;
+                sorted = overviewPlayerStats.filter(p => p.stats.goals > 0).sort((a,b) => b.stats.goals - a.stats.goals);
+                valueKey = (p) => p.stats.goals;
                 break;
             case 'ASSIST':
-                sorted = allPlayers.filter(p => p.compStats.assists > 0).sort((a,b) => b.compStats.assists - a.compStats.assists);
-                valueKey = (p) => p.compStats.assists;
+                sorted = overviewPlayerStats.filter(p => p.stats.assists > 0).sort((a,b) => b.stats.assists - a.stats.assists);
+                valueKey = (p) => p.stats.assists;
                 break;
             case 'RATING':
-                sorted = allPlayers.filter(p => p.compStats.matches >= 3).sort((a,b) => b.compStats.averageRating - a.compStats.averageRating);
-                valueKey = (p) => p.compStats.averageRating;
+                sorted = overviewPlayerStats.filter(p => p.stats.matches >= 2).sort((a,b) => b.stats.averageRating - a.stats.averageRating);
+                valueKey = (p) => p.stats.averageRating;
                 displayFormat = (val) => val.toFixed(2);
                 break;
             case 'MVP':
-                sorted = allPlayers.filter(p => p.compStats.mvps > 0).sort((a,b) => b.compStats.mvps - a.compStats.mvps);
-                valueKey = (p) => p.compStats.mvps;
+                sorted = overviewPlayerStats.filter(p => p.stats.mvps > 0).sort((a,b) => b.stats.mvps - a.stats.mvps);
+                valueKey = (p) => p.stats.mvps;
                 break;
             case 'CARD':
-                sorted = allPlayers.filter(p => p.compStats.yellow > 0 || p.compStats.red > 0).sort((a,b) => (b.compStats.yellow + b.compStats.red*3) - (a.compStats.yellow + a.compStats.red*3));
-                valueKey = (p) => p.compStats.yellow; 
+                sorted = overviewPlayerStats.filter(p => p.stats.yellow > 0 || p.stats.red > 0).sort((a,b) => (b.stats.yellow + b.stats.red*3) - (a.stats.yellow + a.stats.red*3));
+                valueKey = (p) => p.stats.yellow + p.stats.red; 
                 break;
             case 'CLEANSHEET':
-                sorted = allPlayers.filter(p => p.compStats.cleanSheets > 0).sort((a,b) => b.compStats.cleanSheets - a.compStats.cleanSheets);
-                valueKey = (p) => p.compStats.cleanSheets;
+                sorted = overviewPlayerStats.filter(p => p.stats.cleanSheets > 0).sort((a,b) => b.stats.cleanSheets - a.stats.cleanSheets);
+                valueKey = (p) => p.stats.cleanSheets;
                 break;
         }
 
-        return {
-            full: sorted.map(p => ({ ...p, displayValue: displayFormat(valueKey(p)) })),
-            top5: sorted.slice(0, 5).map(p => ({ ...p, displayValue: displayFormat(valueKey(p)) }))
-        };
-
-    }, [teams, fixtures, statTab, competitionId, competitionTeams]);
+        return sorted.slice(0, 5).map(p => ({ ...p, displayValue: displayFormat(valueKey(p)) }));
+    };
 
     // Transfers Logic
     const competitionTransfers = useMemo(() => {
@@ -711,6 +725,9 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                                         const goals = f.matchEvents?.filter(e => e.type === 'GOAL') || [];
                                         const homeGoals = goals.filter(g => g.teamName === h?.name);
                                         const awayGoals = goals.filter(g => g.teamName === a?.name);
+                                        
+                                        // Penalties Check: Strict validation
+                                        const showPK = f.played && f.pkHome !== undefined && f.pkAway !== undefined && f.homeScore === f.awayScore && ['CUP', 'SUPER_CUP', 'PLAYOFF', 'PLAYOFF_FINAL', 'EUROPE'].includes(f.competitionId || '');
 
                                         return (
                                             <div key={f.id} className="bg-[#252525] border border-[#333] rounded-lg p-3 hover:border-[#555] transition-colors relative overflow-hidden group">
@@ -725,6 +742,7 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                                                     <div className="px-4 flex justify-center" onClick={(e) => { e.stopPropagation(); if(f.played) setSelectedMatchForDetail(f); }}>
                                                         <div className={`bg-[#111] px-3 py-1 rounded text-base font-black font-mono border border-[#444] min-w-[60px] text-center ${f.played ? 'text-white cursor-pointer hover:scale-110 hover:border-yellow-500 transition-all shadow-lg' : 'text-slate-500'}`}>
                                                             {f.played ? `${f.homeScore} - ${f.awayScore}` : '-'}
+                                                            {showPK && <span className="block text-[8px] text-yellow-500 mt-0.5">P: {f.pkHome}-{f.pkAway}</span>}
                                                         </div>
                                                     </div>
                                                     <div className="flex-1 flex items-center justify-start gap-3 cursor-pointer" onClick={() => a && onTeamClick(a.id)}>
@@ -816,6 +834,9 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                                     const h = teams.find(t => t.id === f.homeTeamId);
                                     const a = teams.find(t => t.id === f.awayTeamId);
                                     
+                                    // Penalties Check: Strict validation
+                                    const showPK = f.played && f.pkHome !== undefined && f.pkAway !== undefined && f.homeScore === f.awayScore && ['CUP', 'SUPER_CUP', 'PLAYOFF', 'PLAYOFF_FINAL', 'EUROPE'].includes(f.competitionId || '');
+                                    
                                     return (
                                         <div key={f.id} className="flex items-center justify-between py-3 px-4 hover:bg-[#333] group transition-colors relative">
                                             <div 
@@ -833,7 +854,7 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                                                 {f.played ? (
                                                     <>
                                                         <span className="text-white font-mono font-black text-lg tracking-widest">{f.homeScore}-{f.awayScore}</span>
-                                                        {f.pkHome !== undefined && (
+                                                        {showPK && (
                                                             <span className="text-[9px] text-yellow-500 font-mono">P: {f.pkHome}-{f.pkAway}</span>
                                                         )}
                                                     </>
@@ -907,52 +928,72 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                         <div className="flex items-center justify-between text-[#ff9f43] font-bold text-xs uppercase mb-2 pl-2 border-l-4 border-[#ff9f43]">
                             <span>Oyuncu İstatistikleri</span>
                         </div>
-                        <div className="grid grid-cols-3 gap-1 mt-2">
-                            {[
-                                { id: 'GOAL', label: 'GOL', icon: Goal },
-                                { id: 'RATING', label: 'PUAN', icon: Star },
-                                { id: 'ASSIST', label: 'ASİST', icon: Zap },
-                                { id: 'CLEANSHEET', label: 'GOL YEMEME', icon: Shield },
-                                { id: 'MVP', label: 'MVP', icon: Award },
-                                { id: 'CARD', label: 'KART', icon: AlertTriangle }
-                            ].map(tab => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setStatTab(tab.id as any)}
-                                    className={`flex items-center justify-center gap-1 py-1.5 text-[9px] font-bold uppercase rounded border transition-all ${statTab === tab.id ? 'bg-[#ff9f43] text-black border-[#ff9f43]' : 'bg-[#333] text-slate-400 border-[#444] hover:bg-[#444]'}`}
-                                >
-                                    <tab.icon size={10} /> {tab.label}
-                                </button>
-                            ))}
+                        {/* Tab Buttons - UPDATED: SPLIT INTO TWO ROWS */}
+                        <div className="flex flex-col gap-2 pb-1">
+                            {/* Row 1 */}
+                            <div className="flex gap-1">
+                                {[
+                                    { id: 'GOAL', label: 'Gol', icon: Goal },
+                                    { id: 'RATING', label: 'Puan', icon: Star },
+                                    { id: 'ASSIST', label: 'Asist', icon: Zap },
+                                ].map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setOverviewStatTab(tab.id as any)}
+                                        className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 transition ${overviewStatTab === tab.id ? 'bg-[#ff9f43] text-black' : 'bg-[#333] text-slate-400 hover:text-white'}`}
+                                    >
+                                        <tab.icon size={12} /> {tab.label}
+                                    </button>
+                                ))}
+                            </div>
+                            {/* Row 2 */}
+                            <div className="flex gap-1">
+                                 {[
+                                    { id: 'CLEANSHEET', label: 'Gol Yememe', icon: Shield },
+                                    { id: 'MVP', label: 'MVP', icon: Award },
+                                    { id: 'CARD', label: 'Kart', icon: AlertTriangle }
+                                ].map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setOverviewStatTab(tab.id as any)}
+                                        className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 transition ${overviewStatTab === tab.id ? 'bg-[#ff9f43] text-black' : 'bg-[#333] text-slate-400 hover:text-white'}`}
+                                    >
+                                        <tab.icon size={12} /> {tab.label}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
-
+                    {/* Render Top 5 List */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-0">
-                        {statsList.top5.length === 0 ? (
-                            <div className="text-center text-slate-500 text-xs py-10">Veri yok.</div>
-                        ) : (
+                         {getOverviewTopPlayers().length === 0 ? (
+                            <div className="flex items-center justify-center h-full text-slate-500 text-xs italic">
+                                Veri yok.
+                            </div>
+                         ) : (
                             <div className="divide-y divide-[#333]">
-                                {statsList.top5.map((p, i) => (
-                                    <div key={p.id} className="flex items-center p-3 hover:bg-[#333] cursor-pointer group" onClick={() => onPlayerClick(p)}>
-                                        <div className="w-6 text-center font-mono text-slate-500 text-xs">{i+1}</div>
-                                        <div className="w-8 h-8 rounded-full border border-[#444] overflow-hidden bg-slate-200 shrink-0">
-                                            <PlayerFace player={p} />
-                                        </div>
-                                        <div className="flex-1 ml-3 min-w-0">
-                                            <div className="text-xs font-bold text-white truncate group-hover:text-[#ff9f43] transition-colors">{p.name}</div>
-                                            <div className="flex items-center gap-1 text-[10px] text-slate-400">
-                                                {p.teamLogo && <img src={p.teamLogo} className="w-3 h-3 object-contain"/>}
-                                                <span className="truncate">{p.teamName}</span>
+                                {getOverviewTopPlayers().map((p, i) => (
+                                    <div key={p.id} className="flex items-center justify-between p-2 hover:bg-[#333] cursor-pointer group" onClick={() => onPlayerClick(p)}>
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <div className={`w-4 text-center font-bold text-xs ${i === 0 ? 'text-[#ff9f43]' : 'text-slate-500'}`}>{i + 1}</div>
+                                            <div className="w-8 h-8 rounded-full bg-slate-800 overflow-hidden border border-slate-600 shrink-0">
+                                                <PlayerFace player={p} />
+                                            </div>
+                                            <div className="flex flex-col min-w-0">
+                                                <span className="text-xs font-bold text-white truncate max-w-[100px] group-hover:text-[#ff9f43] transition-colors">{p.name}</span>
+                                                <span className="text-[9px] text-slate-400 truncate flex items-center gap-1">
+                                                    {p.teamLogo && <img src={p.teamLogo} className="w-3 h-3 object-contain"/>}
+                                                    {p.teamName}
+                                                </span>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <div className="text-sm font-black text-[#ff9f43] font-mono">{p.displayValue}</div>
-                                            {statTab === 'CARD' && p.compStats.red > 0 && <span className="text-[8px] bg-red-600 text-white px-1 rounded ml-1">{p.compStats.red}K</span>}
+                                        <div className="text-sm font-black text-[#ff9f43] font-mono px-2 bg-[#333] rounded ml-2 min-w-[40px] text-center">
+                                            {p.displayValue}
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                        )}
+                         )}
                     </div>
                 </div>
 
@@ -1056,10 +1097,12 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                 {activeTab === 'STATS' && (
                     <div className="h-full p-4">
                         <CompetitionStatsTab 
-                            statTab={statTab}
-                            setStatTab={setStatTab}
-                            players={statsList.full}
+                            teams={teams}
+                            fixtures={fixtures}
+                            competitionId={competitionId}
                             onPlayerClick={onPlayerClick}
+                            onTeamClick={onTeamClick}
+                            currentWeek={currentWeek} // Pass currentWeek
                         />
                     </div>
                 )}

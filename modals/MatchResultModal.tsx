@@ -4,7 +4,7 @@ import { Team, MatchStats, MatchEvent } from '../types';
 import { MonitorPlay, Syringe, Disc, Users, BarChart2, Star, RefreshCw, X, Target } from 'lucide-react';
 import PlayerFace from '../components/shared/PlayerFace';
 
-const MatchResultModal = ({ homeTeam, awayTeam, homeScore, awayScore, stats, events, onProceed, onSkip }: {homeTeam: Team, awayTeam: Team, homeScore: number, awayScore: number, stats: MatchStats, events: MatchEvent[], onProceed: () => void, onSkip?: () => void }) => {
+const MatchResultModal = ({ homeTeam, awayTeam, homeScore, awayScore, stats, events, onProceed, onSkip, competitionId }: {homeTeam: Team, awayTeam: Team, homeScore: number, awayScore: number, stats: MatchStats, events: MatchEvent[], onProceed: () => void, onSkip?: () => void, competitionId?: string }) => {
     const [statsTab, setStatsTab] = useState<'STATS' | 'RATINGS'>('STATS');
 
     // Calculate Half Time Score
@@ -103,6 +103,9 @@ const MatchResultModal = ({ homeTeam, awayTeam, homeScore, awayScore, stats, eve
         </div>
     );
 
+    // FIXED: Knockout Rule check
+    const isKnockout = ['CUP', 'SUPER_CUP', 'PLAYOFF', 'PLAYOFF_FINAL'].includes(competitionId || '') || (competitionId === 'EUROPE' && (stats.pkHome !== undefined));
+
     return (
         <div 
             className="fixed inset-0 bg-black/95 z-[100] flex flex-col items-center justify-center p-4 overflow-y-auto cursor-pointer"
@@ -134,7 +137,7 @@ const MatchResultModal = ({ homeTeam, awayTeam, homeScore, awayScore, stats, eve
                      </div>
                      <div className="flex flex-col items-center">
                         <span>{homeScore} - {awayScore}</span>
-                        {stats.pkHome !== undefined && stats.pkAway !== undefined && (
+                        {isKnockout && stats.pkHome !== undefined && stats.pkAway !== undefined && (
                             <span className="text-2xl text-yellow-500 font-bold tracking-tight">
                                 (PEN: {stats.pkHome}-{stats.pkAway})
                             </span>
@@ -294,9 +297,9 @@ const MatchResultModal = ({ homeTeam, awayTeam, homeScore, awayScore, stats, eve
                                         <span className="text-slate-500 uppercase text-xs">Kartlar</span>
                                         <div className="flex items-center gap-2">
                                             <span className="font-bold text-white">{stats.awayYellowCards}</span>
-                                            <div className="w-3 h-4 bg-yellow-500 rounded-sm"></div>
+                                            <div className="w-2 h-3 bg-yellow-500 rounded-[1px]"></div>
                                             <span className="font-bold text-white">{stats.awayRedCards}</span>
-                                            <div className="w-3 h-4 bg-red-600 rounded-sm"></div>
+                                            <div className="w-2 h-3 bg-red-600 rounded-[1px]"></div>
                                         </div>
                                     </div>
                                 </div>

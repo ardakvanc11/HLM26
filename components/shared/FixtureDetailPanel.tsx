@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { Fixture, Team, PlayerPerformance } from '../../types';
 import { X, Calendar, MapPin, Trophy, Users, History, Clock, Ticket, Star, Disc } from 'lucide-react';
@@ -90,6 +89,13 @@ const FixtureDetailPanel: React.FC<FixtureDetailPanelProps> = ({ fixture, homeTe
         return exactAttendance;
     }, [fixture.id, fixture.played, homeTeam, awayTeam]);
 
+    // Determine if penalties should be shown
+    const showPenalties = fixture.played && 
+                          fixture.pkHome !== undefined && 
+                          fixture.pkAway !== undefined && 
+                          fixture.homeScore === fixture.awayScore && 
+                          ['CUP', 'SUPER_CUP', 'PLAYOFF', 'PLAYOFF_FINAL', 'EUROPE'].includes(fixture.competitionId || '');
+
     const renderRatings = (ratings: PlayerPerformance[], teamName: string, colors: [string, string]) => (
         <div className="mb-4">
             <div className={`text-xs font-bold uppercase mb-2 pb-1 border-b border-slate-700 flex justify-between ${colors[1] === 'text-black' ? 'text-slate-300' : colors[1].replace('text-', 'text-')}`}>
@@ -180,7 +186,7 @@ const FixtureDetailPanel: React.FC<FixtureDetailPanelProps> = ({ fixture, homeTe
                                     <span className="text-4xl font-mono font-black text-white tracking-widest bg-black/40 px-3 py-1 rounded border border-white/10 shadow-lg">
                                         {fixture.homeScore}-{fixture.awayScore}
                                     </span>
-                                    {fixture.pkHome !== undefined && (
+                                    {showPenalties && (
                                         <span className="text-xs text-slate-400 font-mono mt-2 bg-black/50 px-2 py-0.5 rounded">
                                             PEN: {fixture.pkHome}-{fixture.pkAway}
                                         </span>

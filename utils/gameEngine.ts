@@ -232,7 +232,8 @@ export const processMatchPostGame = (teams: Team[], events: MatchEvent[], week: 
             // Increment Stats
             newSeasonStats.goals += goals;
             newSeasonStats.assists += assists;
-            newSeasonStats.yellowCards += yellows;
+            // Yellows updated below with accumulation logic
+            // newSeasonStats.yellowCards += yellows; 
             newSeasonStats.redCards += reds;
             newSeasonStats.matchesPlayed += 1;
             newSeasonStats.ratings.push(pPerf.rating);
@@ -240,6 +241,23 @@ export const processMatchPostGame = (teams: Team[], events: MatchEvent[], week: 
             
             // Mark this match as processed for this player
             newSeasonStats.processedMatchIds = [...newSeasonStats.processedMatchIds, fixture.id];
+
+            // --- SUSPENSION LOGIC UPDATE ---
+            // Calculate Accumulated Yellows
+            let accumulatedYellows = newSeasonStats.yellowCards + yellows;
+            let suspensionTarget = player.suspendedUntilWeek;
+
+            // Rule: 5 Yellow Cards -> 1 Match Ban & Reset
+            if (accumulatedYellows >= 5) {
+                suspensionTarget = week + 1; // Suspend for next match
+                accumulatedYellows = 0; // Reset accumulation
+            }
+            newSeasonStats.yellowCards = accumulatedYellows;
+
+            // Rule: Red Card -> 1 Match Ban (Direct or 2nd Yellow)
+            if (reds > 0) {
+                suspensionTarget = week + 1;
+            }
 
             let newCondition = player.condition !== undefined ? player.condition : player.stats.stamina;
             newCondition = Math.max(0, newCondition - (20 + Math.random() * 10));
@@ -260,7 +278,8 @@ export const processMatchPostGame = (teams: Team[], events: MatchEvent[], week: 
                 ...player,
                 seasonStats: newSeasonStats,
                 condition: newCondition,
-                injury: updatedInjury
+                injury: updatedInjury,
+                suspendedUntilWeek: suspensionTarget
             };
         });
         return { ...team, players: updatedPlayers };

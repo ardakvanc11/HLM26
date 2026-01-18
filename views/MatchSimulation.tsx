@@ -1,13 +1,62 @@
 
-import React, { useState, useRef, useEffect } from 'react';
-import { Team, MatchEvent, MatchStats, Position, Player, Mentality } from '../types';
+// Add comment above the fix: Import React hooks to resolve "Cannot find name" errors for useState, useEffect, and useRef
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Team, MatchEvent, MatchStats, Position, Player, Mentality, Tempo, PressIntensity } from '../types';
 import { simulateMatchStep, getEmptyMatchStats } from '../utils/gameEngine';
 import MatchPitch2D from '../components/match/MatchPitch2D'; 
-import { Timer, AlertOctagon, Megaphone, Settings, PlayCircle, Zap, BarChart2, List, Lock, Target } from 'lucide-react';
+import { Timer, AlertOctagon, Megaphone, Settings, PlayCircle, Zap, BarChart2, List, Lock, Target, Shield, Swords, Video } from 'lucide-react';
 import { MatchScoreboard, MatchOverlays, MatchEventFeed } from '../components/match/MatchUI';
 
 const GOAL_SOUND = '/voices/goalsound.wav';
 const WHISTLE_SOUND = '/voices/whistle.wav';
+
+// --- FATIGUE CALCULATOR ---
+const getFatigueDrop = (tempo: Tempo, press: PressIntensity): number => {
+    // Base Values for Tempo
+    let tVal = 0.5; // Standard
+    if (tempo === Tempo.VERY_SLOW) tVal = 0.2;
+    else if (tempo === Tempo.SLOW) tVal = 0.3;
+    else if (tempo === Tempo.HIGH) tVal = 0.8;
+    else if (tempo === Tempo.BEAST_MODE) tVal = 1.2; // Extreme drain
+
+    // Base Values for Pressing
+    let pVal = 0.5; // Standard
+    if (press === PressIntensity.VERY_LOW) pVal = 0.1;
+    else if (press === PressIntensity.LOW) pVal = 0.3;
+    else if (press === PressIntensity.HIGH) pVal = 0.8;
+    else if (press === PressIntensity.VERY_HIGH) pVal = 1.1; // Extreme drain
+
+    // Total drain per minute (Range: ~0.3 to ~2.3)
+    return tVal + pVal;
+};
+
+const applyFatigueToTeam = (team: Team): Team => {
+    const drop = getFatigueDrop(team.tempo, team.pressIntensity || PressIntensity.STANDARD);
+    
+    const updatedPlayers = team.players.map((p, index) => {
+        // Apply only to players on pitch (Indices 0-10)
+        // Do not apply to subs (Indices 11+)
+        if (index < 11 && !p.injury && !p.suspendedUntilWeek) {
+             // Using current condition or 100 as fallback
+             const currentCond = p.condition !== undefined ? p.condition : 100;
+             
+             // Stamina Stat Mitigation (1-20 Scale)
+             // Stamina 20 -> Multiplier 0.6 (Lose 40% less energy)
+             // Stamina 10 -> Multiplier 0.8
+             // Stamina 1  -> Multiplier 1.0 (Full fatigue)
+             const staminaStat = p.stats.stamina || 10;
+             const staminaFactor = 1 - ((staminaStat - 1) * 0.02); 
+             
+             const actualDrop = drop * staminaFactor;
+             const newCond = Math.max(0, currentCond - actualDrop);
+
+             return { ...p, condition: newCond };
+        }
+        return p;
+    });
+    
+    return { ...team, players: updatedPlayers };
+};
 
 const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, fixtures, managerTrust, fixtureId }: { homeTeam: Team, awayTeam: Team, userTeamId: string, onFinish: (h: number, a: number, events: MatchEvent[], stats: MatchStats, fid?: string) => void, allTeams: Team[], fixtures: any[], managerTrust: number, fixtureId?: string }) => {
     const [minute, setMinute] = useState(0);
@@ -63,7 +112,16 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
     
     // Check if it's a cup match
     const currentFixture = fixtures.find(f => f.id === fixtureId);
-    const isKnockout = currentFixture && (currentFixture.competitionId === 'SUPER_CUP' || currentFixture.competitionId === 'CUP');
+    
+    // UPDATED: Central Knockout Logic
+    const isKnockout = useMemo(() => {
+        if (!currentFixture) return false;
+        const compId = currentFixture.competitionId;
+        const week = currentFixture.week;
+        if (['SUPER_CUP', 'CUP', 'PLAYOFF', 'PLAYOFF_FINAL'].includes(compId)) return true;
+        if (compId === 'EUROPE' && week > 208) return true; // Avrupa Elemeleri (209+)
+        return false;
+    }, [currentFixture]);
 
     const playSound = (path: string) => { const audio = new Audio(path); audio.volume = 0.6; audio.play().catch(e => console.warn("Audio play failed:", e)); };
 
@@ -71,7 +129,12 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
         const teamName = myTeamCurrent.name;
         const event: MatchEvent = { minute, type: 'SUBSTITUTION', description: `${outPlayer.name} 🔄 ${inPlayer.name}`, teamName: teamName };
         setEvents(prev => [...prev, event]);
-        if (forcedSubstitutionPlayerId && outPlayer.id === forcedSubstitutionPlayerId) setForcedSubstitutionPlayerId(null);
+        
+        // Critical: Check if the player being subbed out is the forced injured player
+        if (forcedSubstitutionPlayerId && outPlayer.id === forcedSubstitutionPlayerId) {
+            setForcedSubstitutionPlayerId(null);
+        }
+        
         if (userIsHome) { setHomeSubsUsed(h => h + 1); setLiveHomeTeam(myTeamCurrent); } else { setAwaySubsUsed(a => a + 1); setLiveAwayTeam(myTeamCurrent); }
     };
 
@@ -80,9 +143,76 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
         if (userIsHome) setLiveHomeTeam(updatedTeam); else setLiveAwayTeam(updatedTeam);
     };
 
-    const getSimulateTeams = () => {
-        let simHome = liveHomeTeam;
-        let simAway = liveAwayTeam;
+    const handleQuickMentalityChange = (newMentality: Mentality) => {
+        const updatedTeam = { ...myTeamCurrent, mentality: newMentality };
+        setMyTeamCurrent(updatedTeam);
+        if (userIsHome) {
+            setLiveHomeTeam(updatedTeam);
+        } else {
+            setLiveAwayTeam(updatedTeam);
+        }
+        setEvents(prev => [...prev, {
+            minute,
+            type: 'INFO',
+            description: `Taktik Değişikliği: ${newMentality}`,
+            teamName: myTeamCurrent.name
+        }]);
+    };
+
+    // AI Injury Auto-Substitution Logic
+    const performAiInjurySub = (injuredPlayerId: string, isHomeTeam: boolean) => {
+        const aiTeam = isHomeTeam ? liveHomeTeam : liveAwayTeam;
+        const currentSubs = isHomeTeam ? homeSubsUsed : awaySubsUsed;
+
+        if (currentSubs >= 5) return; // No subs left
+
+        const injuredPlayer = aiTeam.players.find(p => p.id === injuredPlayerId);
+        if (!injuredPlayer) return;
+
+        // Find best replacement on bench (indices 11-17)
+        const bench = aiTeam.players.slice(11, 18);
+        const redCardedIds = new Set(events.filter(e => e.type === 'CARD_RED').map(e => e.playerId));
+        const availableBench = bench.filter(p => !p.injury && !redCardedIds.has(p.id));
+
+        if (availableBench.length === 0) return;
+
+        // Priority 1: Same Position
+        let substitute = availableBench.find(p => p.position === injuredPlayer.position);
+        // Priority 2: Secondary Position
+        if (!substitute) substitute = availableBench.find(p => p.secondaryPosition === injuredPlayer.position);
+        // Priority 3: Best Skill
+        if (!substitute) substitute = availableBench.sort((a,b) => b.skill - a.skill)[0];
+
+        if (substitute) {
+            const newPlayers = [...aiTeam.players];
+            const idxOut = newPlayers.findIndex(p => p.id === injuredPlayer.id);
+            const idxIn = newPlayers.findIndex(p => p.id === substitute!.id);
+            
+            if (idxOut !== -1 && idxIn !== -1) {
+                [newPlayers[idxOut], newPlayers[idxIn]] = [newPlayers[idxIn], newPlayers[idxOut]];
+                const updatedAiTeam = { ...aiTeam, players: newPlayers };
+                
+                if (isHomeTeam) {
+                    setLiveHomeTeam(updatedAiTeam);
+                    setHomeSubsUsed(s => s + 1);
+                } else {
+                    setLiveAwayTeam(updatedAiTeam);
+                    setAwaySubsUsed(s => s + 1);
+                }
+
+                setEvents(prev => [...prev, {
+                    minute: minute + 1, // Happens practically immediately
+                    type: 'SUBSTITUTION',
+                    description: `${injuredPlayer.name} 🔄 ${substitute!.name} (Sakatlık)`,
+                    teamName: aiTeam.name
+                }]);
+            }
+        }
+    };
+
+    const getSimulateTeams = (h: Team, a: Team) => {
+        let simHome = h;
+        let simAway = a;
         if (isSabotageActive) {
             const debuffFactor = 0.75;
             if (userIsHome) {
@@ -96,6 +226,110 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
         return { simHome, simAway };
     };
 
+    // --- OBJECTION / VAR LOGIC ---
+    const handleObjection = () => {
+        const timeSinceGoal = Date.now() - lastGoalRealTime.current;
+        const lastEvent = events[events.length - 1];
+        
+        // RAKİP GOLÜ KONTROLÜ
+        const isOpponentGoal = lastEvent && lastEvent.type === 'GOAL' && lastEvent.teamName !== myTeamCurrent.name;
+
+        // 1. ÖZEL DURUM: Golden hemen sonra (3 Saniye Kuralı)
+        if (isOpponentGoal && timeSinceGoal <= 3000) {
+             // %20 ihtimalle başarılı VAR incelemesi başlatır
+             if (Math.random() < 0.20) {
+                 setIsVarActive(true);
+                 setVarMessage("HAKEM MONİTÖRE GİDİYOR... (GOL İNCELENİYOR)");
+                 playSound(WHISTLE_SOUND);
+
+                 setTimeout(() => {
+                    // BAŞARILI İTİRAZ: GOL İPTAL
+                    setIsVarActive(false);
+                    // Skoru geri al
+                    if (lastEvent.teamName === liveHomeTeam.name) setHomeScore(s => Math.max(0, s-1));
+                    else setAwayScore(s => Math.max(0, s-1));
+
+                    setEvents(prev => {
+                        const newEvents = [...prev];
+                        const targetIdx = newEvents.findIndex(e => e === lastEvent);
+                        if (targetIdx !== -1) {
+                            newEvents[targetIdx] = {
+                                ...newEvents[targetIdx],
+                                type: 'OFFSIDE',
+                                description: `GOL İPTAL (VAR) - ${newEvents[targetIdx].description}`
+                            };
+                        }
+                        return [...newEvents, {
+                            minute,
+                            type: 'INFO',
+                            description: "VAR İncelemesi Sonucu: Hakem golü iptal etti. Başarılı itiraz!",
+                            teamName: myTeamCurrent.name
+                        }];
+                    });
+                 }, 2500);
+             } else {
+                 // BAŞARISIZ İTİRAZ: HAKEM DİNLEMEDİ
+                 setEvents(prev => [...prev, { minute, type: 'INFO', description: "Hakem yoğun itirazlara rağmen santra noktasını gösterdi.", teamName: myTeamCurrent.name }]);
+             }
+             return;
+        }
+
+        // 2. STANDART DURUM: Gol dışı veya süre geçtiyse
+        const roll = Math.random();
+
+        if (roll < 0.20) {
+            // %20 VAR'a gider (Genel kontrol, genelde karar değişmez)
+            setIsVarActive(true);
+            setVarMessage("Hakem itiraz üzerine kulaklığını dinliyor...");
+            setTimeout(() => {
+                setIsVarActive(false);
+                setEvents(prev => [...prev, { minute, type: 'INFO', description: "VAR ile görüşen hakem 'Devam' dedi.", teamName: myTeamCurrent.name }]);
+            }, 2000);
+
+        } else if (roll < 0.40) {
+            // %20 SARI KART (Disiplin artar)
+            escalateDiscipline("Hakem ısrarlı itirazlar nedeniyle kartına başvurdu.");
+
+        } else {
+            // %60 HİÇBİR ŞEY OLMAZ (Ama disiplin riski birikir)
+            if (managerDiscipline !== 'NONE') {
+                // Zaten uyarılmışsa veya kartlıysa, tekrar "hiçbir şey" gelmesi risklidir, disiplin fonksiyonunu çağırıp şans deneriz.
+                // escalateDiscipline kendi içinde şans faktörü barındırır.
+                escalateDiscipline(); 
+            } else {
+                // Sadece uyarı mesajı
+                setEvents(prev => [...prev, { minute, type: 'INFO', description: "Hakem itirazları geçiştirdi.", teamName: myTeamCurrent.name }]);
+            }
+        }
+    };
+
+    const escalateDiscipline = (reasonOverride?: string) => {
+         let newStatus = managerDiscipline;
+         let desc = reasonOverride || "Hakem yedek kulübesine gelerek sözlü uyarıda bulundu.";
+         let type: MatchEvent['type'] = 'INFO';
+         const roll = Math.random();
+         
+         if (managerDiscipline === 'NONE') {
+             if (roll < 0.4) { newStatus = 'WARNED'; desc = "Hakem teknik direktörü sert bir dille uyardı: 'Yerine geç hocam!'"; } 
+             else if (roll < 0.1) { newStatus = 'YELLOW'; desc = "Teknik direktör aşırı itirazdan dolayı SARI KART gördü."; type = 'CARD_YELLOW'; }
+         } else if (managerDiscipline === 'WARNED') {
+             if (roll < 0.5) { newStatus = 'YELLOW'; desc = "Hakem itirazların dozunu kaçıran teknik direktöre SARI KART gösterdi."; type = 'CARD_YELLOW'; } 
+             else { desc = "Hakem son kez uyardı: 'Bir daha olursa atarım!'"; }
+         } else if (managerDiscipline === 'YELLOW') {
+             if (roll < 0.6) { newStatus = 'RED'; desc = "Teknik direktör ikinci sarı karttan KIRMIZI KART gördü ve tribüne gönderildi!"; type = 'CARD_RED'; } 
+             else { desc = "Hakem dördüncü hakemi yanına çağırdı, teknik direktör ipten döndü."; }
+         }
+         
+         // State güncelleme
+         if (newStatus !== managerDiscipline) {
+             setManagerDiscipline(newStatus); 
+             setEvents(prev => [...prev, { minute, description: desc, type, teamName: myTeamCurrent.name }]);
+             
+             if(newStatus === 'YELLOW') setStats(s => ({ ...s, managerCards: 'YELLOW' }));
+             if(newStatus === 'RED') { setStats(s => ({ ...s, managerCards: 'RED' })); setIsTacticsOpen(false); }
+         }
+    };
+
     // --- 2D BALL MOVEMENT LOGIC ---
     useEffect(() => {
         if(isTacticsOpen || phase === 'HALFTIME' || phase === 'FULL_TIME' || phase === 'PENALTIES' || isVarActive || isPenaltyActive) return;
@@ -104,7 +338,7 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
         
         const visualInterval = setInterval(() => {
             setBallPosition(prev => {
-                const { simHome, simAway } = getSimulateTeams();
+                const { simHome, simAway } = getSimulateTeams(liveHomeTeam, liveAwayTeam);
                 
                 const hStr = simHome.strength * (1 + (stats.homePossession - 50)/100);
                 const aStr = simAway.strength * (1 + (stats.awayPossession - 50)/100);
@@ -170,27 +404,94 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
 
                 if (nextM === 45 && phase === 'FIRST_HALF') { setPhase('HALFTIME'); playSound(WHISTLE_SOUND); return 45; }
                 if (nextM >= 90 && phase === 'SECOND_HALF') {
-                    // Check for Draw in Knockout
                     if (isKnockout && homeScore === awayScore) {
                         setPhase('PENALTIES');
                         setEvents(prev => [...prev, { minute: 90, type: 'INFO', description: "Maç berabere bitti. Seri penaltı atışlarına geçiliyor!", teamName: '' }]);
                         playSound(WHISTLE_SOUND);
                         return 90;
                     }
-                    
                     setPhase('FULL_TIME'); 
                     playSound(WHISTLE_SOUND); 
                     return 90; 
                 }
 
-                // ... (Existing AI substitution and Event simulation Logic)
-                // Assuming this part remains similar to previous version, handled by simulateMatchStep
+                // AI Subs Logic (Stamina or Rating Based)
+                if (nextM > 60 && Math.random() < 0.05) {
+                    const aiIsHome = !userIsHome;
+                    const aiSubsUsed = aiIsHome ? homeSubsUsed : awaySubsUsed;
+                    if (aiSubsUsed < 5) {
+                        const aiTeam = aiIsHome ? liveHomeTeam : liveAwayTeam;
+                        const onPitch = aiTeam.players.slice(0, 11);
+                        const bench = aiTeam.players.slice(11, 18);
+                        const sentOff = new Set(events.filter(e => e.type === 'CARD_RED').map(e => e.playerId));
+                        const validOut = onPitch.filter(p => !sentOff.has(p.id));
+                        if (validOut.length > 0 && bench.length > 0) {
+                            validOut.sort((a,b) => (a.condition || 100) - (b.condition || 100));
+                            const outPlayer = validOut[0]; 
+                            const inPlayer = bench[Math.floor(Math.random() * bench.length)];
+                            const newPlayers = [...aiTeam.players];
+                            const idxOut = newPlayers.findIndex(p => p.id === outPlayer.id);
+                            const idxIn = newPlayers.findIndex(p => p.id === inPlayer.id);
+                            if (idxOut !== -1 && idxIn !== -1) {
+                                [newPlayers[idxOut], newPlayers[idxIn]] = [newPlayers[idxIn], newPlayers[idxOut]];
+                                const updatedAiTeam = { ...aiTeam, players: newPlayers };
+                                if (aiIsHome) {
+                                    setLiveHomeTeam(updatedAiTeam);
+                                    setHomeSubsUsed(s => s + 1);
+                                } else {
+                                    setLiveAwayTeam(updatedAiTeam);
+                                    setAwaySubsUsed(a => a + 1);
+                                }
+                                setEvents(prev => [...prev, {
+                                    minute: nextM,
+                                    type: 'SUBSTITUTION',
+                                    description: `${outPlayer.name} 🔄 ${inPlayer.name}`,
+                                    teamName: aiTeam.name
+                                }]);
+                            }
+                        }
+                    }
+                }
+
+                // --- APPLY FATIGUE PER MINUTE ---
+                // Calculate new condition for both teams based on tactics
+                const fatiguedHome = applyFatigueToTeam(liveHomeTeam);
+                const fatiguedAway = applyFatigueToTeam(liveAwayTeam);
+
+                // Update local state so UI reflects it
+                setLiveHomeTeam(fatiguedHome);
+                setLiveAwayTeam(fatiguedAway);
                 
-                const { simHome, simAway } = getSimulateTeams();
+                // Get Sabotage Modified versions for simulation check
+                const { simHome, simAway } = getSimulateTeams(fatiguedHome, fatiguedAway);
+                
+                // Pass tired/sabotaged teams to logic
+                // Critical: We must pass the *newly fatigued* teams to the simulation step
+                // so that injury probabilities (which depend on condition) use the current condition.
                 const event = simulateMatchStep(nextM, simHome, simAway, {h: homeScore, a: awayScore}, events);
                 
                 if(event) {
                     setEvents(prev => [...prev, event]);
+
+                    // --- INJURY HANDLING START ---
+                    if (event.type === 'INJURY') {
+                        const isHomeInjured = event.teamName === homeTeam.name;
+                        const isUserInjured = (userIsHome && isHomeInjured) || (!userIsHome && !isHomeInjured);
+
+                        if (isUserInjured) {
+                            // User Team Injury -> Force Tactics
+                            if (event.playerId) {
+                                setForcedSubstitutionPlayerId(event.playerId);
+                                setIsTacticsOpen(true);
+                            }
+                        } else {
+                            // AI Team Injury -> Auto Substitution
+                            if (event.playerId) {
+                                setTimeout(() => performAiInjurySub(event.playerId!, isHomeInjured), 500);
+                            }
+                        }
+                    }
+                    // --- INJURY HANDLING END ---
                     
                     if (event.type === 'GOAL') {
                         const isHomeGoal = event.teamName === homeTeam.name;
@@ -199,40 +500,87 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
                         setLastActionText("GOL!");
                         setTimeout(() => setBallPosition({ x: 50, y: 50 }), 2000);
                     }
-                    // ... (Other visual effects)
                     
                     if(event.type === 'GOAL') {
-                        lastGoalRealTime.current = Date.now(); playSound(GOAL_SOUND); 
-                        if(event.teamName === homeTeam.name) setHomeScore(s => s + 1); else setAwayScore(s => s + 1);
+                        // Capture Goal Time for Objection Logic
+                        if (event.teamName !== myTeamCurrent.name) {
+                            lastGoalRealTime.current = Date.now();
+                        }
+
                         if(event.varOutcome) {
+                            playSound(GOAL_SOUND); 
+                            if(event.teamName === homeTeam.name) setHomeScore(s => s + 1); else setAwayScore(s => s + 1);
                             setTimeout(() => {
-                                setIsVarActive(true); setVarMessage("Hakem VAR ile görüşüyor..."); playSound(WHISTLE_SOUND); 
+                                setIsVarActive(true); 
+                                setVarMessage("Hakem VAR ile görüşüyor..."); 
+                                playSound(WHISTLE_SOUND); 
                                 setTimeout(() => {
                                     setIsVarActive(false);
                                     if(event.varOutcome === 'NO_GOAL') {
                                         if(event.teamName === homeTeam.name) setHomeScore(s => Math.max(0, s - 1)); else setAwayScore(s => Math.max(0, s - 1));
                                         const cancelEvent: MatchEvent = { minute: nextM, description: `GOL İPTAL ❌ ${event.scorer}`, type: 'INFO', teamName: event.teamName };
                                         setEvents(prev => {
-                                            const updated = [...prev]; let foundIdx = -1;
-                                            for(let i=updated.length-1; i>=0; i--) { if(updated[i].type === 'GOAL' && updated[i].teamName === event.teamName && updated[i].scorer === event.scorer && updated[i].minute === event.minute) { foundIdx = i; break; } }
-                                            if(foundIdx !== -1) { updated[foundIdx] = { ...updated[foundIdx], type: 'OFFSIDE', description: updated[foundIdx].description + ' (İPTAL)' }; }
+                                            const updated = [...prev]; 
+                                            let foundIdx = -1;
+                                            for(let i=updated.length-1; i>=0; i--) { 
+                                                if(updated[i].type === 'GOAL' && updated[i].teamName === event.teamName && updated[i].scorer === event.scorer && updated[i].minute === event.minute) { 
+                                                    foundIdx = i; break; 
+                                                } 
+                                            }
+                                            if(foundIdx !== -1) { 
+                                                updated[foundIdx] = { ...updated[foundIdx], type: 'OFFSIDE', description: updated[foundIdx].description + ' (İPTAL)' }; 
+                                            }
                                             return [...updated, cancelEvent];
                                         });
+                                        setLastActionText("GOL İPTAL!");
                                     } else {
                                         setEvents(prev => [...prev, { minute: nextM, description: `VAR İncelemesi Bitti: GOL GEÇERLİ! Santra yapılacak.`, type: 'INFO', teamName: event.teamName }]);
+                                        setLastActionText("GOL GEÇERLİ!");
                                     }
                                 }, 3000);
-                            }, 1000);
+                            }, 1500);
+                        } else {
+                            playSound(GOAL_SOUND); 
+                            if(event.teamName === homeTeam.name) setHomeScore(s => s + 1); else setAwayScore(s => s + 1);
                         }
                     }
                     
                     setStats(prev => {
                         const s = {...prev};
-                        if(event.teamName === homeTeam.name) s.homePossession = Math.min(80, s.homePossession + 1); else s.awayPossession = Math.min(80, s.awayPossession + 1);
+                        const isHomeEvent = event.teamName === homeTeam.name;
+
+                        // Possession Adjust
+                        if(isHomeEvent) s.homePossession = Math.min(80, s.homePossession + 1); else s.awayPossession = Math.min(80, s.awayPossession + 1);
                         s.homePossession = Math.max(20, s.homePossession); s.awayPossession = 100 - s.homePossession;
-                        if(event.type === 'GOAL' || event.type === 'MISS' || event.type === 'SAVE') { if(event.teamName === homeTeam.name) { s.homeShots++; if(event.type === 'GOAL' || event.type === 'SAVE') s.homeShotsOnTarget++; } else { s.awayShots++; if(event.type === 'GOAL' || event.type === 'SAVE') s.awayShotsOnTarget++; } }
-                        // ... Other stats
-                        if(event.type === 'CARD_RED') { event.teamName === homeTeam.name ? s.homeRedCards++ : s.awayRedCards++; }
+
+                        // Shot Counters
+                        if(event.type === 'GOAL' || event.type === 'MISS' || event.type === 'SAVE') { 
+                            if(isHomeEvent) { 
+                                s.homeShots++; 
+                                if(event.type === 'GOAL' || event.type === 'SAVE') s.homeShotsOnTarget++; 
+                            } else { 
+                                s.awayShots++; 
+                                if(event.type === 'GOAL' || event.type === 'SAVE') s.awayShotsOnTarget++; 
+                            } 
+                        }
+
+                        // FIXED: Added remaining stat counters
+                        if (event.type === 'CORNER') {
+                            isHomeEvent ? s.homeCorners++ : s.awayCorners++;
+                        }
+                        if (event.type === 'FOUL' || event.type === 'CARD_YELLOW' || event.type === 'CARD_RED') {
+                            isHomeEvent ? s.homeFouls++ : s.awayFouls++;
+                        }
+                        if (event.type === 'CARD_YELLOW') {
+                            isHomeEvent ? s.homeYellowCards++ : s.awayYellowCards++;
+                        }
+                        if (event.type === 'CARD_RED') {
+                            isHomeEvent ? s.homeRedCards++ : s.awayRedCards++;
+                        }
+                        if (event.type === 'OFFSIDE') {
+                            isHomeEvent ? s.homeOffsides++ : s.awayOffsides++;
+                        }
+
                         return s;
                     });
                 }
@@ -245,163 +593,64 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
     // --- PENALTY SHOOTOUT LOOP ---
     useEffect(() => {
         if (phase !== 'PENALTIES') return;
-
-        const penaltyInterval = setInterval(() => {
-            const team = currentPkTeam === 'HOME' ? liveHomeTeam : liveAwayTeam;
-            const kickerPool = team.players.slice(0, 11).sort((a,b) => b.stats.penalty - a.stats.penalty);
-            // Select kicker based on index (looping if needed for sudden death)
-            const kicker = kickerPool[currentKickerIndex % kickerPool.length];
-            
-            // Calculate outcome
-            const successChance = 0.7 + (kicker.stats.penalty / 100);
-            const isGoal = Math.random() < successChance;
-
-            // Visual Updates
-            setLastActionText(`${kicker.name} (Penaltı)`);
-            setBallPosition({ x: 50, y: currentPkTeam === 'HOME' ? 88 : 12 });
-            setPossessionTeamId(team.id);
-
-            // Log Event
-            const resultText = isGoal ? "GOL!" : "KAÇIRDI!";
-            setEvents(prev => [...prev, {
-                minute: 90 + currentKickerIndex + 1,
-                type: isGoal ? 'GOAL' : 'MISS',
-                description: `Penaltı Atışı: ${kicker.name} topun başında... Vuruşunu yaptı... ${resultText}`,
-                teamName: team.name,
-                scorer: isGoal ? kicker.name : undefined
-            }]);
-
-            if (isGoal) {
-                playSound(GOAL_SOUND);
-                setPkScore(prev => currentPkTeam === 'HOME' ? { ...prev, home: prev.home + 1 } : { ...prev, away: prev.away + 1 });
-            }
-
-            // Check Win Condition (After pair is done)
-            // Logic: 5 kicks each, then sudden death
-            // Current index 0 = Home 1st, 1 = Away 1st, 2 = Home 2nd...
-            // If Away just kicked (odd total kicks so far), check score
-            const kicksTaken = (currentKickerIndex * 2) + (currentPkTeam === 'AWAY' ? 2 : 1); 
-            // Simplified: Just increment index logic
-            
-            // Prepare next state
-            if (currentPkTeam === 'HOME') {
-                setCurrentPkTeam('AWAY');
-            } else {
-                setCurrentPkTeam('HOME');
-                setCurrentKickerIndex(i => i + 1);
-                
-                // End Check after AWAY kicks
-                const roundsDone = currentKickerIndex + 1;
-                const homeP = isGoal ? pkScore.home : pkScore.home; // current score hasn't updated in state yet fully inside interval closure, use ref or logic check
-                // Actually React state update is async, inside interval it's tricky.
-                // Better to check on next tick or use a ref for scores. 
-            }
-
-        }, 5000); // 5 Seconds wait
-
-        return () => clearInterval(penaltyInterval);
-    }, [phase, currentPkTeam, currentKickerIndex]);
-
-    // Better Penalty Logic with Refs to handle state updates properly
-    useEffect(() => {
-        if (phase !== 'PENALTIES') return;
-        
         let timeoutId: any;
-
         const takePenalty = () => {
             const team = currentPkTeam === 'HOME' ? liveHomeTeam : liveAwayTeam;
             const kickerPool = team.players.slice(0, 11).sort((a,b) => b.stats.penalty - a.stats.penalty);
-            const kicker = kickerPool[Math.floor((currentKickerIndex) % 11)]; // Simple rotation
-
-            const successChance = 0.75 + ((kicker.stats.penalty - 10) / 40); // 0.5 to 1.0 range based on stat
+            const kicker = kickerPool[Math.floor((currentKickerIndex) % 11)]; 
+            const successChance = 0.75 + ((kicker.stats.penalty - 10) / 40); 
             const isGoal = Math.random() < successChance;
-
-            // Update UI 2D
             setBallPosition({ x: 50, y: currentPkTeam === 'HOME' ? 85 : 15 });
             setLastActionText(`${kicker.name} Penaltı`);
-
             setTimeout(() => {
                 if (isGoal) playSound(GOAL_SOUND);
-                
                 const newScore = { ...pkScore };
-                if (isGoal) {
-                    if (currentPkTeam === 'HOME') newScore.home++; else newScore.away++;
-                }
-
+                if (isGoal) { if (currentPkTeam === 'HOME') newScore.home++; else newScore.away++; }
                 setPkScore(newScore);
-                setEvents(prev => [...prev, {
-                    minute: 120, // Symbolic minute
-                    type: isGoal ? 'GOAL' : 'MISS',
-                    description: `Penaltı: ${kicker.name} (${team.name}) - ${isGoal ? 'GOL!' : 'KAÇIRDI!'}`,
-                    teamName: team.name
-                }]);
-
-                // Check Win
+                setEvents(prev => [...prev, { minute: 120, type: isGoal ? 'GOAL' : 'MISS', description: `Penaltı: ${kicker.name} (${team.name}) - ${isGoal ? 'GOL!' : 'KAÇIRDI!'}`, teamName: team.name }]);
                 const rounds = currentPkTeam === 'AWAY' ? currentKickerIndex + 1 : currentKickerIndex;
                 let isFinished = false;
-
-                // First 5 rounds logic
-                if (rounds < 5) {
-                    // Check mathematical impossibility? (e.g. 3-0 with 2 left)
-                    const kicksRemainingHome = 5 - (currentPkTeam === 'HOME' ? rounds : rounds);
-                    const kicksRemainingAway = 5 - (currentPkTeam === 'AWAY' ? rounds : rounds - (currentPkTeam === 'HOME' ? 0 : 1));
-                    // Simplified: just wait for 5 each
-                } else if (currentPkTeam === 'AWAY') {
-                    // Sudden Death Check after equal kicks
-                    if (newScore.home !== newScore.away && rounds >= 5) {
-                        isFinished = true;
-                    }
-                }
-
+                if (rounds >= 5 && currentPkTeam === 'AWAY' && newScore.home !== newScore.away) { isFinished = true; }
                 if (isFinished) {
                     setPhase('FULL_TIME');
                     setStats(prev => ({ ...prev, pkHome: newScore.home, pkAway: newScore.away }));
-                    // Trigger finish manually or let user click button
                 } else {
-                    // Next kicker
                     if (currentPkTeam === 'HOME') setCurrentPkTeam('AWAY');
-                    else {
-                        setCurrentPkTeam('HOME');
-                        setCurrentKickerIndex(i => i + 1);
-                    }
+                    else { setCurrentPkTeam('HOME'); setCurrentKickerIndex(i => i + 1); }
                 }
-                
-                setBallPosition({ x: 50, y: 50 }); // Reset ball
+                setBallPosition({ x: 50, y: 50 }); 
             }, 2000);
         };
-
         timeoutId = setTimeout(takePenalty, 5000);
         return () => clearTimeout(timeoutId);
-    }, [phase, currentPkTeam, currentKickerIndex]); // Re-run when turn changes
-
-    const handleObjection = () => {
-         // ... (Same as before)
-         escalateDiscipline();
-    };
-
-    const escalateDiscipline = (reasonOverride?: string) => {
-         let newStatus = managerDiscipline;
-         let desc = reasonOverride || "Hakem yedek kulübesine gelerek sözlü uyarıda bulundu.";
-         let type: MatchEvent['type'] = 'INFO';
-         const roll = Math.random();
-         if (managerDiscipline === 'NONE') {
-             if (roll < 0.4) { newStatus = 'WARNED'; desc = "Hakem teknik direktörü sert bir dille uyardı: 'Yerine geç hocam!'"; } 
-             else if (roll < 0.1) { newStatus = 'YELLOW'; desc = "Teknik direktör aşırı itirazdan dolayı SARI KART gördü."; type = 'CARD_YELLOW'; }
-         } else if (managerDiscipline === 'WARNED') {
-             if (roll < 0.5) { newStatus = 'YELLOW'; desc = "Hakem itirazların dozunu kaçıran teknik direktöre SARI KART gösterdi."; type = 'CARD_YELLOW'; } 
-             else { desc = "Hakem son kez uyardı: 'Bir daha olursa atarım!'"; }
-         } else if (managerDiscipline === 'YELLOW') {
-             if (roll < 0.6) { newStatus = 'RED'; desc = "Teknik direktör ikinci sarı karttan KIRMIZI KART gördü ve tribüne gönderildi!"; type = 'CARD_RED'; } 
-             else { desc = "Hakem dördüncü hakemi yanına çağırdı, teknik direktör ipten döndü."; }
-         }
-         setManagerDiscipline(newStatus); setEvents(prev => [...prev, { minute, description: desc, type, teamName: myTeamCurrent.name }]);
-         if(newStatus === 'YELLOW') setStats(s => ({ ...s, managerCards: 'YELLOW' }));
-         if(newStatus === 'RED') { setStats(s => ({ ...s, managerCards: 'RED' })); setIsTacticsOpen(false); }
-    };
+    }, [phase, currentPkTeam, currentKickerIndex]);
 
     const isOwnGoal = events.length > 0 && events[events.length-1].type === 'GOAL' && events[events.length-1].teamName === myTeamCurrent.name;
     const isManagerSentOff = managerDiscipline === 'RED';
     const activePenaltyTeam = penaltyTeamId ? allTeams.find(t => t.id === penaltyTeamId) : null;
+
+    const getMentalityColor = (m: Mentality, isActive: boolean) => {
+        if (isActive) return 'bg-yellow-500 text-black border-yellow-400 shadow-[0_0_10px_rgba(234,179,8,0.5)]';
+        switch (m) {
+            case Mentality.VERY_DEFENSIVE: return 'bg-blue-900 text-blue-200 border-blue-800 hover:bg-blue-800';
+            case Mentality.DEFENSIVE: return 'bg-sky-900 text-sky-200 border-sky-800 hover:bg-sky-800';
+            case Mentality.STANDARD: return 'bg-slate-700 text-slate-300 border-slate-600 hover:bg-slate-600';
+            case Mentality.ATTACKING: return 'bg-orange-900 text-orange-200 border-orange-800 hover:bg-orange-800';
+            case Mentality.VERY_ATTACKING: return 'bg-red-900 text-red-200 border-red-800 hover:bg-red-800';
+            default: return 'bg-slate-700';
+        }
+    };
+
+    const getMentalityIcon = (m: Mentality) => {
+        switch (m) {
+            case Mentality.VERY_DEFENSIVE: return <Shield size={14} />;
+            case Mentality.DEFENSIVE: return <Shield size={14} className="opacity-70" />;
+            case Mentality.STANDARD: return <div className="w-3 h-3 rounded-full border-2 border-current"></div>;
+            case Mentality.ATTACKING: return <Swords size={14} className="opacity-70" />;
+            case Mentality.VERY_ATTACKING: return <Swords size={14} />;
+            default: return null;
+        }
+    };
 
     return (
         <div className="h-full flex flex-col relative">
@@ -410,35 +659,22 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
                 isTacticsOpen={isTacticsOpen} forcedSubstitutionPlayerId={forcedSubstitutionPlayerId} myTeamCurrent={myTeamCurrent} handleTacticsUpdate={handleTacticsUpdate}
                 userIsHome={userIsHome} homeSubsUsed={homeSubsUsed} awaySubsUsed={awaySubsUsed} handleUserSubstitution={handleUserSubstitution} minute={minute} onCloseTactics={() => setIsTacticsOpen(false)}
             />
-
             <MatchScoreboard homeTeam={homeTeam} awayTeam={awayTeam} homeScore={homeScore} awayScore={awayScore} minute={minute} homeRedCards={homeRedCards} awayRedCards={awayRedCards} homeSubsUsed={homeSubsUsed} awaySubsUsed={awaySubsUsed} />
-
-            {/* PENALTY SCOREBOARD OVERLAY */}
-            {(phase === 'PENALTIES' || pkScore.home > 0 || pkScore.away > 0) && (
+            {(phase === 'PENALTIES' || (pkScore.home > 0 || pkScore.away > 0)) && (
                 <div className="bg-black/80 text-white text-center py-2 border-b border-yellow-500 font-mono font-bold animate-in slide-in-from-top">
                     PENALTILAR: {homeTeam.name} {pkScore.home} - {pkScore.away} {awayTeam.name}
                 </div>
             )}
-
             <div className="flex-1 flex overflow-hidden flex-col md:flex-row">
                 <div className="w-1/3 hidden lg:block bg-green-900 border-r border-slate-800 relative">
-                     <MatchPitch2D 
-                        homeTeam={liveHomeTeam} 
-                        awayTeam={liveAwayTeam} 
-                        ballPosition={ballPosition} 
-                        possessionTeamId={possessionTeamId}
-                        lastAction={lastActionText}
-                     />
+                     <MatchPitch2D homeTeam={liveHomeTeam} awayTeam={liveAwayTeam} ballPosition={ballPosition} possessionTeamId={possessionTeamId} lastAction={lastActionText} />
                 </div>
-
                 <div className="md:hidden flex border-b border-slate-700 bg-slate-800 shrink-0">
                     <button onClick={() => setMobileTab('FEED')} className={`flex-1 py-3 text-center font-bold text-sm flex items-center justify-center gap-2 ${mobileTab === 'FEED' ? 'text-white bg-slate-700 border-b-2 border-white' : 'text-slate-400'}`}><List size={16}/> Maç Akışı</button>
                     <button onClick={() => setMobileTab('STATS')} className={`flex-1 py-3 text-center font-bold text-sm flex items-center justify-center gap-2 ${mobileTab === 'STATS' ? 'text-white bg-slate-700 border-b-2 border-white' : 'text-slate-400'}`}><BarChart2 size={16}/> İstatistik & Taktik</button>
                 </div>
-
                 <div className={`flex-1 bg-slate-900 flex flex-col relative border-r border-slate-800 w-full ${mobileTab === 'STATS' ? 'hidden md:flex' : 'flex'}`}>
                     <div className="bg-slate-800 p-2 text-center text-xs text-slate-500 font-bold uppercase tracking-widest border-b border-slate-700">Maç Merkezi</div>
-                    
                     {phase === 'PENALTIES' && (
                         <div className="absolute top-10 left-0 right-0 z-10 flex justify-center pointer-events-none">
                             <div className="bg-yellow-500 text-black px-6 py-2 rounded-full font-black text-xl animate-pulse shadow-lg border-2 border-white">
@@ -446,7 +682,6 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
                             </div>
                         </div>
                     )}
-
                     <MatchEventFeed events={events} allTeams={allTeams} homeTeam={homeTeam} awayTeam={awayTeam} scrollRef={scrollRef} />
                     <div className="p-2 md:p-4 bg-slate-800 border-t border-slate-700 flex flex-col gap-2 md:gap-4">
                          <div className="flex justify-between items-center">
@@ -455,7 +690,6 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
                              </div>
                              {phase === 'FULL_TIME' ? (
                                  <button onClick={() => {
-                                     // Pass stats including PK score
                                      const finalStats = { ...stats, pkHome: pkScore.home, pkAway: pkScore.away };
                                      onFinish(homeScore, awayScore, events, finalStats, fixtureId);
                                  }} className="bg-red-600 hover:bg-red-500 text-white px-4 md:px-6 py-2 rounded font-bold animate-pulse text-sm md:text-base">MAÇI BİTİR</button>
@@ -473,8 +707,8 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
                                          <div className="bg-red-600/20 border border-red-500 text-red-500 px-2 py-1 md:px-6 md:py-3 rounded font-bold text-xs md:text-sm flex items-center gap-1 md:gap-2 animate-pulse shadow-inner"><AlertOctagon size={16} className="md:w-6 md:h-6"/> <span>TRİBÜNDESİNİZ</span></div>
                                      ) : (
                                         <>
-                                            <button onClick={handleObjection} disabled={isOwnGoal} className={`text-white px-2 py-1.5 md:px-4 md:py-2 rounded font-bold flex items-center gap-1 md:gap-2 text-xs md:text-sm border shadow-inner transition active:scale-95 ${managerDiscipline === 'YELLOW' ? 'bg-orange-700 hover:bg-orange-600 border-orange-500' : 'bg-slate-700 hover:bg-slate-600 border-slate-500'} ${isOwnGoal ? 'opacity-50 cursor-not-allowed' : ''}`}><Megaphone size={14} className="md:w-4 md:h-4"/> {managerDiscipline === 'YELLOW' ? 'İTİRAZ (RİSK)' : 'İTİRAZ'}</button>
-                                            <button onClick={() => setIsTacticsOpen(true)} className="bg-yellow-600 hover:bg-yellow-500 text-black px-3 py-1.5 md:px-4 md:py-2 rounded font-bold flex items-center gap-1 md:gap-2 shadow-lg shadow-yellow-900/50 text-xs md:text-sm"><Settings size={14} className="md:w-4 md:h-4"/> TAKTİK</button>
+                                            <button onClick={handleObjection} disabled={isOwnGoal} className={`text-white px-2 py-1.5 md:px-4 md:py-2 rounded font-bold flex items-center gap-1 md:gap-2 text-xs md:text-sm border shadow-inner transition active:scale-95 ${managerDiscipline === 'YELLOW' ? 'bg-orange-700 hover:bg-orange-600 border-orange-500' : 'bg-slate-700 hover:bg-slate-600 border-slate-500'} ${isOwnGoal ? 'opacity-50 cursor-not-allowed' : ''}`}><Megaphone size={14} className="md:w-4 md:h-4"/> İTİRAZ</button>
+                                            <button onClick={() => setIsTacticsOpen(true)} className="bg-yellow-600 hover:bg-yellow-500 text-black px-3 py-1.5 md:px-4 md:py-2 rounded font-bold flex items-center gap-1 md:gap-2 shadow-lg shadow-yellow-900/20 text-xs md:text-sm"><Settings size={14} className="md:w-4 md:h-4"/> TAKTİK</button>
                                         </>
                                      )}
                                  </div>
@@ -482,9 +716,8 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
                          </div>
                     </div>
                 </div>
-
-                <div className={`w-full md:w-1/4 flex-col bg-slate-800 ${mobileTab === 'STATS' ? 'flex' : 'hidden md:flex'}`}>
-                    <div className="flex-1 overflow-y-auto border-b border-slate-700">
+                <div className={`w-full md:w-1/4 flex-col bg-slate-800 border-l border-slate-700 ${mobileTab === 'STATS' ? 'flex' : 'hidden md:flex'}`}>
+                    <div className="flex-1 overflow-y-auto">
                         <div className="p-3 bg-slate-900 text-xs font-bold text-slate-400 uppercase">Canlı İstatistikler</div>
                         <div className="p-4 space-y-4">
                             <div className="flex justify-between items-end text-sm"><span className="text-slate-400">Topla Oynama</span><div className="font-bold text-white">%{stats.homePossession} - %{stats.awayPossession}</div></div><div className="w-full bg-slate-700 h-1 rounded overflow-hidden"><div className="bg-white h-full" style={{width: `${stats.homePossession}%`}}></div></div>
@@ -496,8 +729,31 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
                             <div className="flex justify-between items-end text-sm"><span className="text-slate-400">Kırmızı Kart</span><div className="font-bold text-red-500">{stats.homeRedCards} - {stats.awayRedCards}</div></div>
                              <div className="flex justify-between items-end text-sm"><span className="text-slate-400">Ofsayt</span><div className="font-bold text-white">{stats.homeOffsides} - {stats.awayOffsides}</div></div>
                         </div>
+
+                        {/* QUICK MENTALITY SECTION */}
+                        <div className="p-3 bg-slate-900 text-xs font-bold text-slate-400 uppercase border-t border-slate-700">Hızlı Oyun Anlayışı</div>
+                        <div className="p-4 flex flex-col gap-2">
+                            {Object.values(Mentality).map((m) => {
+                                const isActive = myTeamCurrent.mentality === m;
+                                const isManagerBanned = managerDiscipline === 'RED';
+                                return (
+                                    <button
+                                        key={m}
+                                        disabled={isManagerBanned}
+                                        onClick={() => handleQuickMentalityChange(m)}
+                                        className={`w-full py-2 px-3 rounded text-xs font-bold border transition-all flex justify-between items-center ${getMentalityColor(m, isActive)} ${isManagerBanned ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer active:scale-95'}`}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            {getMentalityIcon(m)}
+                                            <span>{m}</span>
+                                        </div>
+                                        {isActive && <div className="w-2 h-2 bg-current rounded-full animate-pulse"></div>}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
                     </div>
-                    {/* ... (Mentality Panel remains the same) */}
                 </div>
             </div>
         </div>

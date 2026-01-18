@@ -38,12 +38,19 @@ export const MatchOverlays = ({ isVarActive, varMessage, isPenaltyActive, penalt
                     <div className="flex items-center gap-4">
                         <h2 className="text-xl md:text-2xl font-bold text-white">Canlı Taktik</h2>
                         {forcedSubstitutionPlayerId && (
-                            <div className="bg-red-600 text-white px-2 py-1 md:px-4 md:py-1 rounded-full text-xs md:text-sm font-bold animate-pulse flex items-center gap-2">
-                                <Syringe size={16}/> <span className="uppercase">SAKATLIK MÜDAHALESİ</span>
+                            <div className="bg-red-600 text-white px-2 py-1 md:px-4 md:py-1 rounded-full text-xs md:text-sm font-bold animate-pulse flex items-center gap-2 shadow-lg border-2 border-red-400">
+                                <Syringe size={16}/> <span className="uppercase">SAKATLIK MÜDAHALESİ GEREKLİ!</span>
                             </div>
                         )}
                     </div>
-                    <button onClick={onCloseTactics} disabled={!!forcedSubstitutionPlayerId} className={`px-4 py-2 rounded font-bold flex items-center gap-2 transition-all ${forcedSubstitutionPlayerId ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500 text-white'}`}><PlayCircle size={20}/> <span className="hidden md:inline">MAÇA DÖN</span></button>
+                    <button 
+                        onClick={onCloseTactics} 
+                        disabled={!!forcedSubstitutionPlayerId} 
+                        className={`px-4 py-2 rounded font-bold flex items-center gap-2 transition-all ${forcedSubstitutionPlayerId ? 'bg-slate-700 text-slate-500 cursor-not-allowed border border-slate-600' : 'bg-green-600 hover:bg-green-500 text-white shadow-lg'}`}
+                    >
+                        {forcedSubstitutionPlayerId ? <Lock size={20}/> : <PlayCircle size={20}/>} 
+                        <span className="hidden md:inline">{forcedSubstitutionPlayerId ? 'DEĞİŞİKLİK YAPIN' : 'MAÇA DÖN'}</span>
+                    </button>
                 </div>
                 <div className="flex-1 overflow-auto p-4">
                     <TacticsView team={myTeamCurrent} setTeam={handleTacticsUpdate} isMatchActive={true} subsUsed={userIsHome ? homeSubsUsed : awaySubsUsed} maxSubs={5} onSubstitution={handleUserSubstitution} currentMinute={minute} compact={window.innerWidth < 768} forcedSubstitutionPlayerId={forcedSubstitutionPlayerId} />

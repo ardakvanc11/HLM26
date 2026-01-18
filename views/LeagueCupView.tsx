@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { Team, Fixture, Player } from '../types';
 import { Trophy, Globe, Shield, Star, Calendar, Eye, TrendingUp, BarChart, Clock, Swords, List, X, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -251,7 +250,11 @@ const LeagueCupView: React.FC<LeagueCupViewProps> = ({ teams, fixtures, myTeamId
                         const leagueTeams = leagueFilter ? teams.filter(t => t.leagueId === leagueFilter).sort((a,b) => b.stats.points - a.stats.points) : [];
 
                         return (
-                            <div key={comp.id} className="flex flex-col bg-[#1e242b] rounded-lg overflow-hidden border border-slate-700 shadow-xl h-full w-[260px] md:w-[300px] shrink-0 transition hover:border-slate-500 snap-center">
+                            <div 
+                                key={comp.id} 
+                                onClick={() => setSelectedCompId(comp.id)}
+                                className="flex flex-col bg-[#1e242b] rounded-lg overflow-hidden border border-slate-700 shadow-xl h-full w-[260px] md:w-[300px] shrink-0 transition hover:border-[#ff9f43] snap-center cursor-pointer group"
+                            >
                                 {/* Header */}
                                 <div className={`${comp.headerColor} p-4 flex items-center gap-3 border-b border-black/20 shrink-0 h-16 md:h-20`}>
                                     <div className="bg-white/20 p-1.5 md:p-2 rounded-full backdrop-blur-sm">
@@ -335,14 +338,20 @@ const LeagueCupView: React.FC<LeagueCupViewProps> = ({ teams, fixtures, myTeamId
                                                                     else if (f.week === 90 || f.competitionId === 'PLAYOFF') stage = 'Yarı Final';
                                                                     else if (comp.id === 'EUROPE') stage = 'Grup';
 
+                                                                    // Penalty Display Condition
+                                                                    const showPK = f.played && f.pkHome !== undefined && f.pkAway !== undefined && f.homeScore === f.awayScore && ['CUP', 'SUPER_CUP', 'PLAYOFF', 'PLAYOFF_FINAL', 'EUROPE'].includes(f.competitionId || '');
+
                                                                     return (
                                                                         <div key={f.id} className={`flex flex-col gap-1 p-2 rounded ${isUserMatch ? 'bg-slate-800 border border-slate-600' : 'bg-slate-800/30'}`}>
                                                                             {stage && <div className="text-[9px] text-yellow-500 font-bold uppercase mb-0.5">{stage}</div>}
                                                                             <div className="flex justify-between items-center">
                                                                                 <span className={`truncate w-24 text-right ${h?.id === myTeamId ? 'text-white font-bold' : 'text-slate-400'}`}>{h?.name.split(' ')[0]}</span>
-                                                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${f.played ? 'bg-slate-700 text-white' : 'bg-slate-700/50 text-slate-500'}`}>
-                                                                                    {f.played ? `${f.homeScore}-${f.awayScore}` : 'VS'}
-                                                                                </span>
+                                                                                <div className="flex flex-col items-center">
+                                                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${f.played ? 'bg-slate-700 text-white' : 'bg-slate-700/50 text-slate-500'}`}>
+                                                                                        {f.played ? `${f.homeScore}-${f.awayScore}` : 'VS'}
+                                                                                    </span>
+                                                                                    {showPK && <span className="text-[8px] text-yellow-500 font-bold mt-0.5">P: {f.pkHome}-{f.pkAway}</span>}
+                                                                                </div>
                                                                                 <span className={`truncate w-24 text-left ${a?.id === myTeamId ? 'text-white font-bold' : 'text-slate-400'}`}>{a?.name.split(' ')[0]}</span>
                                                                             </div>
                                                                             {!f.played && (
@@ -367,8 +376,8 @@ const LeagueCupView: React.FC<LeagueCupViewProps> = ({ teams, fixtures, myTeamId
                                     <div className="mt-6 pt-4 border-t border-slate-800">
                                         <div className="text-[10px] uppercase font-bold text-slate-500 mb-2 text-center">Aktif Turnuva</div>
                                         <button 
-                                            onClick={() => setSelectedCompId(comp.id)}
-                                            className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition shadow-sm border border-slate-700 hover:border-slate-500"
+                                            // The button is still here as a visual CTA but the click logic bubbles up from parent div
+                                            className="w-full bg-slate-800 group-hover:bg-slate-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition shadow-sm border border-slate-700 group-hover:border-slate-500"
                                         >
                                             <Eye size={16} className="text-blue-400"/>
                                             Detayları Gör

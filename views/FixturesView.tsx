@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import { Fixture, Team } from '../types';
 import { Trophy, Calendar, Info, Star, Shield, TrendingUp, Globe } from 'lucide-react';
@@ -60,8 +59,10 @@ const FixturesView = ({
         let myScore = isHome ? f.homeScore : f.awayScore;
         let oppScore = isHome ? f.awayScore : f.homeScore;
 
-        // Check Penalties
-        if (myScore === oppScore && f.pkHome !== undefined && f.pkAway !== undefined) {
+        // Check Penalties - Only for relevant competitions and if score is tied
+        const isKnockout = ['CUP', 'SUPER_CUP', 'PLAYOFF', 'PLAYOFF_FINAL', 'EUROPE'].includes(f.competitionId || '');
+
+        if (isKnockout && myScore === oppScore && f.pkHome !== undefined && f.pkAway !== undefined) {
              const myPk = isHome ? f.pkHome : f.pkAway;
              const oppPk = isHome ? f.pkAway : f.pkHome;
              if (myPk > oppPk) return { color: 'bg-green-600 text-white', label: 'G (P)' };
@@ -125,6 +126,9 @@ const FixturesView = ({
                                     const isSelected = f.id === selectedFixtureId;
                                     const compDetails = getCompetitionDetails(f.competitionId);
                                     const CompIcon = compDetails.icon;
+                                    
+                                    // Penalty Display Check
+                                    const showPK = f.played && f.pkHome !== undefined && f.pkAway !== undefined && f.homeScore === f.awayScore && ['CUP', 'SUPER_CUP', 'PLAYOFF', 'PLAYOFF_FINAL', 'EUROPE'].includes(f.competitionId || '');
 
                                     let scorersText = "";
                                     if (f.played && f.matchEvents) {
@@ -194,7 +198,7 @@ const FixturesView = ({
                                                         <div className={`flex items-center gap-2 px-3 py-1 rounded-full font-bold text-sm shadow-sm ${resultStatus?.color}`}>
                                                             {f.homeScore} - {f.awayScore}
                                                         </div>
-                                                        {f.pkHome !== undefined && (
+                                                        {showPK && (
                                                             <span className="text-[9px] font-mono text-slate-400 mt-0.5">
                                                                 (P: {f.pkHome}-{f.pkAway})
                                                             </span>

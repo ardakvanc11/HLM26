@@ -187,7 +187,7 @@ export const useMatchLogic = (
             news: [...matchTweets, ...prev.news],
         }));
         
-        // Pass wonTrophy in extra data so we can trigger it after interview
+        // Pass wonTrophy and competitionId in extra data
         coreSetters.setMatchResultData({ 
             homeTeam: homeTeam, 
             awayTeam: awayTeam, 
@@ -195,7 +195,8 @@ export const useMatchLogic = (
             awayScore: aScore, 
             stats: updatedStats, 
             events: events,
-            wonTrophy: wonTrophy 
+            wonTrophy: wonTrophy,
+            competitionId: currentFixture.competitionId // ADDED
         });
         
         const newHistory = navigation.viewHistory.slice(0, navigation.historyIndex);
@@ -217,8 +218,9 @@ export const useMatchLogic = (
         const homeTeam = gameState.teams.find(t => t.id === currentFixture.homeTeamId)!;
         const awayTeam = gameState.teams.find(t => t.id === currentFixture.awayTeamId)!;
         
-        // Pass isKnockout flag based on competition ID
-        const isKnockout = currentFixture.competitionId === 'SUPER_CUP' || currentFixture.competitionId === 'CUP';
+        // UPDATED: Central Knockout Logic for Fast Simulate
+        const isKnockout = ['SUPER_CUP', 'CUP', 'PLAYOFF', 'PLAYOFF_FINAL'].includes(currentFixture.competitionId) || (currentFixture.competitionId === 'EUROPE' && currentFixture.week > 208);
+        
         const { homeScore, awayScore, stats, events } = simulateBackgroundMatch(homeTeam, awayTeam, isKnockout);
         
         handleMatchFinish(homeScore, awayScore, events, stats, currentFixture.id);

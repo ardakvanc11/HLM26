@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { ManagerProfile, Team, Fixture, StaffRelation } from '../types';
 import { calculateForm, calculateManagerPower } from '../utils/gameEngine';
@@ -64,8 +63,10 @@ const HomeView = ({ manager, team, teams, myTeamId, currentWeek, fixtures, onTea
         const myScore = isHome ? f.homeScore! : f.awayScore!;
         const oppScore = isHome ? f.awayScore! : f.homeScore!;
         
-        // PK Logic
-        if (myScore === oppScore && f.pkHome !== undefined && f.pkAway !== undefined) {
+        // PK Logic - Only for knockouts or if penalties actually happened
+        const isKnockout = ['CUP', 'SUPER_CUP', 'PLAYOFF', 'PLAYOFF_FINAL'].includes(f.competitionId || '') || (f.competitionId === 'EUROPE' && f.week > 208);
+        
+        if (isKnockout && myScore === oppScore && f.pkHome !== undefined && f.pkAway !== undefined) {
              const myPk = isHome ? f.pkHome : f.pkAway;
              const oppPk = isHome ? f.pkAway : f.pkHome;
              if (myPk > oppPk) return { label: 'G (P)', color: 'bg-green-600 text-white' };

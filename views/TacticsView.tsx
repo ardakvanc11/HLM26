@@ -74,9 +74,10 @@ interface CompactPlayerRowProps {
     label?: string;
     currentWeek?: number;
     isReserve?: boolean;
+    isForcedSub?: boolean;
 }
 
-const CompactPlayerRow: React.FC<CompactPlayerRowProps> = ({ p, index, onClick, isSelected, label, currentWeek, isReserve }) => {
+const CompactPlayerRow: React.FC<CompactPlayerRowProps> = ({ p, index, onClick, isSelected, label, currentWeek, isReserve, isForcedSub }) => {
     const isSuspended = p.suspendedUntilWeek && currentWeek && p.suspendedUntilWeek > currentWeek;
     const currentCondition = p.condition !== undefined ? p.condition : p.stats.stamina;
     const getConditionColor = (cond: number) => cond >= 90 ? 'bg-green-500' : cond >= 75 ? 'bg-green-400' : cond >= 60 ? 'bg-yellow-500' : 'bg-red-500';
@@ -106,11 +107,20 @@ const CompactPlayerRow: React.FC<CompactPlayerRowProps> = ({ p, index, onClick, 
     };
 
     return (
-        <div onClick={() => onClick(p)} className={`flex items-center gap-2 p-1.5 border-b border-slate-800/50 transition-all cursor-pointer group ${isSelected ? 'bg-yellow-600/20' : 'hover:bg-slate-800 bg-slate-900'} ${(p.injury || isSuspended) ? 'opacity-75' : ''}`}>
+        <div 
+            onClick={() => onClick(p)} 
+            className={`flex items-center gap-2 p-1.5 border-b transition-all cursor-pointer group 
+                ${isForcedSub ? 'bg-red-900/40 border-red-500 animate-pulse ring-1 ring-red-500' : isSelected ? 'bg-yellow-600/20 border-slate-800/50' : 'hover:bg-slate-800 bg-slate-900 border-slate-800/50'} 
+                ${(p.injury || isSuspended) ? 'opacity-75' : ''}
+            `}
+        >
             <div className="w-8 shrink-0 flex justify-center"><span className={`w-7 h-5 flex items-center justify-center text-[9px] font-black rounded ${getPosColor(p.position)}`}>{p.position}</span></div>
             <div className="w-8 shrink-0 flex justify-center items-center font-black text-sm md:text-base"><span className={getSkillColorClass(p.skill)}>{p.skill}</span></div>
             <div className="w-8 h-8 shrink-0 rounded-full overflow-hidden border border-slate-600 bg-slate-700 shadow-sm relative"><PlayerFace player={p} />{p.injury && <div className="absolute inset-0 bg-red-500/60 flex items-center justify-center backdrop-blur-[1px]"><Syringe size={14} className="text-white drop-shadow-md" /></div>}{isSuspended && <div className="absolute inset-0 bg-red-500/60 flex items-center justify-center backdrop-blur-[1px]"><Ban size={14} className="text-white drop-shadow-md" /></div>}</div>
-            <div className="flex-1 min-w-0 flex flex-col justify-center"><span className={`text-xs font-bold truncate ${isSelected ? 'text-yellow-400' : 'text-slate-300 group-hover:text-white'}`}>{p.name}</span></div>
+            <div className="flex-1 min-w-0 flex flex-col justify-center">
+                <span className={`text-xs font-bold truncate ${isForcedSub ? 'text-red-400' : isSelected ? 'text-yellow-400' : 'text-slate-300 group-hover:text-white'}`}>{p.name}</span>
+                {isForcedSub && <span className="text-[9px] text-red-500 font-bold uppercase animate-pulse">Değiştirilmeli!</span>}
+            </div>
             <div className="w-12 shrink-0 flex flex-col gap-0.5 justify-center"><div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden border border-slate-700"><div className={`h-full ${getConditionColor(currentCondition)}`} style={{ width: `${currentCondition}%` }}></div></div><span className="text-[9px] text-right text-slate-500 font-mono leading-none">{Math.round(currentCondition)}%</span></div>
             <div className="w-6 shrink-0 flex justify-center items-center" title={`Moral: ${p.morale}`}>{getMoraleIcon(p.morale)}</div>
             <div className="w-10 shrink-0 flex justify-center gap-1 text-[10px] font-mono"><span className={`${p.seasonStats.goals > 0 ? 'text-green-400 font-bold' : 'text-slate-600'}`}>{p.seasonStats.goals}</span><span className="text-slate-700">/</span><span className={`${p.seasonStats.assists > 0 ? 'text-blue-400 font-bold' : 'text-slate-600'}`}>{p.seasonStats.assists}</span></div>
@@ -269,11 +279,25 @@ const TacticsView = ({ team, setTeam, compact = false, isMatchActive = false, su
                 const p1 = team.players[idx1]; const p2 = team.players[idx2];
                 if (isMatchActive) {
                     const isPitch1 = idx1 < 11; const isPitch2 = idx2 < 11; const isBench1 = idx1 >= 11 && idx1 < 18; const isBench2 = idx2 >= 11 && idx2 < 18;
+                    
+                    // Allow swapping only if at least one is on pitch and other on bench/pitch
                     if ((isPitch1 && isBench2) || (isPitch2 && isBench1)) {
+                        // FORCE SUB LOGIC: If a forced sub is pending, one of the players MUST be the injured one
+                        if (forcedSubstitutionPlayerId) {
+                            if (p1.id !== forcedSubstitutionPlayerId && p2.id !== forcedSubstitutionPlayerId) {
+                                alert("Önce sakatlanan oyuncuyu değiştirmelisiniz!");
+                                setSelectedPlayerId(null);
+                                return;
+                            }
+                        }
+
                         if (subsUsed >= maxSubs) { alert(`Değişiklik hakkınız doldu! (Max: ${maxSubs})`); setSelectedPlayerId(null); return; }
                         if (onSubstitution) onSubstitution(isPitch1 ? p2 : p1, isPitch1 ? p1 : p2);
                         const newPlayers = [...team.players]; [newPlayers[idx1], newPlayers[idx2]] = [newPlayers[idx2], newPlayers[idx1]]; setTeam({ ...team, players: newPlayers });
-                    } else if (isPitch1 && isPitch2) { const newPlayers = [...team.players]; [newPlayers[idx1], newPlayers[idx2]] = [newPlayers[idx2], newPlayers[idx1]]; setTeam({ ...team, players: newPlayers }); } 
+                    } else if (isPitch1 && isPitch2) { 
+                         // Position swap on pitch is allowed even during forced sub
+                         const newPlayers = [...team.players]; [newPlayers[idx1], newPlayers[idx2]] = [newPlayers[idx2], newPlayers[idx1]]; setTeam({ ...team, players: newPlayers }); 
+                    } 
                     else { if (idx1 >= 18 || idx2 >= 18) alert("Maç sırasında kadro dışı oyuncularla işlem yapamazsınız."); }
                 } else {
                     if (idx2 < 18 && p1.suspendedUntilWeek && currentWeek && p1.suspendedUntilWeek > currentWeek) { alert(`UYARI: ${p1.name} cezalı!`); setSelectedPlayerId(null); return; }
@@ -332,9 +356,9 @@ const TacticsView = ({ team, setTeam, compact = false, isMatchActive = false, su
                         <div className="w-full md:w-[65%] h-1/2 md:h-full bg-slate-900 border-r border-slate-800 relative shadow-inner p-4 md:p-8 flex items-center justify-center"><PitchVisual players={team.players} onPlayerClick={handlePlayerClick} selectedPlayerId={selectedPlayerId} formation={team.formation} /></div>
                         <div className="w-full md:w-[35%] h-1/2 md:h-full bg-slate-900 flex flex-col border-l border-slate-800 shadow-xl z-10">
                             <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-900">
-                                <div><div className="flex items-center justify-between px-3 py-2 bg-slate-950 border-b border-green-600/50 sticky top-0 z-20"><h4 className="text-xs font-black text-green-500 uppercase tracking-wider">İLK 11</h4><span className="text-[9px] font-bold text-slate-500">11 Oyuncu</span></div><PlayerListHeader /><div className="divide-y divide-slate-800/50">{team.players.slice(0, 11).map((p, i) => <CompactPlayerRow key={p.id} p={p} index={i} onClick={handlePlayerClick} isSelected={selectedPlayerId === p.id} currentWeek={currentWeek} />)}</div></div>
-                                <div><div className="flex items-center justify-between px-3 py-2 bg-slate-950 border-b border-blue-600/50 mt-4 sticky top-0 z-20"><h4 className="text-xs font-black text-blue-500 uppercase tracking-wider">YEDEKLER</h4><span className="text-[9px] font-bold text-slate-500">7 Oyuncu</span></div><PlayerListHeader /><div className="divide-y divide-slate-800/50">{team.players.slice(11, 18).map((p, i) => <CompactPlayerRow key={p.id} p={p} index={i} onClick={handlePlayerClick} isSelected={selectedPlayerId === p.id} label={`Y${i+1}`} currentWeek={currentWeek} />)}</div></div>
-                                {!isMatchActive && (<div><div className="flex items-center justify-between px-3 py-2 bg-slate-950 border-b border-slate-600/50 mt-4 sticky top-0 z-20"><h4 className="text-xs font-black text-slate-400 uppercase tracking-wider">KADRO DIŞI</h4><span className="text-[9px] font-bold text-slate-500">{team.players.length - 18} Oyuncu</span></div><PlayerListHeader /><div className="divide-y divide-slate-800/50">{team.players.slice(18).map((p, i) => <CompactPlayerRow key={p.id} p={p} index={i} onClick={handlePlayerClick} isSelected={selectedPlayerId === p.id} label="REZ" currentWeek={currentWeek} isReserve />)}</div></div>)}
+                                <div><div className="flex items-center justify-between px-3 py-2 bg-slate-950 border-b border-green-600/50 sticky top-0 z-20"><h4 className="text-xs font-black text-green-500 uppercase tracking-wider">İLK 11</h4><span className="text-[9px] font-bold text-slate-500">11 Oyuncu</span></div><PlayerListHeader /><div className="divide-y divide-slate-800/50">{team.players.slice(0, 11).map((p, i) => <CompactPlayerRow key={p.id} p={p} index={i} onClick={handlePlayerClick} isSelected={selectedPlayerId === p.id} currentWeek={currentWeek} isForcedSub={forcedSubstitutionPlayerId === p.id} />)}</div></div>
+                                <div><div className="flex items-center justify-between px-3 py-2 bg-slate-950 border-b border-blue-600/50 mt-4 sticky top-0 z-20"><h4 className="text-xs font-black text-blue-500 uppercase tracking-wider">YEDEKLER</h4><span className="text-[9px] font-bold text-slate-500">7 Oyuncu</span></div><PlayerListHeader /><div className="divide-y divide-slate-800/50">{team.players.slice(11, 18).map((p, i) => <CompactPlayerRow key={p.id} p={p} index={i} onClick={handlePlayerClick} isSelected={selectedPlayerId === p.id} label={`Y${i+1}`} currentWeek={currentWeek} isForcedSub={forcedSubstitutionPlayerId === p.id} />)}</div></div>
+                                {!isMatchActive && (<div><div className="flex items-center justify-between px-3 py-2 bg-slate-950 border-b border-slate-600/50 mt-4 sticky top-0 z-20"><h4 className="text-xs font-black text-slate-400 uppercase tracking-wider">KADRO DIŞI</h4><span className="text-[9px] font-bold text-slate-500">{team.players.length - 18} Oyuncu</span></div><PlayerListHeader /><div className="divide-y divide-slate-800/50">{team.players.slice(18).map((p, i) => <CompactPlayerRow key={p.id} p={p} index={i} onClick={handlePlayerClick} isSelected={selectedPlayerId === p.id} label="REZ" currentWeek={currentWeek} isReserve isForcedSub={forcedSubstitutionPlayerId === p.id} />)}</div></div>)}
                             </div>
                             {!isMatchActive && (<div className="p-4 bg-slate-800 border-t border-slate-700 shadow-lg"><button onClick={handleAutoPick} className="w-full bg-blue-800 hover:bg-blue-700 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 group"><Zap size={18} className="fill-white group-hover:scale-110 transition-transform"/> HIZLI SEÇİM</button></div>)}
                         </div>

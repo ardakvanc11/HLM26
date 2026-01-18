@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { GameState, Team, Player, Fixture, MatchEvent, MatchStats, PendingTransfer, SponsorDeal, IncomingOffer, TrainingConfig, IndividualTrainingType, BoardInteraction, Position } from '../types';
 import { FileWarning, LogOut, Trophy, Building2, BarChart3, ArrowRightLeft, Wallet, Clock, TrendingUp, TrendingDown, Crown } from 'lucide-react';
@@ -862,6 +863,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     events={matchResultData.events}
                     onProceed={() => navigateTo('interview')}
                     onSkip={handleSkipInterview}
+                    competitionId={matchResultData.competitionId} // PASS PROP
                 />
             )}
 
