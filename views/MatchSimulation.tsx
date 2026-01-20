@@ -2,10 +2,12 @@
 // Add comment above the fix: Import React hooks to resolve "Cannot find name" errors for useState, useEffect, and useRef
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Team, MatchEvent, MatchStats, Position, Player, Mentality, Tempo, PressIntensity } from '../types';
-import { simulateMatchStep, getEmptyMatchStats } from '../utils/gameEngine';
+import { simulateMatchStep, getEmptyMatchStats, getPenaltyTaker, calculatePenaltyOutcome } from '../utils/gameEngine';
 import MatchPitch2D from '../components/match/MatchPitch2D'; 
 import { Timer, AlertOctagon, Megaphone, Settings, PlayCircle, Zap, BarChart2, List, Lock, Target, Shield, Swords, Video } from 'lucide-react';
 import { MatchScoreboard, MatchOverlays, MatchEventFeed } from '../components/match/MatchUI';
+import { PENALTY_GOAL_TEXTS, PENALTY_MISS_TEXTS } from '../data/eventTexts';
+import { pick, fillTemplate } from '../utils/helpers';
 
 const GOAL_SOUND = '/voices/goalsound.wav';
 const WHISTLE_SOUND = '/voices/whistle.wav';
@@ -27,12 +29,44 @@ const getFatigueDrop = (tempo: Tempo, press: PressIntensity): number => {
     else if (press === PressIntensity.VERY_HIGH) pVal = 1.1; // Extreme drain
 
     // Total drain per minute (Range: ~0.3 to ~2.3)
-    return tVal + pVal;
+    // REDUCED BY 50% PER USER REQUEST
+    return (tVal + pVal) * 0.5;
 };
 
-const applyFatigueToTeam = (team: Team): Team => {
+const applyFatigueToTeam = (team: Team, scoreDiff: number): Team => {
     const drop = getFatigueDrop(team.tempo, team.pressIntensity || PressIntensity.STANDARD);
     
+    // --- CAPTAIN INFLUENCE (HIDDEN MECHANIC) ---
+    // Calculate leadership of the player wearing the armband (on pitch)
+    const onPitch = team.players.slice(0, 11);
+    let leadership = 10; // Default average
+
+    if (team.setPieceTakers?.captain) {
+        const cap = onPitch.find(p => p.id === team.setPieceTakers?.captain);
+        if (cap) leadership = cap.stats.leadership;
+        else {
+             // Captain subbed out? Find next leader
+             const nextLeader = onPitch.reduce((prev, current) => (prev.stats.leadership > current.stats.leadership) ? prev : current, onPitch[0]);
+             if(nextLeader) leadership = nextLeader.stats.leadership;
+        }
+    } else {
+         const autoCap = onPitch.reduce((prev, current) => (prev.stats.leadership > current.stats.leadership) ? prev : current, onPitch[0]);
+         if(autoCap) leadership = autoCap.stats.leadership;
+    }
+
+    // Effect: High leadership reduces fatigue (motivation). Low leadership in losing scenarios increases it (stress).
+    let captainMultiplier = 1.0;
+    
+    if (leadership >= 15) {
+        captainMultiplier = 0.95; // 5% less fatigue (Motivated)
+    } 
+    
+    if (scoreDiff < 0 && leadership <= 8) {
+        captainMultiplier = 1.05; // 5% more fatigue (Panic/Stress)
+    }
+
+    const finalDropBase = drop * captainMultiplier;
+
     const updatedPlayers = team.players.map((p, index) => {
         // Apply only to players on pitch (Indices 0-10)
         // Do not apply to subs (Indices 11+)
@@ -47,7 +81,7 @@ const applyFatigueToTeam = (team: Team): Team => {
              const staminaStat = p.stats.stamina || 10;
              const staminaFactor = 1 - ((staminaStat - 1) * 0.02); 
              
-             const actualDrop = drop * staminaFactor;
+             const actualDrop = finalDropBase * staminaFactor;
              const newCond = Math.max(0, currentCond - actualDrop);
 
              return { ...p, condition: newCond };
@@ -68,11 +102,14 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
     const [phase, setPhase] = useState<'FIRST_HALF' | 'HALFTIME' | 'SECOND_HALF' | 'FULL_TIME' | 'PENALTIES'>('FIRST_HALF');
     const [isTacticsOpen, setIsTacticsOpen] = useState(false);
     
+    // --- STOPPAGE TIME STATE ---
+    const [addedTime, setAddedTime] = useState(0);
+    const stoppageAccumulator = useRef(0); // Holds decimal minutes of wasted time
+
     // Penalty Shootout State
     const [pkScore, setPkScore] = useState({ home: 0, away: 0 });
     const [currentKickerIndex, setCurrentKickerIndex] = useState(0);
     const [currentPkTeam, setCurrentPkTeam] = useState<'HOME' | 'AWAY'>('HOME');
-    const [shootoutLog, setShootoutLog] = useState<string[]>([]);
     
     const [liveHomeTeam, setLiveHomeTeam] = useState(homeTeam);
     const [liveAwayTeam, setLiveAwayTeam] = useState(awayTeam);
@@ -107,8 +144,8 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
     useEffect(() => { statsRef.current = stats; }, [stats]);
     useEffect(() => { if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [events]);
 
-    const homeRedCards = events.filter(e => e.type === 'CARD_RED' && e.teamName === homeTeam.name).length;
-    const awayRedCards = events.filter(e => e.type === 'CARD_RED' && e.teamName === awayTeam.name).length;
+    const homeRedCards = events.filter(e => (e.type === 'CARD_RED' || e.type === 'FIGHT' || e.type === 'ARGUMENT') && e.teamName === homeTeam.name).length;
+    const awayRedCards = events.filter(e => (e.type === 'CARD_RED' || e.type === 'FIGHT' || e.type === 'ARGUMENT') && e.teamName === awayTeam.name).length;
     
     // Check if it's a cup match
     const currentFixture = fixtures.find(f => f.id === fixtureId);
@@ -125,11 +162,19 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
 
     const playSound = (path: string) => { const audio = new Audio(path); audio.volume = 0.6; audio.play().catch(e => console.warn("Audio play failed:", e)); };
 
+    // Helper to add stoppage time
+    const addToStoppage = (minutes: number) => {
+        stoppageAccumulator.current += minutes;
+    };
+
     const handleUserSubstitution = (inPlayer: Player, outPlayer: Player) => {
         const teamName = myTeamCurrent.name;
         const event: MatchEvent = { minute, type: 'SUBSTITUTION', description: `${outPlayer.name} 🔄 ${inPlayer.name}`, teamName: teamName };
         setEvents(prev => [...prev, event]);
         
+        // Add Stoppage Time for Substitution
+        addToStoppage(0.5);
+
         // Critical: Check if the player being subbed out is the forced injured player
         if (forcedSubstitutionPlayerId && outPlayer.id === forcedSubstitutionPlayerId) {
             setForcedSubstitutionPlayerId(null);
@@ -206,6 +251,9 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
                     description: `${injuredPlayer.name} 🔄 ${substitute!.name} (Sakatlık)`,
                     teamName: aiTeam.name
                 }]);
+                
+                // Add Stoppage for Sub
+                addToStoppage(0.5);
             }
         }
     };
@@ -228,6 +276,10 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
 
     // --- OBJECTION / VAR LOGIC ---
     const handleObjection = () => {
+        // ... (VAR triggers time waste)
+        // Manual objection might waste time or add to stoppage if it leads to VAR
+        addToStoppage(0.2); // Argument delay
+
         const timeSinceGoal = Date.now() - lastGoalRealTime.current;
         const lastEvent = events[events.length - 1];
         
@@ -241,6 +293,9 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
                  setIsVarActive(true);
                  setVarMessage("HAKEM MONİTÖRE GİDİYOR... (GOL İNCELENİYOR)");
                  playSound(WHISTLE_SOUND);
+                 
+                 // VAR ADDS TIME
+                 addToStoppage(2.0);
 
                  setTimeout(() => {
                     // BAŞARILI İTİRAZ: GOL İPTAL
@@ -281,6 +336,7 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
             // %20 VAR'a gider (Genel kontrol, genelde karar değişmez)
             setIsVarActive(true);
             setVarMessage("Hakem itiraz üzerine kulaklığını dinliyor...");
+            addToStoppage(1.0); // Quick check
             setTimeout(() => {
                 setIsVarActive(false);
                 setEvents(prev => [...prev, { minute, type: 'INFO', description: "VAR ile görüşen hakem 'Devam' dedi.", teamName: myTeamCurrent.name }]);
@@ -293,11 +349,8 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
         } else {
             // %60 HİÇBİR ŞEY OLMAZ (Ama disiplin riski birikir)
             if (managerDiscipline !== 'NONE') {
-                // Zaten uyarılmışsa veya kartlıysa, tekrar "hiçbir şey" gelmesi risklidir, disiplin fonksiyonunu çağırıp şans deneriz.
-                // escalateDiscipline kendi içinde şans faktörü barındırır.
                 escalateDiscipline(); 
             } else {
-                // Sadece uyarı mesajı
                 setEvents(prev => [...prev, { minute, type: 'INFO', description: "Hakem itirazları geçiştirdi.", teamName: myTeamCurrent.name }]);
             }
         }
@@ -325,6 +378,9 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
              setManagerDiscipline(newStatus); 
              setEvents(prev => [...prev, { minute, description: desc, type, teamName: myTeamCurrent.name }]);
              
+             // Coach drama adds time
+             addToStoppage(0.5);
+
              if(newStatus === 'YELLOW') setStats(s => ({ ...s, managerCards: 'YELLOW' }));
              if(newStatus === 'RED') { setStats(s => ({ ...s, managerCards: 'RED' })); setIsTacticsOpen(false); }
          }
@@ -397,22 +453,42 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
             setMinute(m => {
                 const nextM = m + 1;
                 
+                // STOPPAGE TIME CHECK LOGIC
+                const REGULATION_END = phase === 'FIRST_HALF' ? 45 : 90;
+                
+                // Calculate added time at the boundary
+                if (nextM === REGULATION_END) {
+                    // Min 1 minute if any stoppage occurred
+                    const extra = Math.max(stoppageAccumulator.current > 0 ? 1 : 0, Math.ceil(stoppageAccumulator.current));
+                    setAddedTime(extra);
+                }
+
+                // Check for Half/Full Time
+                // It only ends if nextM exceeds Regulation + Added Time
+                if (nextM > REGULATION_END + addedTime) {
+                    if (phase === 'FIRST_HALF') { 
+                        setPhase('HALFTIME'); 
+                        playSound(WHISTLE_SOUND); 
+                        // Reset Stoppage for 2nd half
+                        stoppageAccumulator.current = 0;
+                        setAddedTime(0);
+                        return 45; // Reset UI to 45 for halftime display
+                    } else if (phase === 'SECOND_HALF') {
+                        if (isKnockout && homeScore === awayScore) {
+                            setPhase('PENALTIES');
+                            setEvents(prev => [...prev, { minute: 90, type: 'INFO', description: "Maç berabere bitti. Seri penaltı atışlarına geçiliyor!", teamName: '' }]);
+                            playSound(WHISTLE_SOUND);
+                            return 90;
+                        }
+                        setPhase('FULL_TIME'); 
+                        playSound(WHISTLE_SOUND); 
+                        return 90; 
+                    }
+                }
+
                 if (isSabotageActive && !sabotageTriggered && nextM === 10) {
                     setSabotageTriggered(true);
                     setEvents(prev => [...prev, { minute: nextM, type: 'INFO', description: "⚠️ DİKKAT: Oyuncular sahada isteksiz görünüyor. Menajere olan tepkileri oyuna yansıyor!", teamName: myTeamCurrent.name }]);
-                }
-
-                if (nextM === 45 && phase === 'FIRST_HALF') { setPhase('HALFTIME'); playSound(WHISTLE_SOUND); return 45; }
-                if (nextM >= 90 && phase === 'SECOND_HALF') {
-                    if (isKnockout && homeScore === awayScore) {
-                        setPhase('PENALTIES');
-                        setEvents(prev => [...prev, { minute: 90, type: 'INFO', description: "Maç berabere bitti. Seri penaltı atışlarına geçiliyor!", teamName: '' }]);
-                        playSound(WHISTLE_SOUND);
-                        return 90;
-                    }
-                    setPhase('FULL_TIME'); 
-                    playSound(WHISTLE_SOUND); 
-                    return 90; 
                 }
 
                 // AI Subs Logic (Stamina or Rating Based)
@@ -448,6 +524,9 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
                                     description: `${outPlayer.name} 🔄 ${inPlayer.name}`,
                                     teamName: aiTeam.name
                                 }]);
+                                
+                                // Add Stoppage
+                                addToStoppage(0.5);
                             }
                         }
                     }
@@ -455,8 +534,9 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
 
                 // --- APPLY FATIGUE PER MINUTE ---
                 // Calculate new condition for both teams based on tactics
-                const fatiguedHome = applyFatigueToTeam(liveHomeTeam);
-                const fatiguedAway = applyFatigueToTeam(liveAwayTeam);
+                // PASSING SCORE DIFF TO HANDLE PANIC/MOTIVATION
+                const fatiguedHome = applyFatigueToTeam(liveHomeTeam, homeScore - awayScore);
+                const fatiguedAway = applyFatigueToTeam(liveAwayTeam, awayScore - homeScore);
 
                 // Update local state so UI reflects it
                 setLiveHomeTeam(fatiguedHome);
@@ -468,21 +548,296 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
                 // Pass tired/sabotaged teams to logic
                 // Critical: We must pass the *newly fatigued* teams to the simulation step
                 // so that injury probabilities (which depend on condition) use the current condition.
-                const event = simulateMatchStep(nextM, simHome, simAway, {h: homeScore, a: awayScore}, events);
+                const event = simulateMatchStep(nextM, simHome, simAway, {h: homeScore, a: awayScore}, events, stats);
                 
                 if(event) {
+                    // --- STOPPAGE TIME ACCUMULATION ---
+                    switch(event.type) {
+                        case 'GOAL': addToStoppage(0.8); break; // Celebration
+                        case 'INJURY': addToStoppage(1.5); break; // Treatment
+                        case 'CARD_RED': addToStoppage(1.0); break; // Argue/Leave
+                        case 'FIGHT': addToStoppage(2.0); break; // Fight break
+                        case 'ARGUMENT': addToStoppage(1.0); break; // Argue
+                        case 'PITCH_INVASION': addToStoppage(4.0); break; // Invasion delay
+                        case 'CARD_YELLOW': addToStoppage(0.3); break; // Write name
+                        case 'SUBSTITUTION': addToStoppage(0.5); break; // Walk off
+                        case 'VAR': addToStoppage(2.0); break; // Check
+                        case 'PENALTY': addToStoppage(2.0); break; // Penalty Sequence
+                        default: break;
+                    }
+
+                    // --- MAX INJURY LIMIT CHECK ---
+                    const totalInjuries = events.filter(e => e.type === 'INJURY').length;
+                    
+                    if (event.type === 'INJURY' && totalInjuries >= 3) {
+                         // Max injury limit reached, skip this event
+                         return nextM;
+                    }
+
+                    // --- RED CARD VAR CHECK (NEW) ---
+                    if (event.type === 'CARD_RED') {
+                        // 10% Chance for VAR Check
+                        if (Math.random() < 0.10) {
+                            setIsVarActive(true);
+                            setVarMessage("KIRMIZI KART İNCELENİYOR...");
+                            addToStoppage(2.0);
+
+                            // VAR Process Simulation
+                            setTimeout(() => {
+                                setIsVarActive(false);
+                                // 80% Chance Downgrade to Yellow
+                                if (Math.random() < 0.80) {
+                                    const newEvent = { ...event, type: 'CARD_YELLOW' as const, description: `VAR Kararı: Kırmızı Kart İptal, SARI KART - ${event.description.replace('KIRMIZI KART!', '').trim()}` };
+                                    
+                                    // Update stats for Yellow instead of Red
+                                    setStats(prev => {
+                                        const s = { ...prev };
+                                        const isHomeEvent = event.teamName === homeTeam.name;
+                                        if (isHomeEvent) s.homeYellowCards++; else s.awayYellowCards++;
+                                        return s;
+                                    });
+
+                                    setEvents(prev => [...prev, newEvent]);
+                                } else {
+                                    // 20% Confirm Red
+                                    const newEvent = { ...event, description: `VAR Kararı: Karar Geçerli, KIRMIZI KART!` };
+                                    
+                                    // Update stats for Red
+                                    setStats(prev => {
+                                        const s = { ...prev };
+                                        const isHomeEvent = event.teamName === homeTeam.name;
+                                        if (isHomeEvent) s.homeRedCards++; else s.awayRedCards++;
+                                        return s;
+                                    });
+
+                                    setEvents(prev => [...prev, newEvent]);
+                                }
+                            }, 2000);
+                            return nextM; // Don't process event immediately, handled in timeout
+                        }
+                        // If no VAR, proceed normally to add event at bottom
+                    }
+
+                    // --- PENALTY UI SEQUENCE (UPDATED) ---
+                    if (event.type === 'PENALTY') {
+                        
+                        const startPenaltySequence = (alreadyCheckedVar: boolean) => {
+                            setIsPenaltyActive(true);
+                            setPenaltyMessage("PENALTI KARARI! Hakem beyaz noktayı gösterdi.");
+                            const eventTeam = [homeTeam, awayTeam].find(t => t.name === event.teamName);
+                            setPenaltyTeamId(eventTeam?.id || null);
+                            
+                            // Wait 3 seconds then resolve outcome
+                            setTimeout(() => {
+                                 // --- NEW LOGIC: DETERMINE TAKER & OUTCOME ---
+                                 const sentOff = new Set(events.filter(e => e.type === 'CARD_RED').map(e => e.playerId));
+                                 // Get the taker using the helper logic
+                                 const taker = getPenaltyTaker(eventTeam || (event.teamName === homeTeam.name ? liveHomeTeam : liveAwayTeam), sentOff);
+                                 
+                                 // Calculate Outcome
+                                 const isGoal = calculatePenaltyOutcome(taker.stats.penalty);
+                                 
+                                 // --- POST-PENALTY VAR CHECK (NEW) ---
+                                 // 15% Chance if it was a goal and NOT already checked
+                                 if (isGoal && !alreadyCheckedVar && Math.random() < 0.15) {
+                                     setIsPenaltyActive(false); // Hide penalty overlay temporarily
+                                     setIsVarActive(true);
+                                     setVarMessage("HAKEM MONİTÖRE GİDİYOR... (PENALTI İNCELENİYOR)");
+                                     addToStoppage(2.0);
+                                     
+                                     setTimeout(() => {
+                                         setIsVarActive(false);
+                                         // 90% Chance to Cancel Goal
+                                         if (Math.random() < 0.90) {
+                                             setEvents(prev => [...prev, {
+                                                 minute: nextM,
+                                                 type: 'OFFSIDE', // Use generic cancel icon/type
+                                                 description: `VAR Kararı: Penaltı İptal Edildi (Ofsayt/Faul).`,
+                                                 teamName: event.teamName
+                                             }]);
+                                         } else {
+                                             // Confirm Goal
+                                             commitPenaltyGoal(event.teamName, taker, nextM);
+                                         }
+                                         setPenaltyTeamId(null);
+                                     }, 2000);
+                                     
+                                 } else {
+                                     // Standard Outcome
+                                     if (isGoal) {
+                                         commitPenaltyGoal(event.teamName, taker, nextM);
+                                     } else {
+                                        // Retake Logic Check (New Feature)
+                                        const defendingTeam = event.teamName === homeTeam.name ? liveAwayTeam : liveHomeTeam;
+                                        const keeper = defendingTeam.players.find(p => p.position === Position.GK) || defendingTeam.players[0];
+                                        // Fallback to 10 if stat is missing
+                                        const conc = keeper.stats.concentration !== undefined ? keeper.stats.concentration : 10;
+                                        
+                                        // Logic: Concentration < 15 -> 20% chance, else 5%
+                                        const retakeChance = conc < 15 ? 0.20 : 0.05;
+
+                                        if (Math.random() < retakeChance) {
+                                            // Retake Logic
+                                            setIsPenaltyActive(false); // Hide penalty overlay
+                                            setIsVarActive(true);
+                                            setVarMessage("KALECİ İHLALİ KONTROLÜ...");
+                                            addToStoppage(1.0);
+
+                                            setTimeout(() => {
+                                                setIsVarActive(false);
+                                                setEvents(prev => [...prev, {
+                                                    minute: nextM,
+                                                    type: 'INFO',
+                                                    description: `PENALTI TEKRAR! Kaleci ${keeper.name} atıştan önce çizgi ihlali yaptı (Konsantrasyon: ${conc}).`,
+                                                    teamName: event.teamName
+                                                }]);
+                                                
+                                                // Restart penalty sequence immediately (skipping pre-var check)
+                                                startPenaltySequence(true); 
+                                            }, 2000);
+                                            return; // Exit current flow
+                                        }
+
+                                        // Regular Miss
+                                         setPenaltyMessage("KAÇTI! Kaleci çıkardı!");
+                                         const template = pick(PENALTY_MISS_TEXTS);
+                                         const desc = fillTemplate(template, { player: taker.name });
+                                         
+                                         setEvents(prev => [...prev, {
+                                             minute: nextM,
+                                             type: 'MISS',
+                                             description: desc,
+                                             teamName: event.teamName,
+                                             playerId: taker.id
+                                         }]);
+
+                                         // Update Stats (Miss)
+                                         setStats(prev => {
+                                            const s = {...prev};
+                                            const isHomeEvent = event.teamName === homeTeam.name;
+                                            if (isHomeEvent) { s.homeShots++; } else { s.awayShots++; }
+                                            return s;
+                                         });
+
+                                          // Hide overlay after another 2 seconds
+                                         setTimeout(() => {
+                                             setIsPenaltyActive(false);
+                                             setPenaltyTeamId(null);
+                                         }, 2000);
+                                     }
+                                 }
+
+                            }, 3000);
+                        };
+
+                        // Helper to commit goal state
+                        const commitPenaltyGoal = (teamName: string | undefined, taker: Player, time: number) => {
+                             setPenaltyMessage("GOOOOL!");
+                             playSound(GOAL_SOUND);
+                             if (teamName === homeTeam.name) setHomeScore(s => s + 1);
+                             else setAwayScore(s => s + 1);
+                             
+                             const template = pick(PENALTY_GOAL_TEXTS);
+                             const desc = fillTemplate(template, { player: taker.name });
+                             
+                             setEvents(prev => [...prev, {
+                                 minute: time,
+                                 type: 'GOAL',
+                                 description: desc,
+                                 teamName: teamName,
+                                 scorer: taker.name,
+                                 assist: 'Penaltı'
+                             }]);
+
+                             // Update Stats (Goal)
+                             setStats(prev => {
+                                const s = {...prev};
+                                const isHomeEvent = teamName === homeTeam.name;
+                                if (isHomeEvent) { s.homeShots++; s.homeShotsOnTarget++; } 
+                                else { s.awayShots++; s.awayShotsOnTarget++; }
+                                return s;
+                             });
+
+                             // Hide overlay
+                             setTimeout(() => {
+                                 setIsPenaltyActive(false);
+                                 setPenaltyTeamId(null);
+                             }, 2000);
+                        }
+
+                        // --- PRE-PENALTY VAR CHECK (NEW) ---
+                        // 30% Chance to check BEFORE giving penalty
+                        if (Math.random() < 0.30) {
+                            setIsVarActive(true);
+                            setVarMessage("VAR KONTROLÜ: PENALTI POZİSYONU...");
+                            addToStoppage(2.0);
+                            
+                            setTimeout(() => {
+                                setIsVarActive(false);
+                                setEvents(prev => [...prev, { minute: nextM, type: 'INFO', description: "VAR Kontrolü Sonrası: PENALTI!", teamName: event.teamName }]);
+                                // Proceed to penalty sequence, marking it as checked (true)
+                                startPenaltySequence(true);
+                            }, 2000);
+                        } else {
+                            // Proceed normally, unchecked (false)
+                            startPenaltySequence(false);
+                        }
+
+                        return nextM; // Don't add PENALTY event to feed yet, handled in timeout
+                    }
+
+                    // Proceed with adding event (non-penalty, non-red-card-checked)
                     setEvents(prev => [...prev, event]);
+                    
+                    // --- Handle stats for new event types ---
+                    if (event.type === 'FIGHT' || event.type === 'ARGUMENT') {
+                         setStats(prev => {
+                            const s = { ...prev };
+                            const isHomeEvent = event.teamName === homeTeam.name;
+                            if (isHomeEvent) s.homeRedCards++; else s.awayRedCards++;
+                            return s;
+                         });
+                         // Treat as Red Card event for UI purposes too
+                         addToStoppage(1.0);
+                    }
 
                     // --- INJURY HANDLING START ---
                     if (event.type === 'INJURY') {
                         const isHomeInjured = event.teamName === homeTeam.name;
                         const isUserInjured = (userIsHome && isHomeInjured) || (!userIsHome && !isHomeInjured);
 
+                         // NEW LOGIC: Mark player as injured in the live state so TacticsView knows
+                         if (userIsHome && event.teamName === homeTeam.name) {
+                            setLiveHomeTeam(prev => ({
+                                ...prev,
+                                players: prev.players.map(p => p.id === event.playerId ? { ...p, injury: { type: 'Maç İçi', daysRemaining: 1, description: 'Maçta sakatlandı' } } : p)
+                            }));
+                        } else if (!userIsHome && event.teamName === awayTeam.name) {
+                            setLiveAwayTeam(prev => ({
+                                ...prev,
+                                players: prev.players.map(p => p.id === event.playerId ? { ...p, injury: { type: 'Maç İçi', daysRemaining: 1, description: 'Maçta sakatlandı' } } : p)
+                            }));
+                        }
+
                         if (isUserInjured) {
-                            // User Team Injury -> Force Tactics
-                            if (event.playerId) {
-                                setForcedSubstitutionPlayerId(event.playerId);
-                                setIsTacticsOpen(true);
+                            // CHECK USER SUBS
+                            const userSubs = isHomeInjured ? homeSubsUsed : awaySubsUsed;
+                            
+                            if (userSubs >= 5) {
+                                // NO MORE SUBS - TEAM PLAYS WITH 10
+                                setEvents(prev => [...prev, { 
+                                    minute: nextM, 
+                                    type: 'INFO', 
+                                    description: "❌ Değişiklik hakkı dolduğu için takım sahada bir kişi eksik mücadele edecek.", 
+                                    teamName: myTeamCurrent.name 
+                                }]);
+                                // IMPORTANT: We do NOT setForcedSubstitutionPlayerId, so tactics modal won't force a swap.
+                            } else {
+                                // User Team Injury -> Force Tactics
+                                if (event.playerId) {
+                                    setForcedSubstitutionPlayerId(event.playerId);
+                                    setIsTacticsOpen(true);
+                                }
                             }
                         } else {
                             // AI Team Injury -> Auto Substitution
@@ -513,6 +868,7 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
                             setTimeout(() => {
                                 setIsVarActive(true); 
                                 setVarMessage("Hakem VAR ile görüşüyor..."); 
+                                addToStoppage(2.0); // VAR Delay
                                 playSound(WHISTLE_SOUND); 
                                 setTimeout(() => {
                                     setIsVarActive(false);
@@ -588,7 +944,7 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
             });
         }, 1000 / speed);
         return () => clearInterval(interval);
-    }, [minute, isTacticsOpen, phase, speed, isVarActive, isPenaltyActive, events, liveHomeTeam, liveAwayTeam, homeSubsUsed, awaySubsUsed, forcedSubstitutionPlayerId, isSabotageActive, isKnockout, homeScore, awayScore]);
+    }, [minute, isTacticsOpen, phase, speed, isVarActive, isPenaltyActive, events, liveHomeTeam, liveAwayTeam, homeSubsUsed, awaySubsUsed, forcedSubstitutionPlayerId, isSabotageActive, isKnockout, homeScore, awayScore, addedTime, stats]);
 
     // --- PENALTY SHOOTOUT LOOP ---
     useEffect(() => {
@@ -659,7 +1015,8 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
                 isTacticsOpen={isTacticsOpen} forcedSubstitutionPlayerId={forcedSubstitutionPlayerId} myTeamCurrent={myTeamCurrent} handleTacticsUpdate={handleTacticsUpdate}
                 userIsHome={userIsHome} homeSubsUsed={homeSubsUsed} awaySubsUsed={awaySubsUsed} handleUserSubstitution={handleUserSubstitution} minute={minute} onCloseTactics={() => setIsTacticsOpen(false)}
             />
-            <MatchScoreboard homeTeam={homeTeam} awayTeam={awayTeam} homeScore={homeScore} awayScore={awayScore} minute={minute} homeRedCards={homeRedCards} awayRedCards={awayRedCards} homeSubsUsed={homeSubsUsed} awaySubsUsed={awaySubsUsed} />
+            {/* Added Time Passed to Scoreboard */}
+            <MatchScoreboard homeTeam={homeTeam} awayTeam={awayTeam} homeScore={homeScore} awayScore={awayScore} minute={minute} homeRedCards={homeRedCards} awayRedCards={awayRedCards} homeSubsUsed={homeSubsUsed} awaySubsUsed={awaySubsUsed} addedTime={addedTime} />
             {(phase === 'PENALTIES' || (pkScore.home > 0 || pkScore.away > 0)) && (
                 <div className="bg-black/80 text-white text-center py-2 border-b border-yellow-500 font-mono font-bold animate-in slide-in-from-top">
                     PENALTILAR: {homeTeam.name} {pkScore.home} - {pkScore.away} {awayTeam.name}
@@ -697,7 +1054,7 @@ const MatchSimulation = ({ homeTeam, awayTeam, userTeamId, onFinish, allTeams, f
                                  <div className="flex gap-2 md:gap-4 items-center">
                                     {isManagerSentOff && (<div className="hidden md:flex items-center gap-2 text-xs bg-red-900/50 border border-red-500 text-red-200 px-3 py-2 rounded"><Lock size={14} /><span className="font-bold">CEZALI</span></div>)}
                                     <button disabled={isManagerSentOff} onClick={() => setIsTacticsOpen(true)} className={`px-3 py-1.5 md:px-4 md:py-2 rounded text-white text-xs md:text-sm font-bold transition-all ${isManagerSentOff ? 'bg-slate-600 opacity-50 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'}`}>SOYUNMA ODASI</button>
-                                    <button onClick={() => setPhase('SECOND_HALF')} className="bg-green-600 px-3 py-1.5 md:px-4 md:py-2 rounded text-white text-xs md:text-sm font-bold">2. YARI</button>
+                                    <button onClick={() => { setPhase('SECOND_HALF'); setAddedTime(0); setMinute(45); }} className="bg-green-600 px-3 py-1.5 md:px-4 md:py-2 rounded text-white text-xs md:text-sm font-bold">2. YARI</button>
                                  </div>
                              ) : phase === 'PENALTIES' ? (
                                  <div className="text-yellow-500 font-bold text-sm animate-pulse">SERİ PENALTILAR OYNANIYOR...</div>

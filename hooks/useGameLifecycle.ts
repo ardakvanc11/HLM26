@@ -1,5 +1,4 @@
 
-
 import React, { useEffect, useRef, useCallback } from 'react';
 import { GameState } from '../types';
 import { initializeTeams } from '../data/teamConstants';
@@ -138,7 +137,8 @@ export const useGameLifecycle = (
         // Combine all fixtures
         const fixtures = [...fixturesSL, ...fixturesL1, ...fixturesEuro, ...fixturesSuperCup];
 
-        const marketCount = Math.floor(Math.random() * 500) + 1000;
+        // Increase Market Size to 5000-6000
+        const marketCount = Math.floor(Math.random() * 1001) + 5000;
         const transferList = generateTransferMarket(marketCount, GAME_CALENDAR.START_DATE.toISOString());
         const news = generateWeeklyNews(1, fixtures, teams);
 

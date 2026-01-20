@@ -85,7 +85,8 @@ export const usePlayerActions = (
         const myTeam = gameState.teams.find(t => t.id === gameState.myTeamId)!;
         if (myTeam.budget >= player.value) {
             const newTransferList = gameState.transferList.filter(p => p.id !== player.id);
-            const newPlayer = { ...player, teamId: myTeam.id, jersey: myTeam.jersey };
+            // FIX: Clear clubName to remove 'Serbest' label from pitch visual
+            const newPlayer = { ...player, teamId: myTeam.id, jersey: myTeam.jersey, clubName: undefined };
             const financials = { ...myTeam.financialRecords };
             financials.expense.transfers += player.value;
             let updatedTeam = { ...myTeam, budget: myTeam.budget - player.value, players: [...myTeam.players, newPlayer], financialRecords: financials };
@@ -119,6 +120,19 @@ export const usePlayerActions = (
         if (!gameState.myTeamId) return;
         const myTeam = gameState.teams.find(t => t.id === gameState.myTeamId)!;
         
+        // --- KADRO DERİNLİĞİ KONTROLÜ (MİNİMUM 22 OYUNCU) ---
+        if (myTeam.players.length <= 22) { 
+            setGameState(prev => ({
+                ...prev,
+                uiAlert: {
+                    title: "Yönetim Engeli: Kadro Yetersizliği",
+                    message: "Yönetim Kurulu, kadro derinliğinin kritik seviyeye (22 oyuncu) düştüğünü tespit etti. Takımın rekabetçiliğini korumak adına, yeni bir transfer yapılmadan mevcut oyuncuların gönderilmesine izin verilmiyor.",
+                    type: "error"
+                }
+            }));
+            return; 
+        }
+
         if (cost > 0 && myTeam.budget < cost) {
             alert(`Yetersiz Bütçe!\n\nBu oyuncuyu serbest bırakmak için ${cost.toFixed(2)} M€ tazminat ödemeniz gerekiyor ancak kasanızda ${myTeam.budget.toFixed(2)} M€ var.`);
             return;
@@ -169,9 +183,16 @@ export const usePlayerActions = (
         if (!gameState.myTeamId) return;
         const myTeam = gameState.teams.find(t => t.id === gameState.myTeamId)!;
         
-        // --- KADRO DERİNLİĞİ KONTROLÜ (YENİ) ---
-        if (myTeam.players.length <= 19) { 
-            alert("Klüp kadro derinliği sıkıntısı yaşadığı için bu oyuncunun transfer yapılmasına izin verilmiyor."); 
+        // --- KADRO DERİNLİĞİ KONTROLÜ (MİNİMUM 22 OYUNCU) ---
+        if (myTeam.players.length <= 22) { 
+            setGameState(prev => ({
+                ...prev,
+                uiAlert: {
+                    title: "Yönetim Engeli: Kadro Yetersizliği",
+                    message: "Yönetim Kurulu, kadro derinliğinin kritik seviyeye (22 oyuncu) düştüğünü tespit etti. Takımın rekabetçiliğini korumak adına, yeni bir transfer yapılmadan mevcut oyuncuların satılmasına izin verilmiyor.",
+                    type: "error"
+                }
+            }));
             return; 
         }
         
@@ -242,9 +263,16 @@ export const usePlayerActions = (
         if (player) {
             const myTeam = gameState.teams.find(t => t.id === gameState.myTeamId)!;
             
-            // --- KADRO DERİNLİĞİ KONTROLÜ (YENİ - GELEN TEKLİF İÇİN) ---
-            if (myTeam.players.length <= 19) { 
-                alert("Klüp kadro derinliği sıkıntısı yaşadığı için bu oyuncunun transfer yapılmasına izin verilmiyor."); 
+            // --- KADRO DERİNLİĞİ KONTROLÜ (MİNİMUM 22 OYUNCU) ---
+            if (myTeam.players.length <= 22) { 
+                setGameState(prev => ({
+                    ...prev,
+                    uiAlert: {
+                        title: "Yönetim Engeli: Kadro Yetersizliği",
+                        message: "Yönetim Kurulu, kadro derinliğinin kritik seviyeye (22 oyuncu) düştüğünü tespit etti. Takımın rekabetçiliğini korumak adına, yeni bir transfer yapılmadan mevcut oyuncuların satılmasına/kiralanmasına izin verilmiyor.",
+                        type: "error"
+                    }
+                }));
                 return; 
             }
 
@@ -439,7 +467,8 @@ export const usePlayerActions = (
             squadStatus: contract.role,
             contractExpiry: 2025 + contract.years, 
             wage: contract.wage,
-            activePromises: contract.promises
+            activePromises: contract.promises,
+            clubName: undefined // Clear previous club name/status
         };
         
         const financials = { ...myTeam.financialRecords };

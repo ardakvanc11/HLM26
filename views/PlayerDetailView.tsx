@@ -67,9 +67,13 @@ const PlayerDetailView: React.FC<PlayerDetailViewProps> = ({ player, onClose, my
                     return;
                 }
                 
-                // --- KADRO DERİNLİĞİ KONTROLÜ (YENİ) ---
-                if (player.teamId !== 'free_agent' && teammates && teammates.length <= 19) {
-                    alert("Klüp kadro derinliği sıkıntısı yaşadığı için bu oyuncunun transfer yapılmasına izin verilmiyor.");
+                // --- KADRO DERİNLİĞİ KONTROLÜ (DÜZELTİLDİ) ---
+                // Yurt dışı (foreign) ve Serbest oyuncular için kadro kontrolü yapma
+                const isForeignOrFree = player.teamId === 'free_agent' || player.teamId === 'foreign';
+                const hasTeammates = teammates && teammates.length > 0;
+                
+                if (!isForeignOrFree && hasTeammates && teammates.length <= 19) {
+                    alert("Rakip kulüp kadro derinliği sıkıntısı yaşadığı için bu oyuncunun transferine izin vermiyor.");
                     return;
                 }
 

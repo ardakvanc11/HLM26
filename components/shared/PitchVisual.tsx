@@ -188,8 +188,8 @@ const PitchVisual = ({ players, onPlayerClick, selectedPlayerId, formation = '4-
                                     />
                                 </div>
 
-                                {/* Club Name Label (Optional - Used for All-Star/Dream teams) */}
-                                {p.clubName && (
+                                {/* Club Name Label (Optional - Used for All-Star/Dream teams, but hidden for own players if generic) */}
+                                {p.clubName && p.clubName !== 'Serbest' && p.clubName !== 'Yurt Dışı Kulübü' && (
                                     <div className="text-[7px] md:text-[8px] text-white/80 bg-black/40 px-1.5 rounded-sm mt-0.5 leading-tight truncate max-w-[70px] shadow-sm backdrop-blur-[1px]">
                                         {p.clubName}
                                     </div>

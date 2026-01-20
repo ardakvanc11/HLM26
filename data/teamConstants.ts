@@ -1029,6 +1029,13 @@ export const initializeTeams = (): Team[] => {
         reserves.push(createPlayer(Position.OS, tmpl.targetStrength - 8));
         reserves.push(createPlayer(Position.SGK, tmpl.targetStrength - 8));
         reserves.push(createPlayer(Position.SNT, tmpl.targetStrength - 8));
+        // ADDING 6 MORE TO REACH 30 TOTAL (11 XI + 7 SUB + 12 RES)
+        reserves.push(createPlayer(Position.SLB, tmpl.targetStrength - 9));
+        reserves.push(createPlayer(Position.STP, tmpl.targetStrength - 9));
+        reserves.push(createPlayer(Position.OS, tmpl.targetStrength - 9));
+        reserves.push(createPlayer(Position.OOS, tmpl.targetStrength - 9));
+        reserves.push(createPlayer(Position.SLK, tmpl.targetStrength - 9));
+        reserves.push(createPlayer(Position.SNT, tmpl.targetStrength - 9));
 
         const players = [gk, slb, stp1, stp2, sgb, slk, os1, os2, sgk, snt1, snt2, subGK, subDEF1, subDEF2, subMID1, subMID2, subFWD1, subFWD2, ...reserves];
 
@@ -1171,8 +1178,8 @@ export const initializeTeams = (): Team[] => {
         const snt1 = createPlayer(Position.SNT, tmpl.targetStrength);
         const snt2 = createPlayer(Position.SNT, tmpl.targetStrength);
         
-        // Add minimal subs
-        const reserves = Array.from({length: 7}, () => createPlayer(Position.OS, tmpl.targetStrength - 5));
+        // Add reserves to reach 30 players total (11 starters + 19 reserves)
+        const reserves = Array.from({length: 19}, () => createPlayer(Position.OS, tmpl.targetStrength - 5));
 
         const players = [gk, slb, stp1, stp2, sgb, slk, os1, os2, sgk, snt1, snt2, ...reserves];
         const rawStrength = calculateRawTeamStrength(players);

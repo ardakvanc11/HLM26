@@ -738,7 +738,7 @@ export interface SeasonSummary {
  */
 export interface MatchEvent {
     minute: number;
-    type: 'GOAL' | 'CARD_YELLOW' | 'CARD_RED' | 'INJURY' | 'SUBSTITUTION' | 'VAR' | 'MISS' | 'OFFSIDE' | 'CORNER' | 'FOUL' | 'INFO' | 'SAVE';
+    type: 'GOAL' | 'CARD_YELLOW' | 'CARD_RED' | 'INJURY' | 'SUBSTITUTION' | 'VAR' | 'MISS' | 'OFFSIDE' | 'CORNER' | 'FOUL' | 'INFO' | 'SAVE' | 'PENALTY' | 'PITCH_INVASION' | 'FIGHT' | 'ARGUMENT';
     description: string;
     teamName?: string;
     scorer?: string;
@@ -856,6 +856,12 @@ export interface BettingOdds {
     away: number;
 }
 
+export interface UIAlert {
+    title: string;
+    message: string;
+    type: 'error' | 'success' | 'info';
+}
+
 export interface GameState {
     managerName: string | null;
     manager: ManagerProfile | null; 
@@ -879,4 +885,5 @@ export interface GameState {
     consecutiveFfpYears: number;
     yearsAtCurrentClub: number;
     lastSeasonGoalAchieved: boolean;
+    uiAlert?: UIAlert | null; // NEW: Global UI Alert State
 }

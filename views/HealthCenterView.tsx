@@ -38,45 +38,6 @@ const HealthCenterView = ({ team, currentWeek, onPlayerClick }: { team: Team, cu
         return 'bg-green-100 dark:bg-green-900/30 border-green-200 dark:border-green-800';
     };
 
-    // Helper to calculate exact return date string
-    const getReturnDate = (daysRemaining: number) => {
-        // We assume we don't have direct access to currentDate string here easily without prop drilling deeply
-        // But we can approximate using week if needed, or better, we can inject currentDate.
-        // For accurate date, we need to pass `currentDate` prop from GameState.
-        // Assuming we rely on simple Date object manipulation starting from now or Game Start + weeks? 
-        // Best approach: Add `currentDate` prop to HealthCenterView. But for now, let's assume standard JS Date.
-        // Since `useGameState` holds current date, let's pretend we receive it or calculate based on week.
-        // Actually, we can just say "X gün sonra" which is accurate.
-        // But request asked for "Dönüş Tarihi: 22 Eylül".
-        // Let's implement dynamic date calculation if we assume standard calendar progression from GAME_CALENDAR.
-        
-        // Simulating current date based on week is hard because of breaks.
-        // Ideally we pass currentDate prop.
-        // Let's modify the component signature to accept `currentDate` or assume we are passing it.
-        // If not available, we show relative time.
-        
-        // Wait, user asked to update View. I can update App structure to pass currentDate.
-        // But for now, let's use a "Today + X days" logic using a placeholder date if prop missing?
-        // Actually `team` object doesn't have date.
-        
-        // Let's use a trick: We can't know exact date without prop. I will modify App usage to pass date?
-        // No, I can only modify this file.
-        // Wait, I am modifying `MainContent` too in my plan? No, user didn't ask explicitly but I can include it.
-        // Actually, I can just use relative "X Gün" prominently.
-        // BUT user asked SPECIFICALLY for "Dönüş Tarihi: 22 Eylül".
-        // I will assume I can get the current game date context somehow.
-        // Let's check `views/HealthCenterView` usage in `MainContent`.
-        // It passes `currentWeek`.
-        // I will try to estimate date or add `currentDate` prop to this component in the `MainContent` update if I do that.
-        // I'll update `MainContent` to pass date? No, I want to keep changes minimal.
-        
-        // BETTER: I will use `GAME_CALENDAR.LEAGUE_START_DATE` + (Week * 7 days) as an approximation 
-        // OR better, I will update `MainContent` to pass the date string since I am already touching `useGameState`.
-        // Let's assume I don't have date prop and do best effort or update prop.
-        // I'll update prop since I am editing MainContent anyway.
-        return "";
-    };
-
     return (
         <div className="h-full flex flex-col space-y-6">
             <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm shrink-0">
@@ -137,12 +98,25 @@ const HealthCenterView = ({ team, currentWeek, onPlayerClick }: { team: Team, cu
                             </div>
                         ) : (
                             injuredPlayers.map(p => {
-                                // Calculate Return Date approximation
-                                // Since we don't have currentDate prop drilled yet, we'll estimate based on Week + Days
-                                // Or use a placeholder "Bugün + X gün"
-                                // Ideally, we should receive currentDate. 
-                                // Since I can't guarantee `currentDate` prop exists without changing MainContent heavily, 
-                                // I'll display "X Gün Sonra" clearly.
+                                // Calculate Recovery Progress
+                                const history = p.injuryHistory || [];
+                                const lastInjury = history[history.length - 1];
+                                
+                                // Toplam süreyi bul (Geçmişten veya tahmini fallback)
+                                const totalDuration = lastInjury 
+                                    ? lastInjury.durationDays 
+                                    : Math.max((p.injury?.daysRemaining || 0) + 1, 14); // Fallback
+
+                                const daysLeft = p.injury?.daysRemaining || 0;
+                                
+                                // Yüzdelik hesap: (Geçen Süre / Toplam Süre) * 100
+                                // Örnek: Toplam 10, Kalan 1 => Geçen 9 => %90
+                                let progressPct = 0;
+                                if (totalDuration > 0) {
+                                    progressPct = ((totalDuration - daysLeft) / totalDuration) * 100;
+                                }
+                                // Sınırla (Min %5 görünsün, Max %100)
+                                progressPct = Math.max(5, Math.min(100, progressPct));
                                 
                                 return (
                                     <div key={p.id} onClick={() => onPlayerClick(p)} className="bg-white dark:bg-slate-800 p-4 rounded-xl border-l-4 border-l-red-500 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-6 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition">
@@ -163,15 +137,20 @@ const HealthCenterView = ({ team, currentWeek, onPlayerClick }: { team: Team, cu
                                             <div className="mt-3">
                                                 <div className="flex justify-between text-xs text-slate-500 mb-1">
                                                     <span className="flex items-center gap-1"><Calendar size={12}/> Tahmini Dönüş</span>
-                                                    {/* We display days remaining clearly as requested */}
                                                     <span className="font-bold text-slate-700 dark:text-slate-300">
                                                         {p.injury?.daysRemaining} Gün Sonra
                                                     </span>
                                                 </div>
-                                                <div className="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-red-500 animate-pulse" style={{width: '20%'}}></div>
+                                                <div className="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden relative">
+                                                    <div 
+                                                        className={`h-full transition-all duration-1000 ease-out ${progressPct > 80 ? 'bg-green-500' : progressPct > 40 ? 'bg-yellow-500' : 'bg-red-500'}`} 
+                                                        style={{width: `${progressPct}%`}}
+                                                    ></div>
                                                 </div>
-                                                <p className="text-sm text-slate-600 dark:text-slate-300 mt-2 italic">"{p.injury?.description}"</p>
+                                                <div className="flex justify-between items-center mt-2">
+                                                    <p className="text-sm text-slate-600 dark:text-slate-300 italic">"{p.injury?.description}"</p>
+                                                    <span className="text-[10px] font-bold text-slate-400">%{Math.round(progressPct)} İyileşme</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

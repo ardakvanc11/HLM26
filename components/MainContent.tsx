@@ -37,6 +37,7 @@ import FixtureDetailPanel from './shared/FixtureDetailPanel';
 import ChampionCelebrationModal from '../modals/ChampionCelebrationModal'; 
 import SeasonSummaryModal from '../modals/SeasonSummaryModal';
 import BoardInteractionModal from '../modals/BoardInteractionModal'; // NEW
+import CustomAlert from './shared/CustomAlert'; // NEW
 
 // Types definition for props
 interface MainContentProps {
@@ -488,6 +489,14 @@ const MainContent: React.FC<MainContentProps> = (props) => {
             onTeamClick={handleShowTeamDetail}
             onPlayerClick={handleShowPlayerDetail}
         >
+            {/* GLOBAL UI ALERT COMPONENT */}
+            {gameState.uiAlert && (
+                <CustomAlert 
+                    alert={gameState.uiAlert} 
+                    onClose={() => setGameState(prev => ({ ...prev, uiAlert: null }))} 
+                />
+            )}
+
             {/* Board Interaction Modal */}
             {boardInteraction && myTeam && (
                 <BoardInteractionModal 

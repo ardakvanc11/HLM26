@@ -27,7 +27,8 @@ export const useCoreState = () => {
         lastTrainingReport: [],
         consecutiveFfpYears: 0,
         yearsAtCurrentClub: 0,
-        lastSeasonGoalAchieved: false
+        lastSeasonGoalAchieved: false,
+        uiAlert: null
     });
 
     // Selection States

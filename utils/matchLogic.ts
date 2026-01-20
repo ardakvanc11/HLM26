@@ -1,6 +1,6 @@
 
 import { Team, Player, MatchEvent, MatchStats, Position, Tackling, PlayerPerformance, Mentality, PassingStyle, Tempo, Width, AttackingTransition, CreativeFreedom, SupportRuns, Dribbling, FocusArea, PassTarget, Patience, LongShots, CrossingType, GKDistributionSpeed, PressingLine, DefensiveLine, DefLineMobility, PressIntensity, DefensiveTransition, PreventCrosses, PressingFocus, SetPiecePlay, PlayStrategy, GoalKickType, GKDistributionTarget } from '../types';
-import { INJURY_TYPES } from '../constants';
+import { INJURY_TYPES, RIVALRIES } from '../constants';
 import { GOAL_TEXTS, SAVE_TEXTS, MISS_TEXTS, FOUL_TEXTS, YELLOW_CARD_TEXTS, YELLOW_CARD_AGGRESSIVE_TEXTS, OFFSIDE_TEXTS, CORNER_TEXTS } from '../data/eventTexts';
 import { calculateTeamStrength, calculateRawTeamStrength } from './teamCalculations';
 import { calculateRating, determineMVP, calculateRatingsFromEvents } from './ratingsAndStats';
@@ -8,12 +8,16 @@ import { fillTemplate, pick } from './helpers';
 
 // --- HELPER FUNCTIONS ---
 
-const getSentOffPlayers = (events: MatchEvent[]) => {
-    return new Set(events.filter(e => e.type === 'CARD_RED').map(e => e.playerId));
+export const getSentOffPlayers = (events: MatchEvent[]) => {
+    return new Set(events.filter(e => e.type === 'CARD_RED' || e.type === 'FIGHT' || e.type === 'ARGUMENT').map(e => e.playerId));
 };
 
+// UPDATED: Now excludes Injured players (who are still in the first 11 array)
 const getAvailablePlayers = (team: Team, sentOff: Set<string | undefined>) => {
-    return team.players.slice(0, 11).filter(p => !sentOff.has(p.id));
+    return team.players.slice(0, 11).filter(p => 
+        !sentOff.has(p.id) && 
+        (!p.injury || p.injury.daysRemaining <= 0)
+    );
 };
 
 const getPlayer = (team: Team, sentOff: Set<string | undefined>, includeGK = false): Player => {
@@ -42,6 +46,48 @@ const getScorer = (team: Team, sentOff: Set<string | undefined>) => {
     return { scorer, assist };
 };
 
+// --- NEW PENALTY LOGIC ---
+
+export const getPenaltyTaker = (team: Team, sentOffIds: Set<string | undefined>): Player => {
+    // Get players currently on the pitch
+    const onPitch = team.players.slice(0, 11).filter(p => 
+        !sentOffIds.has(p.id) && 
+        (!p.injury || p.injury.daysRemaining <= 0)
+    );
+
+    if (onPitch.length === 0) return team.players[0]; // Fallback
+
+    // 1. Check for Designated Taker in Tactics
+    if (team.setPieceTakers?.penalty) {
+        const designated = onPitch.find(p => p.id === team.setPieceTakers?.penalty);
+        if (designated) return designated;
+    }
+
+    // 2. If no designated taker, look for a Forward (SNT)
+    const strikers = onPitch.filter(p => p.position === Position.SNT);
+    if (strikers.length > 0) {
+        // Return the striker with the best penalty stat
+        return strikers.sort((a, b) => b.stats.penalty - a.stats.penalty)[0];
+    }
+
+    // 3. Fallback: Player with highest Penalty stat
+    return onPitch.sort((a, b) => b.stats.penalty - a.stats.penalty)[0];
+};
+
+export const calculatePenaltyOutcome = (penaltySkill: number): boolean => {
+    const roll = Math.random() * 100;
+    
+    if (penaltySkill >= 20) {
+        return roll < 80; // 80% Success
+    } else if (penaltySkill >= 15) {
+        return roll < 70; // 70% Success
+    } else if (penaltySkill >= 10) {
+        return roll < 60; // 60% Success
+    } else {
+        return roll < 30; // 30% Success (Skill < 10)
+    }
+};
+
 // --- SIMULATION LOGIC ---
 
 export const generateRandomPlayerRatings = (players: Player[], teamGoals: number, goalsConceded: number, isWinner: boolean, isDraw: boolean): PlayerPerformance[] => {
@@ -57,8 +103,6 @@ export const generateRandomPlayerRatings = (players: Player[], teamGoals: number
 };
 
 export const generateMatchStats = (homePlayers: Player[], awayPlayers: Player[], hScore: number, aScore: number): MatchStats => {
-    // This is a fallback generator if simulation fails, but primarily we use accumulated stats now.
-    // Kept for compatibility.
     const homeRatings = generateRandomPlayerRatings(homePlayers, hScore, aScore, hScore > aScore, hScore === aScore);
     const awayRatings = generateRandomPlayerRatings(awayPlayers, aScore, hScore, aScore > hScore, hScore === aScore);
     
@@ -91,9 +135,37 @@ export const getWeightedInjury = () => {
 const calculateTacticalEfficiency = (team: Team, minute: number, scoreDiff: number): { multiplier: number, warning?: string } => {
     let multiplier = 1.0;
     let warning = undefined;
+    
+    // Base Tactics
     if (minute > 70 && team.tempo === Tempo.BEAST_MODE) { multiplier *= 0.85; warning = "Takım yoruldu, tempo düştü."; }
     if (scoreDiff > 0 && team.mentality === Mentality.DEFENSIVE) { multiplier *= 1.1; } 
     else if (scoreDiff < 0 && team.mentality === Mentality.ATTACKING) { multiplier *= 1.05; }
+
+    // --- CAPTAIN INFLUENCE (HIDDEN MECHANIC) ---
+    // Calculate leadership of the player wearing the armband (on pitch)
+    const onPitch = team.players.slice(0, 11);
+    let leadership = 10; // Default average
+
+    if (team.setPieceTakers?.captain) {
+        const cap = onPitch.find(p => p.id === team.setPieceTakers?.captain);
+        if (cap) leadership = cap.stats.leadership;
+        else {
+             // Captain subbed out? Find next leader
+             const nextLeader = onPitch.reduce((prev, current) => (prev.stats.leadership > current.stats.leadership) ? prev : current, onPitch[0]);
+             if(nextLeader) leadership = nextLeader.stats.leadership;
+        }
+    } else {
+         const autoCap = onPitch.reduce((prev, current) => (prev.stats.leadership > current.stats.leadership) ? prev : current, onPitch[0]);
+         if(autoCap) leadership = autoCap.stats.leadership;
+    }
+
+    // Effect: If losing, high leadership prevents collapse. Low leadership accelerates it.
+    if (scoreDiff < 0) {
+        if (leadership >= 18) multiplier += 0.04; // Good captain rallies team (+4%)
+        else if (leadership >= 14) multiplier += 0.02; // Decent captain (+2%)
+        else if (leadership <= 7) multiplier -= 0.02; // Bad captain, team crumbles (-2%)
+    }
+
     return { multiplier, warning };
 };
 
@@ -111,7 +183,8 @@ export const simulateMatchStep = (
     home: Team, 
     away: Team, 
     currentScore: {h:number, a:number},
-    existingEvents: MatchEvent[] = []
+    existingEvents: MatchEvent[] = [],
+    currentStats?: MatchStats // ADDED: To check possession
 ): MatchEvent | null => {
     
     // --- 1. PROBABILITY CONFIGURATION ---
@@ -119,30 +192,59 @@ export const simulateMatchStep = (
     const eventRoll = Math.random();
 
     // INJURY PROBABILITY
-    // Standard: 0.2%
-    // If player condition < 60%: 3% (Boosted)
-    // We check if ANY player on pitch is at high risk
     const getTeamInjuryRisk = (t: Team) => t.players.slice(0, 11).some(p => (p.condition || 100) < 60);
     const homeRisk = getTeamInjuryRisk(home);
     const awayRisk = getTeamInjuryRisk(away);
     
-    let P_INJURY = 0.002;
+    // INCREASED RISK BACK TO NORMAL LEVELS (Condition drops slower, but punishment is high if low)
+    let P_INJURY = 0.0015; // Base: ~0.15% per minute (Random accidents)
     if (homeRisk || awayRisk) {
-        // If someone is tired, chance spikes
-        P_INJURY = 0.03; 
+        P_INJURY = 0.03; // Risk: ~3.0% per minute (Very high if fatigued)
     }
 
+    // RARE EVENTS PROBABILITIES
+    const P_PITCH_INVASION = 0.0005; // 0.05%
+    const P_FIGHT = 0.001; // 0.1% base
+    const P_ARGUMENT = 0.001; // 0.1% base
+
+    // CHECK FOR DERBY
+    const isDerby = RIVALRIES.some(pair => 
+        (pair.includes(home.name) && pair.includes(away.name))
+    );
+
     // --- 2. EVENT THRESHOLDS ---
-    // Instead of Goal Prob directly, we now roll for a "Shot Opportunity".
-    // 15-20% of minutes generate a shot action.
+
+    // PENALTY LOGIC (UPDATED: Reduced by 50%)
+    // Base 0.5%. If Possession > 60% -> 1%. If Possession > 70% -> 1.5%.
+    // Determine attacking team first to check their possession
+    let homePenaltyChance = 0.001; // Base 0.1% per minute
+    let awayPenaltyChance = 0.001;
+
+    if (currentStats) {
+        if (currentStats.homePossession > 70) homePenaltyChance = 0.015; // Reduced from 0.03
+        else if (currentStats.homePossession > 60) homePenaltyChance = 0.01; // Reduced from 0.02
+        else homePenaltyChance = 0.005; // Reduced from 0.01
+
+        if (currentStats.awayPossession > 70) awayPenaltyChance = 0.015; // Reduced from 0.03
+        else if (currentStats.awayPossession > 60) awayPenaltyChance = 0.01; // Reduced from 0.02
+        else awayPenaltyChance = 0.005; // Reduced from 0.01
+    }
+
+    const P_PENALTY = homePenaltyChance + awayPenaltyChance;
+
     const P_SHOT_OPPORTUNITY = 0.20;
-    const P_FOUL = 0.15;
+    // Base foul chance 0.15. If derby, increase by 10% (multiply by 1.10)
+    const P_FOUL = isDerby ? 0.15 * 1.10 : 0.15;
     const P_CORNER = 0.10;
     const P_OFFSIDE = 0.05;
 
-    // Cumulative Thresholds
-    const T_INJURY = P_INJURY;
-    const T_SHOT = T_INJURY + P_SHOT_OPPORTUNITY;
+    // Cumulative Thresholds (Rare events first)
+    const T_PITCH_INVASION = P_PITCH_INVASION;
+    const T_FIGHT = T_PITCH_INVASION + P_FIGHT;
+    const T_ARGUMENT = T_FIGHT + P_ARGUMENT;
+    const T_INJURY = T_ARGUMENT + P_INJURY;
+    const T_PENALTY = T_INJURY + (P_PENALTY * 0.5); 
+    const T_SHOT = T_PENALTY + P_SHOT_OPPORTUNITY;
     const T_FOUL = T_SHOT + P_FOUL;
     const T_CORNER = T_FOUL + P_CORNER;
     const T_OFFSIDE = T_CORNER + P_OFFSIDE;
@@ -157,350 +259,379 @@ export const simulateMatchStep = (
     const homeTactics = calculateTacticalEfficiency(home, minute, homeScoreDiff);
     const awayTactics = calculateTacticalEfficiency(away, minute, awayScoreDiff);
 
+    // --- HOME CROWD PRESSURE (Background Mechanic) ---
+    // Logic: If Home Fans > 1.5M AND Away Team Avg Composure < 14, Away Team gets -1 Strength
+    let awayStrengthMalus = 0;
+    if (home.fanBase > 1500000) {
+        const awayXI = away.players.slice(0, 11);
+        const avgComposure = awayXI.reduce((sum, p) => sum + (p.stats.composure || 10), 0) / Math.max(1, awayXI.length);
+        
+        // If average composure is less than 14 (out of 20), they succumb to pressure
+        if (avgComposure < 14) {
+            awayStrengthMalus = -1;
+        }
+    }
+
     if (homeTactics.warning && Math.random() < 0.05) return { minute, description: `Ev Sahibi: ${homeTactics.warning}`, type: 'INFO', teamName: home.name };
     if (awayTactics.warning && Math.random() < 0.05) return { minute, description: `Deplasman: ${awayTactics.warning}`, type: 'INFO', teamName: away.name };
 
-    const sentOff = getSentOffPlayers(existingEvents);
-    const homeReds = existingEvents.filter(e => e.type === 'CARD_RED' && e.teamName === home.name).length;
-    const awayReds = existingEvents.filter(e => e.type === 'CARD_RED' && e.teamName === away.name).length;
+    // --- 4. EVENT DETERMINATION ---
 
-    let homeStr = (calculateRawTeamStrength(home.players) + 5) * homeTactics.multiplier; 
-    let awayStr = calculateRawTeamStrength(away.players) * awayTactics.multiplier;
+    // A. PITCH INVASION (Rare)
+    if (eventRoll < T_PITCH_INVASION) {
+        return {
+            minute,
+            type: 'PITCH_INVASION',
+            description: 'TARAFTAR SAHAYA GİRDİ! Güvenlik güçleri müdahale ediyor, oyun durdu.',
+            teamName: home.name // Usually implies home fans
+        };
+    }
 
-    if (homeReds > 0) homeStr *= (1 - (homeReds * 0.15));
-    if (awayReds > 0) awayStr *= (1 - (awayReds * 0.15));
-
-    const totalStr = homeStr + awayStr;
-    const homeDominance = totalStr > 0 ? homeStr / totalStr : 0.5;
-    
-    // --- 4. EVENT GENERATION ---
-
-    // INJURY (Priority)
-    if (eventRoll < T_INJURY) {
-        // Decide who gets injured based on condition logic
-        // If specific teams are tired, they are more likely
-        let homeProb = 0.5;
-        if (homeRisk && !awayRisk) homeProb = 0.8;
-        else if (!homeRisk && awayRisk) homeProb = 0.2;
+    // B. FIGHT (Rare - Red Card)
+    else if (eventRoll < T_FIGHT) {
+        // Find players with High Aggression (>17)
+        const sentOff = getSentOffPlayers(existingEvents);
+        const homeAggro = getAvailablePlayers(home, sentOff).filter(p => p.stats.aggression >= 18);
+        const awayAggro = getAvailablePlayers(away, sentOff).filter(p => p.stats.aggression >= 18);
         
-        const isHomeInjured = Math.random() < homeProb;
-        const injuredTeam = isHomeInjured ? home : away;
-        
-        // Pick specific player - prioritize low condition
-        const pool = getAvailablePlayers(injuredTeam, sentOff);
-        let player = pool[0];
-        
-        // Try to find the tired player
-        const tiredPlayer = pool.find(p => (p.condition || 100) < 60);
-        if (tiredPlayer && Math.random() < 0.8) {
-            player = tiredPlayer; // 80% chance it's the tired one
-        } else {
-            player = getPlayer(injuredTeam, sentOff);
+        let aggressivePlayer: Player | null = null;
+        let team: Team = home;
+
+        // Chance increases if aggressive players exist
+        if (homeAggro.length > 0 || awayAggro.length > 0) {
+            // Reroll to confirm fight based on aggression presence (boost probability)
+            if (Math.random() < 0.3) {
+                 if (homeAggro.length > 0 && awayAggro.length > 0) {
+                     team = Math.random() < 0.5 ? home : away;
+                     aggressivePlayer = team === home ? homeAggro[0] : awayAggro[0];
+                 } else if (homeAggro.length > 0) {
+                     team = home;
+                     aggressivePlayer = homeAggro[0];
+                 } else {
+                     team = away;
+                     aggressivePlayer = awayAggro[0];
+                 }
+            }
         }
 
-        const injury = getWeightedInjury();
-        return { minute, description: `${player.name} sakatlandı (${injury.type}) ve oyuna devam edemiyor.`, type: 'INJURY', teamName: injuredTeam.name, playerId: player.id };
+        // If no high aggro player triggered it, standard low chance applies to random player
+        if (!aggressivePlayer) {
+             team = Math.random() < 0.5 ? home : away;
+             aggressivePlayer = getPlayer(team, sentOff);
+        }
+
+        return {
+            minute,
+            type: 'FIGHT',
+            description: `KAVGA ÇIKTI! ${aggressivePlayer.name} rakibine yumruk attı! Direkt KIRMIZI KART!`,
+            teamName: team.name,
+            playerId: aggressivePlayer.id
+        };
+    }
+
+    // C. ARGUMENT (Rare - Red Card)
+    else if (eventRoll < T_ARGUMENT) {
+        const team = Math.random() < 0.5 ? home : away;
+        const sentOff = getSentOffPlayers(existingEvents);
+        const player = getPlayer(team, sentOff);
+        
+        return {
+            minute,
+            type: 'ARGUMENT',
+            description: `HAKEMLE TARTIŞMA! ${player.name} karara sinirlenip hakemin üzerine yürüdü. Direkt KIRMIZI KART!`,
+            teamName: team.name,
+            playerId: player.id
+        };
+    }
+
+    // D. INJURY
+    else if (eventRoll < T_INJURY) {
+        const isHomeInjured = Math.random() < (homeRisk && !awayRisk ? 0.8 : awayRisk && !homeRisk ? 0.2 : 0.5);
+        const victimTeam = isHomeInjured ? home : away;
+        // Determine player
+        const injuredPlayer = getPlayer(victimTeam, getSentOffPlayers(existingEvents));
+        
+        return {
+            minute,
+            type: 'INJURY',
+            description: `${injuredPlayer.name} yerde kaldı. Sağlık ekipleri sahada.`,
+            teamName: victimTeam.name,
+            playerId: injuredPlayer.id
+        };
+    }
+
+    // E. PENALTY (NEW)
+    else if (eventRoll < T_PENALTY) {
+        // Determine who gets the penalty based on their respective probabilities
+        const totalChance = homePenaltyChance + awayPenaltyChance;
+        const isHomePenalty = Math.random() < (homePenaltyChance / totalChance);
+        
+        const attackingTeam = isHomePenalty ? home : away;
+        const defendingTeam = isHomePenalty ? away : home;
+        
+        const fouler = getPlayer(defendingTeam, getSentOffPlayers(existingEvents));
+        const victim = getPlayer(attackingTeam, getSentOffPlayers(existingEvents));
+        
+        return {
+            minute,
+            type: 'PENALTY', // Special internal type to trigger UI flow, will become GOAL or MISS later
+            description: `PENALTI! ${fouler.name}, ${victim.name}'i ceza sahası içinde düşürdü.`,
+            teamName: attackingTeam.name,
+            playerId: victim.id // The player who earned it
+        };
     }
     
-    // SHOT OPPORTUNITY (GOAL / MISS / SAVE)
+    // F. SHOT (GOAL / SAVE / MISS)
     else if (eventRoll < T_SHOT) {
-        // Determine who shoots based on dominance
-        const isHomeAttacking = Math.random() < homeDominance;
+        const homeAttack = home.strength * homeTactics.multiplier;
+        // Apply Home Crowd Malus to Away Team here
+        const awayAttack = (away.strength + awayStrengthMalus) * awayTactics.multiplier;
+        
+        const totalAttack = homeAttack + awayAttack;
+        const isHomeAttacking = Math.random() < (homeAttack / totalAttack);
+        
         const attackingTeam = isHomeAttacking ? home : away;
         const defendingTeam = isHomeAttacking ? away : home;
         
-        // --- GOAL PROBABILITY CALCULATION (10% - 20%) ---
-        // Base: 10%
-        let conversionRate = 0.10;
-        
-        // Strength Factor (Up to +5%)
-        const attackerStrength = isHomeAttacking ? homeStr : awayStr;
-        // Map 50-100 strength to 0.0-0.05
-        conversionRate += Math.max(0, (attackerStrength - 50) / 1000);
+        const scorerInfo = getScorer(attackingTeam, getSentOffPlayers(existingEvents));
+        const scorer = scorerInfo.scorer;
+        const assist = scorerInfo.assist;
+        const keeper = defendingTeam.players.find(p => p.position === Position.GK) || defendingTeam.players[0];
 
-        // Tactics Factor (Up to +5%)
-        if (attackingTeam.mentality === Mentality.VERY_ATTACKING) conversionRate += 0.05;
-        else if (attackingTeam.mentality === Mentality.ATTACKING) conversionRate += 0.03;
-        else if (attackingTeam.mentality === Mentality.STANDARD) conversionRate += 0.01;
+        // Goal Probability calculation
+        let goalProb = 0.14; 
+        const skillDiff = scorer.skill - keeper.skill;
+        goalProb += (skillDiff * 0.005); 
         
-        // FATIGUE PENALTY (<50% Condition)
-        const avgCond = getAverageCondition(attackingTeam);
-        if (avgCond < 50) {
-            // Significant drop in conversion (Miss more likely)
-            conversionRate -= 0.05; 
-        }
+        // Tactics impact on goal prob
+        if (attackingTeam.mentality === Mentality.VERY_ATTACKING) goalProb += 0.05;
+        if (defendingTeam.mentality === Mentality.VERY_DEFENSIVE || defendingTeam.defLine === DefensiveLine.VERY_DEEP) goalProb -= 0.05;
 
-        // Cap at 20% (Max) and 2% (Min)
-        conversionRate = Math.min(0.20, Math.max(0.02, conversionRate));
-        
         const shotRoll = Math.random();
 
-        // 1. GOAL
-        if (shotRoll < conversionRate) {
-            const { scorer, assist } = getScorer(attackingTeam, sentOff);
-            let varResult: 'GOAL' | 'NO_GOAL' | undefined = undefined;
-            if (Math.random() < 0.15) { varResult = Math.random() < 0.7 ? 'GOAL' : 'NO_GOAL'; }
-            const text = fillTemplate(pick(GOAL_TEXTS), { scorer: scorer.name, assist: assist.name, team: attackingTeam.name });
-            return { minute, type: 'GOAL', description: text, teamName: attackingTeam.name, scorer: scorer.name, assist: assist.id !== scorer.id ? assist.name : undefined, playerId: scorer.id, varOutcome: varResult };
-        }
-        // 2. MISS OR SAVE (The remaining ~80-90%)
-        else {
-            // Split remaining chance: 35% Save, 65% Miss
-            // If tired, MISS chance increases relative to SAVE
-            let missWeight = 0.65;
-            if (avgCond < 50) missWeight = 0.85; // More likely to miss completely if tired
-
-            if (Math.random() < (1 - missWeight)) {
-                // SAVE
-                const keeper = defendingTeam.players.find(p => p.position === Position.GK) || defendingTeam.players[0];
-                const attacker = getPlayer(attackingTeam, sentOff);
-                const defender = getPlayer(defendingTeam, sentOff);
-                const text = fillTemplate(pick(SAVE_TEXTS), { keeper: keeper.name, attacker: attacker.name, defender: defender.name });
-                return { minute, description: text, type: 'SAVE', teamName: defendingTeam.name, playerId: keeper.id };
-            } else {
-                // MISS
-                const player = getPlayer(attackingTeam, sentOff);
-                const text = fillTemplate(pick(MISS_TEXTS), { player: player.name });
-                return { minute, description: text, type: 'MISS', teamName: attackingTeam.name, playerId: player.id };
-            }
+        if (shotRoll < goalProb) {
+            // GOAL
+            const template = pick(GOAL_TEXTS);
+            const desc = fillTemplate(template, { scorer: scorer.name });
+            return {
+                minute,
+                type: 'GOAL',
+                description: desc,
+                teamName: attackingTeam.name,
+                scorer: scorer.name,
+                assist: assist.id !== scorer.id ? assist.name : undefined
+            };
+        } else if (shotRoll < goalProb + 0.30) {
+            // SAVE
+            const template = pick(SAVE_TEXTS);
+            const defender = getPlayer(defendingTeam, getSentOffPlayers(existingEvents));
+            const desc = fillTemplate(template, { keeper: keeper.name, attacker: scorer.name, defender: defender.name });
+            return {
+                minute,
+                type: 'SAVE',
+                description: desc,
+                teamName: defendingTeam.name, // Credit to defending team (Keeper)
+                playerId: keeper.id
+            };
+        } else {
+            // MISS
+            const template = pick(MISS_TEXTS);
+            const defender = getPlayer(defendingTeam, getSentOffPlayers(existingEvents));
+            const desc = fillTemplate(template, { player: scorer.name, defender: defender.name });
+            return {
+                minute,
+                type: 'MISS',
+                description: desc,
+                teamName: attackingTeam.name,
+                playerId: scorer.id
+            };
         }
     }
-    // FOUL
+
+    // G. FOUL (CARDS)
     else if (eventRoll < T_FOUL) {
-        const isHomeFoul = Math.random() > homeDominance; 
-        const foulTeam = isHomeFoul ? home : away;
+        const isHomeFoul = Math.random() < 0.5;
+        const foulingTeam = isHomeFoul ? home : away;
         const victimTeam = isHomeFoul ? away : home;
-        const player = getPlayer(foulTeam, sentOff);
-        const victim = getPlayer(victimTeam, sentOff);
-        const isAggressive = foulTeam.tackling === Tackling.AGGRESSIVE;
         
-        // Tired players commit more fouls/cards
-        const foulCond = getAverageCondition(foulTeam);
-        let cardBase = 0.17;
-        if (foulCond < 50) cardBase = 0.25; // 25% chance of card if tired
+        const fouler = getPlayer(foulingTeam, getSentOffPlayers(existingEvents));
+        const victim = getPlayer(victimTeam, getSentOffPlayers(existingEvents));
 
         // CARD PROBABILITIES
-        const cardRoll = Math.random();
-        let cardType: MatchEvent['type'] = 'FOUL';
-        let desc = fillTemplate(pick(FOUL_TEXTS), { player: player.name, victim: victim.name });
+        // Update per user request: Red Card 2%, Aggressive 3%
+        let redChance = 0.02; // Default 2%
+        let yellowChance = 0.15;
+
+        if (foulingTeam.tackling === Tackling.AGGRESSIVE) {
+            redChance = 0.03; // Aggressive 3%
+            yellowChance = 0.25; 
+        } else if (foulingTeam.tackling === Tackling.CAUTIOUS) {
+            redChance = 0.005;
+            yellowChance = 0.05;
+        }
         
-        if (cardRoll < 0.01) { // 1% Red
-             cardType = 'CARD_RED'; 
-             desc = `${player.name} gaddarca faulü sonrası direkt KIRMIZI KART gördü!`; 
-        } else if (cardRoll < cardBase) { // 16-25% Yellow
-             cardType = 'CARD_YELLOW'; 
-             desc = isAggressive 
-                ? fillTemplate(pick(YELLOW_CARD_AGGRESSIVE_TEXTS), { player: player.name })
-                : fillTemplate(pick(YELLOW_CARD_TEXTS), { player: player.name });
+        // Increase chances if pressing intensity is high
+        if (foulingTeam.pressIntensity === PressIntensity.VERY_HIGH) {
+            yellowChance += 0.05;
+            redChance += 0.005;
         }
 
-        return { minute, description: desc, type: cardType, teamName: foulTeam.name, playerId: player.id };
+        const cardRoll = Math.random();
+
+        if (cardRoll < redChance) {
+            // RED CARD
+            return {
+                minute,
+                type: 'CARD_RED',
+                description: `KIRMIZI KART! ${fouler.name} (VAR Kontrolü Sonrası) oyundan atıldı!`,
+                teamName: foulingTeam.name,
+                playerId: fouler.id
+            };
+        } else if (cardRoll < redChance + yellowChance) {
+            // YELLOW CARD
+            const template = foulingTeam.tackling === Tackling.AGGRESSIVE ? pick(YELLOW_CARD_AGGRESSIVE_TEXTS) : pick(YELLOW_CARD_TEXTS);
+            const desc = fillTemplate(template, { player: fouler.name });
+            return {
+                minute,
+                type: 'CARD_YELLOW',
+                description: desc,
+                teamName: foulingTeam.name,
+                playerId: fouler.id
+            };
+        } else {
+            // NORMAL FOUL
+            const template = pick(FOUL_TEXTS);
+            const desc = fillTemplate(template, { player: fouler.name, victim: victim.name });
+            return {
+                minute,
+                type: 'FOUL',
+                description: desc,
+                teamName: foulingTeam.name
+            };
+        }
     }
-    // CORNER
+
+    // H. CORNER
     else if (eventRoll < T_CORNER) {
-        const isHomeAttacking = Math.random() < homeDominance;
-        const attackingTeam = isHomeAttacking ? home : away;
-        const player = getPlayer(attackingTeam, sentOff);
-        const text = fillTemplate(pick(CORNER_TEXTS), { player: player.name, team: attackingTeam.name });
-        return { minute, description: text, type: 'CORNER', teamName: attackingTeam.name };
+        const isHomeCorner = Math.random() < 0.5;
+        const team = isHomeCorner ? home : away;
+        const takerId = team.setPieceTakers?.corner;
+        let takerName = "Oyuncu";
+        if (takerId) {
+            const p = team.players.find(x => x.id === takerId);
+            if (p) takerName = p.name;
+        }
+        
+        const template = pick(CORNER_TEXTS);
+        const desc = fillTemplate(template, { team: team.name, player: takerName });
+        
+        return {
+            minute,
+            type: 'CORNER',
+            description: desc,
+            teamName: team.name
+        };
     }
-    // OFFSIDE
-    else {
-        const isHomeOffside = Math.random() < homeDominance; 
-        const offsideTeam = isHomeOffside ? home : away;
-        const player = getPlayer(offsideTeam, sentOff);
-        const text = fillTemplate(pick(OFFSIDE_TEXTS), { player: player.name });
-        return { minute, description: text, type: 'OFFSIDE', teamName: offsideTeam.name, playerId: player.id };
+
+    // I. OFFSIDE
+    else if (eventRoll < T_OFFSIDE) {
+        const isHomeOff = Math.random() < 0.5;
+        const team = isHomeOff ? home : away;
+        const player = getPlayer(team, getSentOffPlayers(existingEvents));
+        
+        const template = pick(OFFSIDE_TEXTS);
+        const desc = fillTemplate(template, { player: player.name });
+
+        return {
+            minute,
+            type: 'OFFSIDE',
+            description: desc,
+            teamName: team.name
+        };
     }
+
+    return null;
 };
 
-/**
- * NEW: Fully simulates a match minute-by-minute in the background.
- * This replaces the old probability-only simulation for "Fast Simulate", providing full events.
- */
-export const simulateBackgroundMatch = (homeOriginal: Team, awayOriginal: Team, isKnockout: boolean = false): { homeScore: number, awayScore: number, stats: MatchStats, events: MatchEvent[], pkScore?: { h: number, a: number } } => {
-    // 1. Create deep copies to manage lineups locally during simulation
-    let home = JSON.parse(JSON.stringify(homeOriginal));
-    let away = JSON.parse(JSON.stringify(awayOriginal));
-    
-    // Initial Stats
-    const stats: MatchStats = getEmptyMatchStats();
-    // Default Possession Calc
-    const hStr = calculateRawTeamStrength(home.players);
-    const aStr = calculateRawTeamStrength(away.players);
-    const totalStr = hStr + aStr;
-    const baseHomePoss = totalStr > 0 ? (hStr / totalStr) * 100 : 50;
-    stats.homePossession = Math.min(80, Math.max(20, Math.round(baseHomePoss)));
-    stats.awayPossession = 100 - stats.homePossession;
-
+export const simulateBackgroundMatch = (home: Team, away: Team, isKnockout: boolean = false) => {
+    let homeScore = 0;
+    let awayScore = 0;
     let events: MatchEvent[] = [];
-    let currentScore = { h: 0, a: 0 };
-    let homeSubsUsed = 0;
-    let awaySubsUsed = 0;
 
-    // Helper: Perform Substitution
-    const performSub = (team: Team, isHome: boolean, forcedId?: string) => {
-        const currentSubs = isHome ? homeSubsUsed : awaySubsUsed;
-        if (currentSubs >= 5) return;
-
-        const onPitch = team.players.slice(0, 11);
-        const bench = team.players.slice(11, 18);
-        const sentOff = getSentOffPlayers(events);
+    // Simulate 90 mins
+    for (let m = 1; m <= 90; m++) {
+        // Pass fake stats (50/50) for background matches
+        const fakeStats: MatchStats = { ...getEmptyMatchStats(), homePossession: 50, awayPossession: 50 };
+        const event = simulateMatchStep(m, home, away, {h: homeScore, a: awayScore}, events, fakeStats);
         
-        let outPlayer: Player | undefined;
-        
-        if (forcedId) {
-            outPlayer = onPitch.find(p => p.id === forcedId);
-        } else {
-            // Tactical: Lowest condition or lowest skill
-            const validOut = onPitch.filter(p => !sentOff.has(p.id));
-            if (validOut.length > 0) {
-                outPlayer = validOut.sort((a,b) => (a.condition || 100) - (b.condition || 100))[0];
-            }
-        }
-
-        if (!outPlayer) return;
-
-        // Find Sub
-        const inPlayer = bench.filter(p => !sentOff.has(p.id) && !p.injury)[0]; // Simplest: first available bench
-        if (!inPlayer) return;
-
-        // Swap in local array
-        const idxOut = team.players.findIndex(p => p.id === outPlayer!.id);
-        const idxIn = team.players.findIndex(p => p.id === inPlayer.id);
-        
-        if (idxOut !== -1 && idxIn !== -1) {
-            [team.players[idxOut], team.players[idxIn]] = [team.players[idxIn], team.players[idxOut]];
-            
-            if (isHome) homeSubsUsed++;
-            else awaySubsUsed++;
-
-            events.push({
-                minute: events.length > 0 ? events[events.length-1].minute + 1 : 1, // Approx time
-                type: 'SUBSTITUTION',
-                description: `${outPlayer.name} 🔄 ${inPlayer.name} ${forcedId ? '(Sakatlık)' : ''}`,
-                teamName: team.name
-            });
-        }
-    };
-
-    // --- MAIN LOOP (1 to 90) ---
-    for (let minute = 1; minute <= 90; minute++) {
-        // 1. Run Step
-        const event = simulateMatchStep(minute, home, away, currentScore, events);
-
-        // 2. Process Event
         if (event) {
-            const isHomeEvent = event.teamName === home.name;
+            // Handle Penalty immediately for background match using new Logic
+            if (event.type === 'PENALTY') {
+                const team = event.teamName === home.name ? home : away;
+                const sentOff = getSentOffPlayers(events);
+                const taker = getPenaltyTaker(team, sentOff);
+                const isGoal = calculatePenaltyOutcome(taker.stats.penalty);
 
-            // Handle Goals & VAR
-            if (event.type === 'GOAL') {
-                events.push(event);
-                
-                if (event.varOutcome === 'NO_GOAL') {
-                    // Canceled
-                    events.push({
-                        minute: minute,
-                        type: 'OFFSIDE',
-                        description: `VAR İncelemesi: GOL İPTAL! (${event.scorer})`,
-                        teamName: event.teamName
-                    });
-                    // Stat correction: Add goal then remove? No, just track raw shots
+                if (isGoal) {
+                    if (event.teamName === home.name) homeScore++;
+                    else awayScore++;
+                    events.push({ ...event, type: 'GOAL', description: `GOOOOL! (Penaltı) - ${taker.name}`, scorer: taker.name, assist: 'Penaltı' });
                 } else {
-                    // Confirmed Goal
-                    if (isHomeEvent) currentScore.h++; else currentScore.a++;
-                    if (event.varOutcome === 'GOAL') {
-                        events.push({
-                            minute: minute,
-                            type: 'INFO',
-                            description: 'VAR İncelemesi: GOL GEÇERLİ!',
-                            teamName: event.teamName
-                        });
-                    }
+                    events.push({ ...event, type: 'MISS', description: `PENALTI KAÇTI! - ${taker.name}` });
                 }
             } 
-            // Handle Injury -> Forced Sub
-            else if (event.type === 'INJURY') {
+            else if (event.type === 'FIGHT' || event.type === 'ARGUMENT') {
+                // Map to Red Card for simplicity in background logs
+                events.push({ ...event, type: 'CARD_RED' });
+            }
+            else if (event.type !== 'PITCH_INVASION') { // Skip invasion logging for background to avoid confusion, or map to INFO
                 events.push(event);
-                if (event.playerId) {
-                    performSub(isHomeEvent ? home : away, isHomeEvent, event.playerId);
+                if (event.type === 'GOAL') {
+                    if (event.teamName === home.name) homeScore++;
+                    else awayScore++;
                 }
             }
-            // Standard Event
-            else {
-                events.push(event);
-            }
-
-            // Update Basic Stats
-            if (event.type === 'GOAL' || event.type === 'MISS' || event.type === 'SAVE') {
-                if (isHomeEvent) { stats.homeShots++; if (event.type !== 'MISS') stats.homeShotsOnTarget++; }
-                else { stats.awayShots++; if (event.type !== 'MISS') stats.awayShotsOnTarget++; }
-            }
-            if (event.type === 'CORNER') isHomeEvent ? stats.homeCorners++ : stats.awayCorners++;
-            if (event.type === 'FOUL') isHomeEvent ? stats.homeFouls++ : stats.awayFouls++;
-            if (event.type === 'CARD_YELLOW') isHomeEvent ? stats.homeYellowCards++ : stats.awayYellowCards++;
-            if (event.type === 'CARD_RED') isHomeEvent ? stats.homeRedCards++ : stats.awayRedCards++;
-            if (event.type === 'OFFSIDE') isHomeEvent ? stats.homeOffsides++ : stats.awayOffsides++;
-        }
-
-        // 3. Tactical Subs (Minute 60 & 75)
-        if (minute === 60 || minute === 75) {
-            if (Math.random() < 0.7) performSub(home, true);
-            if (Math.random() < 0.7) performSub(away, false);
         }
     }
 
-    // --- PENALTIES (If Knockout & Draw) ---
-    let pkScore = undefined;
-    if (isKnockout && currentScore.h === currentScore.a) {
-        pkScore = { h: 0, a: 0 };
-        // Simple 5-round sim
-        for (let i = 0; i < 5; i++) {
-             // Home
-             if (Math.random() > 0.25) { 
-                 pkScore.h++; 
-                 events.push({ minute: 120, type: 'GOAL', description: `Penaltı Atışları: ${home.name} GOL!`, teamName: home.name });
-             } else {
-                 events.push({ minute: 120, type: 'MISS', description: `Penaltı Atışları: ${home.name} KAÇIRDI!`, teamName: home.name });
-             }
-             // Away
-             if (Math.random() > 0.25) { 
-                 pkScore.a++; 
-                 events.push({ minute: 120, type: 'GOAL', description: `Penaltı Atışları: ${away.name} GOL!`, teamName: away.name });
-             } else {
-                 events.push({ minute: 120, type: 'MISS', description: `Penaltı Atışları: ${away.name} KAÇIRDI!`, teamName: away.name });
-             }
+    let pkScore: {h:number, a:number} | undefined = undefined;
+
+    if (isKnockout && homeScore === awayScore) {
+        const hProb = 0.5 + ((home.strength - away.strength) * 0.005);
+        let hPen = 0;
+        let aPen = 0;
+        for(let i=0; i<5; i++) {
+             if(Math.random() < hProb) hPen++;
+             if(Math.random() < (1-hProb)) aPen++;
         }
-        // Sudden Death
-        while (pkScore.h === pkScore.a) {
-             if (Math.random() > 0.3) { pkScore.h++; events.push({ minute: 120, type: 'GOAL', description: `Penaltı (SD): ${home.name} GOL!`, teamName: home.name }); }
-             else events.push({ minute: 120, type: 'MISS', description: `Penaltı (SD): ${home.name} KAÇIRDI!`, teamName: home.name });
-             
-             if (Math.random() > 0.3) { pkScore.a++; events.push({ minute: 120, type: 'GOAL', description: `Penaltı (SD): ${away.name} GOL!`, teamName: away.name }); }
-             else events.push({ minute: 120, type: 'MISS', description: `Penaltı (SD): ${away.name} KAÇIRDI!`, teamName: away.name });
+        while(hPen === aPen) {
+             if(Math.random() < hProb) hPen++;
+             if(Math.random() < (1-hProb)) aPen++;
         }
+        pkScore = { h: hPen, a: aPen };
+    }
+
+    const stats = generateMatchStats(home.players, away.players, homeScore, awayScore);
+    
+    // Correct stats based on events
+    stats.homeYellowCards = events.filter(e => e.type === 'CARD_YELLOW' && e.teamName === home.name).length;
+    stats.awayYellowCards = events.filter(e => e.type === 'CARD_YELLOW' && e.teamName === away.name).length;
+    stats.homeRedCards = events.filter(e => e.type === 'CARD_RED' && e.teamName === home.name).length;
+    stats.awayRedCards = events.filter(e => e.type === 'CARD_RED' && e.teamName === away.name).length;
+    
+    // Ratings
+    const ratings = calculateRatingsFromEvents(home, away, events, homeScore, awayScore);
+    stats.homeRatings = ratings.homeRatings;
+    stats.awayRatings = ratings.awayRatings;
+    
+    const mvp = determineMVP(stats.homeRatings, stats.awayRatings);
+    stats.mvpPlayerId = mvp.id;
+    stats.mvpPlayerName = mvp.name;
+    
+    if (pkScore) {
         stats.pkHome = pkScore.h;
         stats.pkAway = pkScore.a;
     }
 
-    // --- RATINGS ---
-    const { homeRatings, awayRatings } = calculateRatingsFromEvents(home, away, events, currentScore.h, currentScore.a);
-    const mvpInfo = determineMVP(homeRatings, awayRatings);
-    stats.homeRatings = homeRatings;
-    stats.awayRatings = awayRatings;
-    stats.mvpPlayerId = mvpInfo.id;
-    stats.mvpPlayerName = mvpInfo.name;
-
-    return { 
-        homeScore: currentScore.h, 
-        awayScore: currentScore.a, 
-        stats, 
-        events, 
-        pkScore 
-    };
-};
-
-export const simulateMatchInstant = (home: Team, away: Team): { homeScore: number, awayScore: number, stats: MatchStats } => {
-    const res = simulateBackgroundMatch(home, away);
-    return { homeScore: res.homeScore, awayScore: res.awayScore, stats: res.stats };
+    return { homeScore, awayScore, stats, events, pkScore };
 };

@@ -104,3 +104,19 @@ export const CORNER_TEXTS = [
     "{team} köşe vuruşu kazandı. {player} ortalayacak.",
     "Top kornere çıktı. {team} duran top şansı yakalıyor."
 ];
+
+export const PENALTY_GOAL_TEXTS = [
+    "GOOOOL! {player} penaltıdan affetmedi!",
+    "Soğukkanlı bir vuruş, top ağlarda. Penaltı golü!",
+    "Kaleci ve top ayrı köşelere gitti. Gol!",
+    "{player} topun başına geçti, vurdu ve GOL!",
+    "Mükemmel bir penaltı vuruşu, kalecinin şansı yoktu."
+];
+
+export const PENALTY_MISS_TEXTS = [
+    "KAÇTI! {player} penaltıdan yararlanamadı!",
+    "Kaleci kurtardı! İnanılmaz bir refleks.",
+    "Top direkten döndü! Penaltı kaçıyor.",
+    "{player} topu dışarı attı! İnanılır gibi değil.",
+    "Kaleci köşeyi doğru bildi ve penaltıyı çıkardı!"
+];

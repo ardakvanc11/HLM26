@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { Team, Player, Mentality, PassingStyle, Tempo, Width, AttackingTransition, CreativeFreedom, SetPiecePlay, PlayStrategy, GoalKickType, GKDistributionTarget, SupportRuns, Dribbling, FocusArea, PassTarget, Patience, LongShots, CrossingType, GKDistributionSpeed, PressingLine, DefensiveLine, DefLineMobility, PressIntensity, DefensiveTransition, Tackling, PreventCrosses, PressingFocus, Position, SetPieceTakers, TimeWasting, GameSystem } from '../types';
 import PitchVisual from '../components/shared/PitchVisual';
@@ -280,6 +281,17 @@ const TacticsView = ({ team, setTeam, compact = false, isMatchActive = false, su
                 if (isMatchActive) {
                     const isPitch1 = idx1 < 11; const isPitch2 = idx2 < 11; const isBench1 = idx1 >= 11 && idx1 < 18; const isBench2 = idx2 >= 11 && idx2 < 18;
                     
+                    // Determine who is coming ONTO the pitch
+                    const playerComingOn = (idx1 >= 11 && idx2 < 11) ? p1 : (idx2 >= 11 && idx1 < 11) ? p2 : null;
+                    
+                    if (playerComingOn) {
+                        if (playerComingOn.injury && playerComingOn.injury.daysRemaining > 0) {
+                             alert("Sakatlanan oyuncu oyuna tekrar giremez!");
+                             setSelectedPlayerId(null);
+                             return;
+                        }
+                    }
+
                     // Allow swapping only if at least one is on pitch and other on bench/pitch
                     if ((isPitch1 && isBench2) || (isPitch2 && isBench1)) {
                         // FORCE SUB LOGIC: If a forced sub is pending, one of the players MUST be the injured one

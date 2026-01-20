@@ -152,183 +152,158 @@ const MatchPitch2D: React.FC<MatchPitch2DProps> = ({ homeTeam, awayTeam, ballPos
         else if (role === 'MID') {
             // Box-to-Box: Follow ball aggressively
             // 70% towards ball X, 60% towards ball Y
-            targetX = baseX + (dx * 0.7);
-            targetY = baseY + (dy * 0.6);
+            targetX = baseX + (dx * 0.5);
+            targetY = baseY + (dy * 0.5);
 
-            // Bounds: Don't go into own goal area too deep
-            if (isHome) targetY = Math.max(20, Math.min(90, targetY));
-            else targetY = Math.min(80, Math.max(10, targetY));
-        } 
-        else if (role === 'FWD') {
-            if (isAttacking) {
-                // Run into channels or box
-                targetX = baseX + (dx * 0.5);
-                // Push high up against defenders
-                targetY = isHome ? Math.max(ball.y, 85) : Math.min(ball.y, 15);
-                
-                // If ball is very close, move to it (receive pass)
-                if (distToBall < 20) {
-                    targetX = ball.x;
-                    targetY = ball.y;
-                }
-            } else {
-                // Defending: Drop to midfield/halfway
-                targetX = baseX + (dx * 0.2);
-                targetY = isHome ? Math.max(baseY, 45) : Math.min(baseY, 55);
+            // If defending, stay between ball and goal
+            if (!isAttacking) {
+                targetY = ball.y + (isHome ? -10 : 10);
             }
         }
-
-        // --- PRESSING OVERRIDE (Close Proximity) ---
-        // If ball is very close (pressing distance) and not GK, lock on
-        if (role !== 'GK' && distToBall < 12) {
-            // Move 90% towards ball
-            targetX = ball.x;
-            targetY = ball.y;
+        else { // FWD
+            if (isAttacking) {
+                // Find space: Mirror ball X to find gap, push high
+                targetX = baseX + (dx * 0.4); 
+                targetY = Math.max(10, Math.min(90, ball.y + (isHome ? 15 : -15)));
+                
+                // Offside trap logic (stay just onside? simplified)
+                // Just stay high
+            } else {
+                // Press high or drop slightly
+                targetX = baseX + (dx * 0.2);
+                targetY = baseY + (dy * 0.2); // Stay relative to anchor
+            }
         }
-
+        
         return { x: targetX, y: targetY };
     };
 
-    const updatePositions = () => {
+    // --- ANIMATION LOOP ---
+    const animate = () => {
+        const ball = ballRef.current;
+        const possessionId = possessionRef.current;
+
         setPositions(prev => {
             const nextPositions = { ...prev };
-            const ball = ballRef.current;
-            const possessionId = possessionRef.current;
-
-            const updateTeam = (team: Team, isHome: boolean) => {
+            
+            // Function to process a team
+            const processTeam = (team: Team, isHome: boolean) => {
+                const anchors = FORMATIONS[team.formation || '4-4-2'] || FORMATIONS['4-4-2'];
                 const isAttacking = possessionId === team.id;
-                const formation = FORMATIONS[team.formation] || FORMATIONS['4-4-2'];
-
-                team.players.slice(0, 11).forEach((player, idx) => {
+                
+                // Only process first 11 players
+                team.players.slice(0, 11).forEach((p, idx) => {
                     const key = `${team.id}_${idx}`;
-                    const anchor = formation[idx] || formation[0];
+                    const anchor = anchors[idx] || { left: 50, bottom: 50 };
                     const role = getRole(idx);
                     
-                    // 1. Calculate Target
                     const target = calculateTargetPos(anchor, ball, role, isHome, isAttacking);
-
-                    // 2. Get Current
-                    const current = nextPositions[key] || { 
+                    
+                    // Current Pos
+                    const current = prev[key] || { 
                         x: isHome ? anchor.left : (100 - anchor.left), 
                         y: isHome ? anchor.bottom : (100 - anchor.bottom) 
                     };
-
-                    // 3. Lerp (Randomize speed slightly for organic feel)
-                    // Defenders react slower to forward runs, faster to drops
-                    // Midfielders react fast
-                    let speed = 0.05; 
-                    if (role === 'MID') speed = 0.08;
-                    if (role === 'FWD' && isAttacking) speed = 0.07;
                     
-                    // Add noise to speed
-                    speed += (Math.random() * 0.04 - 0.02);
-
-                    const newX = lerp(current.x, target.x, speed);
-                    const newY = lerp(current.y, target.y, speed);
-
-                    nextPositions[key] = { x: newX, y: newY };
+                    // Interpolate
+                    const speed = 0.05 + (Math.random() * 0.02); // 5-7% per frame
+                    nextPositions[key] = {
+                        x: lerp(current.x, target.x, speed),
+                        y: lerp(current.y, target.y, speed)
+                    };
                 });
             };
 
-            updateTeam(homeTeam, true);
-            updateTeam(awayTeam, false);
-
+            processTeam(homeTeam, true);
+            processTeam(awayTeam, false);
+            
             return nextPositions;
         });
 
-        requestRef.current = requestAnimationFrame(updatePositions);
+        requestRef.current = requestAnimationFrame(animate);
     };
 
-    // Start/Stop Loop
     useEffect(() => {
-        requestRef.current = requestAnimationFrame(updatePositions);
+        requestRef.current = requestAnimationFrame(animate);
         return () => cancelAnimationFrame(requestRef.current);
-    }, [homeTeam, awayTeam]); // Re-bind if teams change (subs)
+    }, []); // Run once on mount
 
-    
-    // --- RENDER HELPERS ---
-    const renderTeamPlayers = (team: Team, isHome: boolean) => {
+    const renderTeam = (team: Team, isHome: boolean) => {
         return team.players.slice(0, 11).map((p, idx) => {
             const key = `${team.id}_${idx}`;
             const pos = positions[key];
-            const isPossession = possessionTeamId === team.id;
-
-            // Fallback if loop hasn't started yet
             if (!pos) return null;
 
-            // Visual Styling
-            const teamColor = isHome ? homeTeam.colors[0] : awayTeam.colors[0];
-            const numberColor = isHome ? homeTeam.colors[1] : awayTeam.colors[1];
+            // UPDATED: Hide injured players if they are still technically "on pitch"
+            if (p.injury && p.injury.daysRemaining > 0) return null;
+
+            const isGK = idx === 0;
+            
+            // Color Logic
+            // Tailwind classes can't be interpolated easily in style without full map.
+            // Using inline styles for colors for simplicity in this canvas-like logic.
+            // Assuming team.colors = ['bg-red-600', 'text-white']
+            const bgColorClass = isGK ? 'bg-yellow-500' : team.colors[0]; 
+            // We need the actual Hex or RGB for style if class not sufficient, but className works fine for div.
 
             return (
                 <div 
                     key={p.id}
-                    className={`absolute w-4 h-4 md:w-5 md:h-5 rounded-full border border-white shadow-md flex items-center justify-center text-[8px] md:text-[10px] font-bold transition-transform duration-75 z-10 ${teamColor} ${numberColor}`}
+                    className={`absolute w-3 h-3 md:w-4 md:h-4 rounded-full border border-white shadow-sm flex items-center justify-center text-[6px] md:text-[8px] font-bold text-white transition-transform duration-75 select-none ${bgColorClass} z-10`}
                     style={{ 
                         left: `${pos.x}%`, 
-                        bottom: `${pos.y}%`, // Using bottom allows standard coordinate system logic 0-100
-                        transform: 'translate(-50%, 50%)'
+                        bottom: `${pos.y}%`, 
+                        transform: 'translate(-50%, 50%)',
                     }}
+                    title={p.name}
                 >
-                    {/* Number */}
-                    <span className="hidden md:block">{idx + 1}</span>
-                    
-                    {/* Name Label (Visible on possession or hover) */}
-                    <div className={`absolute -top-4 left-1/2 -translate-x-1/2 text-[8px] font-bold text-white whitespace-nowrap drop-shadow-md bg-black/40 px-1 rounded pointer-events-none transition-opacity duration-300 ${isPossession && idx > 0 ? 'opacity-100' : 'opacity-0'}`}>
-                        {p.name.split(' ').pop()}
-                    </div>
+                    {/* Optional: Number or Initial */}
                 </div>
             );
         });
     };
 
     return (
-        <div className="w-full h-full relative bg-[#1a4a35] overflow-hidden select-none shadow-inner border-r border-l border-slate-700">
-            {/* Pitch Markings */}
-            <div className="absolute inset-0 pointer-events-none opacity-40">
-                {/* Grass Stripes */}
-                <div className="absolute inset-0 bg-[repeating-linear-gradient(0deg,transparent,transparent_10%,rgba(0,0,0,0.1)_10%,rgba(0,0,0,0.1)_20%)]"></div>
-                
-                {/* Center Line */}
-                <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-white/70"></div>
-                <div className="absolute top-1/2 left-1/2 w-24 h-24 border-2 border-white/70 rounded-full -translate-x-1/2 -translate-y-1/2"></div>
-                <div className="absolute top-1/2 left-1/2 w-2 h-2 bg-white rounded-full -translate-x-1/2 -translate-y-1/2"></div>
-
-                {/* Goals Areas (Home - Bottom) */}
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[40%] h-[16%] border-t-2 border-x-2 border-white/70"></div>
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[18%] h-[6%] border-t-2 border-x-2 border-white/70"></div>
-                
-                {/* Goals Areas (Away - Top) */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[40%] h-[16%] border-b-2 border-x-2 border-white/70"></div>
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[18%] h-[6%] border-b-2 border-x-2 border-white/70"></div>
-
-                {/* Corner Arcs */}
-                <div className="absolute top-0 left-0 w-4 h-4 border-b-2 border-r-2 border-white/70 rounded-br-full"></div>
-                <div className="absolute top-0 right-0 w-4 h-4 border-b-2 border-l-2 border-white/70 rounded-bl-full"></div>
-                <div className="absolute bottom-0 left-0 w-4 h-4 border-t-2 border-r-2 border-white/70 rounded-tr-full"></div>
-                <div className="absolute bottom-0 right-0 w-4 h-4 border-t-2 border-l-2 border-white/70 rounded-tl-full"></div>
+        <div className="h-full w-full bg-[#1a4a35] relative overflow-hidden shadow-inner border-r border-slate-800">
+            {/* Field Markings */}
+            <div className="absolute inset-0 opacity-30 pointer-events-none">
+                 {/* Grass Pattern */}
+                 <div className="w-full h-full bg-[repeating-linear-gradient(0deg,transparent,transparent_19px,#000000_20px,#000000_21px)] opacity-10"></div>
+                 
+                 {/* Center Circle */}
+                 <div className="absolute top-1/2 left-1/2 w-24 h-24 border-2 border-white rounded-full -translate-x-1/2 -translate-y-1/2"></div>
+                 <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-white -translate-y-1/2"></div>
+                 
+                 {/* Penalty Areas */}
+                 <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/2 h-24 border-2 border-b-0 border-white"></div>
+                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-24 border-2 border-t-0 border-white"></div>
+                 
+                 {/* Goal Areas */}
+                 <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/4 h-8 border-2 border-b-0 border-white"></div>
+                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/4 h-8 border-2 border-t-0 border-white"></div>
             </div>
 
-            {/* Render Players */}
-            {renderTeamPlayers(homeTeam, true)}
-            {renderTeamPlayers(awayTeam, false)}
+            {/* Players */}
+            {renderTeam(homeTeam, true)}
+            {renderTeam(awayTeam, false)}
 
             {/* Ball */}
             <div 
-                className="absolute w-3 h-3 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.8)] z-50 transition-all duration-300 ease-linear"
+                className="absolute w-2 h-2 md:w-3 md:h-3 bg-white rounded-full shadow-[0_0_10px_white] z-20 transition-all duration-75"
                 style={{ 
                     left: `${ballPosition.x}%`, 
-                    bottom: `${ballPosition.y}%`,
-                    transform: 'translate(-50%, 50%)'
+                    bottom: `${ballPosition.y}%`, 
+                    transform: 'translate(-50%, 50%)' 
                 }}
-            >
-                {/* Ball trailing effect */}
+            ></div>
+            
+            {/* Status Overlay */}
+            <div className="absolute top-2 left-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded backdrop-blur-sm border border-white/10">
+                {lastAction || "Oyun Devam Ediyor"}
             </div>
-
-            {/* Last Action Popup */}
-            {lastAction && (
-                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-black/60 text-white px-3 py-1 rounded-full text-[10px] font-bold backdrop-blur-sm border border-white/20 shadow-lg animate-pulse whitespace-nowrap z-40">
-                    {lastAction}
+            {possessionTeamId && (
+                <div className={`absolute bottom-2 right-2 text-[10px] px-2 py-1 rounded font-bold uppercase backdrop-blur-sm border border-white/20 ${possessionTeamId === homeTeam.id ? 'bg-blue-600/80 text-white' : 'bg-red-600/80 text-white'}`}>
+                    Top: {possessionTeamId === homeTeam.id ? homeTeam.name : awayTeam.name}
                 </div>
             )}
         </div>
