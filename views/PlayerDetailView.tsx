@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { Player, Position, ManagerProfile, Fixture } from '../types';
 import { ChevronLeft, Trophy, Activity, Heart, Shield, Swords, Zap, Star, TrendingUp, AlertTriangle, Ruler, Anchor, FileText, Goal, ArrowRightLeft, Scale, History, Calendar, Lock, Unlock, Briefcase, Coins, CheckCircle2, ChevronDown, MessageCircle, BedDouble, FileSignature, UserMinus, Smile, Users, ThumbsUp, ThumbsDown, UserCheck, Medal, Crown, X, Check, Wallet, MessageSquare, ListPlus, ListMinus, ArrowUp, ArrowDown, ArrowUpRight, ArrowRight } from 'lucide-react';
@@ -7,6 +8,7 @@ import PlayerPositionPitch from '../components/shared/PlayerPositionPitch';
 import PlayerStatsTable from '../components/shared/PlayerStatsTable';
 import { calculatePlayerWage } from '../utils/teamCalculations';
 import { InteractionModal, StatusModal, ActionConfirmModal, STATUS_OPTIONS } from '../components/player/PlayerComponents';
+import { COUNTRY_CODES } from '../data/uiConstants';
 
 interface PlayerDetailViewProps {
     player: Player;
@@ -335,7 +337,10 @@ const PlayerDetailView: React.FC<PlayerDetailViewProps> = ({ player, onClose, my
                                 </div>
                                 <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4 font-teko">{player.name}</h1>
                                 <div className="flex flex-wrap justify-center lg:justify-start gap-4 text-sm text-slate-600 dark:text-slate-400">
-                                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-700/50 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700"><Trophy size={14} className="text-yellow-600"/> <span>{player.nationality}</span></div>
+                                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-700/50 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                                        <img src={`https://flagcdn.com/w40/${COUNTRY_CODES[player.nationality] || 'un'}.png`} className="w-5 h-auto object-contain shadow-sm rounded-[2px]" onError={(e) => e.currentTarget.style.display='none'} alt={player.nationality} />
+                                        <span className="font-bold">{player.nationality}</span>
+                                    </div>
                                     <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-700/50 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700"><Ruler size={14} className="text-blue-500"/> <span>{player.age} Yaş • {player.height || 180} cm</span></div>
                                     <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-700/50 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700"><Anchor size={14} className="text-green-500"/> <span>{player.preferredFoot || 'Sağ'} Ayak</span></div>
                                     <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-700/50 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700"><Briefcase size={14} className="text-purple-500"/> <span>Sözleşme: {player.contractExpiry}</span></div>

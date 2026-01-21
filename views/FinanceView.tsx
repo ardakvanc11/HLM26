@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Team, ManagerProfile, Fixture, Player, SponsorDeal } from '../types';
 import { Wallet, TrendingUp, TrendingDown, DollarSign, Users, Building2, PieChart, Landmark, CreditCard, PiggyBank, ArrowRightLeft, Briefcase, Scale, AlertTriangle, CheckCircle, Save, AlertCircle, ArrowUpRight, ArrowDownRight, Coins, Calendar, ArrowUpDown, ChevronRight, Lock, Unlock, RefreshCw, X, Check } from 'lucide-react';
-import { calculatePlayerWage } from '../utils/teamCalculations';
+import { calculatePlayerWage, calculateMonthlyNetFlow, calculateTransferRevenueRetention } from '../utils/teamCalculations'; // Added Import
 import PlayerFace from '../components/shared/PlayerFace';
 import { SponsorNegotiationModal, SPONSOR_OPTIONS_TYPE, formatMoney } from '../components/finance/FinanceComponents';
 
@@ -16,6 +16,7 @@ interface FinanceViewProps {
     currentWeek?: number;
     currentDate?: string; 
     onPlayerClick?: (player: Player) => void;
+    lastSeasonGoalAchieved?: boolean; // Added for prop drilling if needed, though can be derived from manager or context
 }
 
 const FinanceView: React.FC<FinanceViewProps> = ({ team, manager, onUpdateBudget, onUpdateSponsor, onTakeLoan, fixtures, currentWeek, currentDate, onPlayerClick }) => {
@@ -91,7 +92,23 @@ const FinanceView: React.FC<FinanceViewProps> = ({ team, manager, onUpdateBudget
     const exp_DebtRepay = (team.initialDebt || 0) / 60; 
     const exp_Transfers = manager.stats.transferSpendThisMonth || 0; 
     const totalMonthlyExpense = exp_PlayerWages + exp_StaffWages + exp_DirectorWages + exp_Bonuses + exp_MatchDay + exp_StadiumMaint + exp_Academy + exp_Scouting + exp_Travel + exp_Fines + exp_DebtRepay + exp_Transfers;
+    
+    // Total Net (Including Transfers) for Display
     const monthlyNet = totalMonthlyIncome - totalMonthlyExpense;
+
+    // Operational Net (Excluding Transfers) for Status Logic
+    // We pass excludeTransfers=true to helper function to simulate this
+    const operationalNet = calculateMonthlyNetFlow(team, fixtures || [], currentDate || '', manager, true);
+
+    let financeStatus = "Dengeli";
+    let financeColor = "text-yellow-600 dark:text-yellow-400";
+    if (operationalNet > 10) { financeStatus = "Zengin"; financeColor = "text-emerald-600 dark:text-emerald-400"; }
+    else if (operationalNet > 0) { financeStatus = "Güvende"; financeColor = "text-blue-600 dark:text-blue-400"; }
+    else if (operationalNet >= -5) { financeStatus = "Dengeli"; financeColor = "text-yellow-600 dark:text-yellow-400"; }
+    else { financeStatus = "Riskli"; financeColor = "text-red-600 dark:text-red-400"; }
+
+    // Use Operational Net for Retention Percentage Calculation
+    const retentionPct = calculateTransferRevenueRetention(team, operationalNet, false);
 
     const financialRecs = team.financialRecords;
     const incomeBreakdown = [
@@ -247,9 +264,7 @@ const FinanceView: React.FC<FinanceViewProps> = ({ team, manager, onUpdateBudget
     );
 
     const renderSponsorCard = (type: 'main' | 'stadium' | 'sleeve', label: string, deal: SponsorDeal) => {
-        // Calculate if this specific deal is still active
         const isDealActive = currentYear < deal.expiryYear;
-        // Button is enabled only if global unlock is true AND the specific deal has expired
         const canNegotiate = isSponsorUnlocked && !isDealActive;
 
         return (
@@ -286,7 +301,7 @@ const FinanceView: React.FC<FinanceViewProps> = ({ team, manager, onUpdateBudget
                 currentValue={activeSponsorType ? team.sponsors[activeSponsorType].yearlyValue : 0} 
                 currentYear={currentYear} 
                 onSelect={handleSelectSponsor} 
-                teamReputation={team.reputation} // Pass reputation
+                teamReputation={team.reputation}
             />
 
             <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-700/50 px-2 overflow-x-auto no-scrollbar shrink-0 pt-2">
@@ -317,9 +332,14 @@ const FinanceView: React.FC<FinanceViewProps> = ({ team, manager, onUpdateBudget
                                     <div className={`text-2xl font-mono font-bold ${wageBudget < totalAnnualWages ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-300'}`}>{formatMoney(wageBudget)}</div>
                                     <div className="text-xs text-slate-400 mt-1">Mevcut Gider: {formatMoney(totalAnnualWages)}</div>
                                 </div>
-                                <div className="flex-1 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800 text-center">
+                                <div className="flex-1 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800 text-center relative overflow-hidden">
                                     <div className="text-xs text-emerald-600 dark:text-emerald-400 uppercase font-bold mb-1">Transfer Bütçesi</div>
                                     <div className="text-3xl font-mono font-bold text-emerald-600 dark:text-emerald-400">{formatMoney(transferBudget)}</div>
+                                    
+                                    {/* NEW: Display Retention Percentage */}
+                                    <div className="mt-2 text-[10px] text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-100 dark:bg-emerald-900/40 px-2 py-1 rounded inline-block border border-emerald-300 dark:border-emerald-700">
+                                        Gelir Aktarımı: %{retentionPct}
+                                    </div>
                                 </div>
                             </div>
                             {wageBudget < totalAnnualWages && (<div className="mb-4 bg-red-100 dark:bg-red-900/30 border border-red-400 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg flex items-center gap-3 text-sm font-bold animate-pulse"><AlertCircle size={20} className="shrink-0"/><div>DİKKAT: Maaş bütçesi mevcut giderlerin altında! <br/><span className="text-xs font-normal opacity-90">{formatMoney(totalAnnualWages - wageBudget)} tutarında maaş ödemesi karşılanamıyor.</span></div></div>)}

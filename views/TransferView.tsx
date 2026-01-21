@@ -1,9 +1,13 @@
 
-import React, { useState, useMemo } from 'react';
-import { Player, Team, IncomingOffer } from '../types';
-import { Lock, ChevronLeft, ChevronRight, ArrowUpDown, Filter, Search, X, Check, AlertCircle, Plane, Coins, Maximize2, Minimize2, Unlock, List, Wallet, Briefcase, Mail, Handshake, ArrowRight } from 'lucide-react';
+
+
+import React, { useState, useMemo, useEffect } from 'react';
+import { Player, Team, IncomingOffer, TransferViewState } from '../types';
+import { Lock, ChevronLeft, ChevronRight, ArrowUpDown, Filter, Search, X, Check, AlertCircle, Plane, Coins, Maximize2, Minimize2, Unlock, List, Wallet, Briefcase, Mail, Handshake, ArrowRight, UserPlus, Globe, Plus, Trash2, Settings, UserMinus } from 'lucide-react';
 import PlayerFace from '../components/shared/PlayerFace';
 import { calculatePlayerWage } from '../utils/teamCalculations';
+import { STAT_TRANSLATIONS } from '../data/playerConstants';
+import { COUNTRY_CODES } from '../data/uiConstants';
 
 interface TransferViewProps {
     transferList: Player[];
@@ -16,29 +20,75 @@ interface TransferViewProps {
     incomingOffers: IncomingOffer[];
     onAcceptOffer: (offer: IncomingOffer) => void;
     onRejectOffer: (offer: IncomingOffer) => void;
-    onNegotiateOffer?: (offer: IncomingOffer) => void; // NEW
+    onNegotiateOffer?: (offer: IncomingOffer) => void;
+    savedState?: TransferViewState | null;
+    onSaveState?: (state: TransferViewState) => void;
 }
 
-const TransferView: React.FC<TransferViewProps> = ({ transferList, team, budget, isWindowOpen, onBuy, onPlayerClick, incomingOffers, onAcceptOffer, onRejectOffer, onNegotiateOffer }) => {
-    // --- STATE ---
-    const [searchTerm, setSearchTerm] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
+// Filter Types
+interface AttributeFilter {
+    key: string;
+    min: number;
+}
+
+const TransferView: React.FC<TransferViewProps> = ({ transferList, team, budget, isWindowOpen, onBuy, onPlayerClick, incomingOffers, onAcceptOffer, onRejectOffer, onNegotiateOffer, savedState, onSaveState }) => {
+    // Initialize State with Saved State if available, else defaults
+    const [searchTerm, setSearchTerm] = useState(savedState?.searchTerm || '');
+    const [currentPage, setCurrentPage] = useState(savedState?.currentPage || 1);
     const [itemsPerPage] = useState(20);
-    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'value', direction: 'desc' });
-    const [isFilterOpen, setIsFilterOpen] = useState(false);
+    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>(savedState?.sortConfig || { key: 'value', direction: 'desc' });
+    const [isFilterModalOpen, setIsFilterModalOpen] = useState(savedState?.isFilterOpen || false); // Renamed and used for modal
     const [isExpanded, setIsExpanded] = useState(false);
     const [isOffersModalOpen, setIsOffersModalOpen] = useState(false);
     
+    // Quick Filters State
+    const [quickFilters, setQuickFilters] = useState<{ transfer: boolean, loan: boolean }>(savedState?.quickFilters || { transfer: false, loan: false });
+    const [interestFilter, setInterestFilter] = useState<string>(savedState?.interestFilter || 'ALL');
+    const [isInterestSettingsOpen, setIsInterestSettingsOpen] = useState(false);
+
     // Allow viewing list even if window is closed
     const [isListReviewMode, setIsListReviewMode] = useState(false);
 
-    // Filters
-    const [filters, setFilters] = useState({
+    // Filters State - Extended structure
+    const [filters, setFilters] = useState(savedState?.filters || {
         minSkill: 0,
         maxAge: 40,
         position: 'ALL',
-        onlyAffordable: false
+        minValue: 0,
+        maxValue: 200,
+        nationality: 'ALL',
+        contractStatus: 'ALL', // 'ALL', 'FREE', 'LISTED'
+        attributes: [] as AttributeFilter[]
     });
+
+    // Temporary filter state for modal (to apply only on save)
+    const [tempFilters, setTempFilters] = useState(filters);
+    
+    // State for adding new attribute filter inside modal
+    const [newAttrKey, setNewAttrKey] = useState<string>('finishing');
+    const [newAttrVal, setNewAttrVal] = useState<number>(10);
+
+    // --- SAVE STATE EFFECT ---
+    useEffect(() => {
+        if (onSaveState) {
+            onSaveState({
+                searchTerm,
+                currentPage,
+                sortConfig,
+                filters,
+                isFilterOpen: isFilterModalOpen,
+                quickFilters,
+                interestFilter
+            });
+        }
+    }, [searchTerm, currentPage, sortConfig, filters, isFilterModalOpen, quickFilters, interestFilter, onSaveState]);
+
+    // Sync temp filters when modal opens
+    useEffect(() => {
+        if (isFilterModalOpen) {
+            setTempFilters(filters);
+        }
+    }, [isFilterModalOpen]);
 
     // --- LOGIC ---
 
@@ -76,11 +126,56 @@ const TransferView: React.FC<TransferViewProps> = ({ transferList, team, budget,
 
     const filteredList = useMemo(() => {
         return transferList.filter(p => {
+            // Text Search
             if (searchTerm && !p.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+            
+            // Basic Ranges
             if (p.skill < filters.minSkill) return false;
             if (p.age > filters.maxAge) return false;
+            if (p.value < filters.minValue) return false;
+            if (p.value > filters.maxValue) return false;
+            
+            // Position
             if (filters.position !== 'ALL' && p.position !== filters.position) return false;
-            if (filters.onlyAffordable && p.value > budget) return false;
+            
+            // Nationality
+            if (filters.nationality !== 'ALL') {
+                if (filters.nationality === 'Yerli' && p.nationality !== 'Türkiye') return false;
+                if (filters.nationality === 'Yabancı' && p.nationality === 'Türkiye') return false;
+            }
+
+            // Contract Status (Modal Filter)
+            if (filters.contractStatus === 'FREE' && p.teamId !== 'free_agent') return false;
+            if (filters.contractStatus === 'LISTED' && !p.transferListed) return false;
+
+            // Specific Attributes
+            if (filters.attributes && filters.attributes.length > 0) {
+                const meetsAllAttributes = filters.attributes.every(attr => {
+                    // @ts-ignore
+                    const playerVal = p.stats[attr.key] || 0;
+                    return playerVal >= attr.min;
+                });
+                if (!meetsAllAttributes) return false;
+            }
+
+            // --- QUICK FILTERS & INTEREST ---
+            
+            // Quick Filter: Transfer (Implies "Satılık" or "Free Agent")
+            if (quickFilters.transfer && !p.transferListed && p.teamId !== 'free_agent') return false;
+
+            // Quick Filter: Loan (Implies "Kiralık")
+            if (quickFilters.loan && !p.loanListed) return false;
+
+            // Interest Filter
+            const interest = getInterestLevel(p);
+            if (interestFilter !== 'ALL') {
+                // Determine if interest matches
+                // Values: HIGH (İstiyor), MEDIUM (Belki), LOW (Zor/Hayır)
+                if (interestFilter === 'HIGH' && interest !== 'HIGH') return false;
+                if (interestFilter === 'MEDIUM' && interest !== 'MEDIUM') return false;
+                if (interestFilter === 'LOW' && (interest !== 'LOW' && interest !== 'NONE')) return false;
+            }
+
             return true;
         }).sort((a, b) => {
             const { key, direction } = sortConfig;
@@ -97,10 +192,15 @@ const TransferView: React.FC<TransferViewProps> = ({ transferList, team, budget,
             if (valA > valB) return direction === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [transferList, searchTerm, filters, sortConfig, budget]);
+    }, [transferList, searchTerm, filters, sortConfig, quickFilters, interestFilter]);
 
     const totalItems = filteredList.length;
     const totalPages = Math.ceil(totalItems / itemsPerPage);
+    
+    // Ensure currentPage is valid if filter changed
+    if (currentPage > totalPages && totalPages > 0) {
+        setCurrentPage(totalPages);
+    }
     
     const currentData = filteredList.slice(
         (currentPage - 1) * itemsPerPage,
@@ -136,9 +236,252 @@ const TransferView: React.FC<TransferViewProps> = ({ transferList, team, budget,
         </th>
     );
 
+    // Modal Helpers
+    const handleApplyFilters = () => {
+        setFilters(tempFilters);
+        setCurrentPage(1);
+        setIsFilterModalOpen(false);
+    };
+
+    const handleAddAttribute = () => {
+        // Prevent duplicate keys
+        if (tempFilters.attributes.some(a => a.key === newAttrKey)) return;
+        
+        setTempFilters(prev => ({
+            ...prev,
+            attributes: [...prev.attributes, { key: newAttrKey, min: newAttrVal }]
+        }));
+    };
+
+    const handleRemoveAttribute = (key: string) => {
+        setTempFilters(prev => ({
+            ...prev,
+            attributes: prev.attributes.filter(a => a.key !== key)
+        }));
+    };
+
+    const resetFilters = () => {
+        setTempFilters({
+            minSkill: 0,
+            maxAge: 40,
+            position: 'ALL',
+            minValue: 0,
+            maxValue: 200,
+            nationality: 'ALL',
+            contractStatus: 'ALL',
+            attributes: []
+        });
+    };
+
     return (
-        <div className="flex flex-col h-full bg-slate-900 text-slate-200 relative overflow-hidden">
+        <div className="flex flex-col h-full bg-slate-900 text-slate-200 relative overflow-hidden" onClick={() => setIsInterestSettingsOpen(false)}>
             
+            {/* FILTER MODAL */}
+            {isFilterModalOpen && (
+                <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setIsFilterModalOpen(false)}>
+                    <div className="bg-[#1e232e] w-full max-w-4xl rounded-2xl border border-slate-700 shadow-2xl flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
+                        
+                        {/* Modal Header */}
+                        <div className="p-6 border-b border-slate-700 bg-[#161a1f] flex justify-between items-center">
+                            <div>
+                                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <Filter className="text-blue-500"/> Detaylı Oyuncu Arama
+                                </h3>
+                                <p className="text-slate-400 text-xs mt-1">Kriterlerinizi belirleyin ve hayalinizdeki oyuncuyu bulun.</p>
+                            </div>
+                            <button onClick={() => setIsFilterModalOpen(false)} className="text-slate-400 hover:text-white p-2 hover:bg-slate-700 rounded-full transition"><X size={24}/></button>
+                        </div>
+                        
+                        {/* Modal Body */}
+                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-[#1e232e]">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                
+                                {/* Left Column: Basic Filters */}
+                                <div className="space-y-6">
+                                    <h4 className="text-sm font-bold text-slate-300 uppercase border-b border-slate-700 pb-2">Temel Kriterler</h4>
+                                    
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Mevki</label>
+                                            <select 
+                                                value={tempFilters.position} 
+                                                onChange={(e) => setTempFilters(prev => ({ ...prev, position: e.target.value }))}
+                                                className="w-full bg-[#161a1f] border border-slate-600 rounded p-2 text-sm text-white outline-none focus:border-blue-500"
+                                            >
+                                                <option value="ALL">Tümü</option>
+                                                <option value="GK">Kaleci</option>
+                                                <option value="STP">Stoper</option>
+                                                <option value="SLB">Sol Bek</option>
+                                                <option value="SGB">Sağ Bek</option>
+                                                <option value="OS">Orta Saha</option>
+                                                <option value="OOS">Ofansif OS</option>
+                                                <option value="SLK">Sol Kanat</option>
+                                                <option value="SGK">Sağ Kanat</option>
+                                                <option value="SNT">Forvet</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Uyruk</label>
+                                            <select 
+                                                value={tempFilters.nationality} 
+                                                onChange={(e) => setTempFilters(prev => ({ ...prev, nationality: e.target.value }))}
+                                                className="w-full bg-[#161a1f] border border-slate-600 rounded p-2 text-sm text-white outline-none focus:border-blue-500"
+                                            >
+                                                <option value="ALL">Hepsi</option>
+                                                <option value="Yerli">Yerli (Türkiye)</option>
+                                                <option value="Yabancı">Yabancı</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Sözleşme Durumu</label>
+                                        <div className="flex bg-[#161a1f] p-1 rounded-lg border border-slate-600">
+                                            <button 
+                                                onClick={() => setTempFilters(prev => ({ ...prev, contractStatus: 'ALL' }))}
+                                                className={`flex-1 py-1.5 text-xs font-bold rounded ${tempFilters.contractStatus === 'ALL' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                                            >
+                                                Hepsi
+                                            </button>
+                                            <button 
+                                                onClick={() => setTempFilters(prev => ({ ...prev, contractStatus: 'FREE' }))}
+                                                className={`flex-1 py-1.5 text-xs font-bold rounded ${tempFilters.contractStatus === 'FREE' ? 'bg-green-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                                            >
+                                                Serbest
+                                            </button>
+                                            <button 
+                                                onClick={() => setTempFilters(prev => ({ ...prev, contractStatus: 'LISTED' }))}
+                                                className={`flex-1 py-1.5 text-xs font-bold rounded ${tempFilters.contractStatus === 'LISTED' ? 'bg-orange-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                                            >
+                                                Satılık
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div className="flex justify-between mb-1">
+                                            <label className="text-xs font-bold text-slate-500 uppercase">Maksimum Yaş</label>
+                                            <span className="text-xs font-bold text-white">{tempFilters.maxAge}</span>
+                                        </div>
+                                        <input 
+                                            type="range" min="16" max="40" 
+                                            value={tempFilters.maxAge} 
+                                            onChange={(e) => setTempFilters(prev => ({ ...prev, maxAge: parseInt(e.target.value) }))}
+                                            className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <div className="flex justify-between mb-1">
+                                            <label className="text-xs font-bold text-slate-500 uppercase">Minimum Reyting</label>
+                                            <span className="text-xs font-bold text-white">{tempFilters.minSkill}</span>
+                                        </div>
+                                        <input 
+                                            type="range" min="40" max="99" 
+                                            value={tempFilters.minSkill} 
+                                            onChange={(e) => setTempFilters(prev => ({ ...prev, minSkill: parseInt(e.target.value) }))}
+                                            className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <div className="flex justify-between mb-1">
+                                            <label className="text-xs font-bold text-slate-500 uppercase">Piyasa Değeri Aralığı</label>
+                                            <span className="text-xs font-mono font-bold text-green-400">{tempFilters.minValue} - {tempFilters.maxValue} M€</span>
+                                        </div>
+                                        {/* Simplified Slider for UI consistency, assuming logic is fine */}
+                                        <div className="relative w-full h-6 flex items-center">
+                                            <div className="absolute w-full h-2 bg-slate-700 rounded-lg"></div>
+                                            <div className="absolute h-2 bg-green-600 rounded-lg z-10" style={{ left: `${(tempFilters.minValue / 200) * 100}%`, right: `${100 - (tempFilters.maxValue / 200) * 100}%` }}></div>
+                                            <input type="range" min="0" max="200" step="1" value={tempFilters.minValue} onChange={(e) => { const val = Math.min(Number(e.target.value), tempFilters.maxValue - 1); setTempFilters(prev => ({ ...prev, minValue: val })); }} className="absolute top-0 w-full h-full appearance-none bg-transparent pointer-events-none z-20 [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-green-500 [&::-webkit-slider-thumb]:rounded-full" />
+                                            <input type="range" min="0" max="200" step="1" value={tempFilters.maxValue} onChange={(e) => { const val = Math.max(Number(e.target.value), tempFilters.minValue + 1); setTempFilters(prev => ({ ...prev, maxValue: val })); }} className="absolute top-0 w-full h-full appearance-none bg-transparent pointer-events-none z-30 [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-green-500 [&::-webkit-slider-thumb]:rounded-full" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Right Column: Attribute Filters */}
+                                <div className="space-y-6">
+                                    <h4 className="text-sm font-bold text-slate-300 uppercase border-b border-slate-700 pb-2">Özellik Filtreleri</h4>
+                                    
+                                    <div className="bg-[#161a1f] p-4 rounded-xl border border-slate-700">
+                                        <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Yeni Özellik Kuralı Ekle</label>
+                                        <div className="flex gap-2 mb-3">
+                                            <select 
+                                                value={newAttrKey}
+                                                onChange={(e) => setNewAttrKey(e.target.value)}
+                                                className="flex-1 bg-[#262c33] border border-slate-600 rounded p-2 text-sm text-white outline-none focus:border-yellow-500"
+                                            >
+                                                {Object.keys(STAT_TRANSLATIONS).sort().map(key => (
+                                                    <option key={key} value={key}>{STAT_TRANSLATIONS[key]}</option>
+                                                ))}
+                                            </select>
+                                            <input 
+                                                type="number" min="1" max="20"
+                                                value={newAttrVal}
+                                                onChange={(e) => setNewAttrVal(parseInt(e.target.value))}
+                                                className="w-16 bg-[#262c33] border border-slate-600 rounded p-2 text-sm text-center text-white outline-none focus:border-yellow-500 font-bold"
+                                            />
+                                        </div>
+                                        <button 
+                                            onClick={handleAddAttribute}
+                                            className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 rounded-lg text-sm flex items-center justify-center gap-2 transition"
+                                        >
+                                            <Plus size={16}/> Listeye Ekle
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-slate-500 uppercase block">Aktif Özellik Filtreleri</label>
+                                        {tempFilters.attributes.length === 0 && (
+                                            <div className="text-slate-600 italic text-sm text-center py-4 bg-[#161a1f] rounded-lg border border-dashed border-slate-700">
+                                                Henüz özellik filtresi eklenmedi.
+                                            </div>
+                                        )}
+                                        {tempFilters.attributes.map((attr, idx) => (
+                                            <div key={idx} className="flex items-center justify-between bg-[#262c33] p-3 rounded-lg border-l-4 border-yellow-500 animate-in slide-in-from-left-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm font-bold text-slate-200">{STAT_TRANSLATIONS[attr.key]}</span>
+                                                    <span className="text-xs text-slate-500 uppercase font-bold">En Az</span>
+                                                    <span className="bg-yellow-600 text-black text-xs font-black px-2 py-0.5 rounded">{attr.min}</span>
+                                                </div>
+                                                <button onClick={() => handleRemoveAttribute(attr.key)} className="text-slate-500 hover:text-red-500 transition">
+                                                    <Trash2 size={16}/>
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-6 border-t border-slate-700 bg-[#161a1f] flex justify-between items-center">
+                            <button 
+                                onClick={resetFilters}
+                                className="text-slate-400 hover:text-white font-bold text-sm underline"
+                            >
+                                Filtreleri Temizle
+                            </button>
+                            <div className="flex gap-4">
+                                <button 
+                                    onClick={() => setIsFilterModalOpen(false)} 
+                                    className="px-6 py-2 rounded-lg font-bold bg-slate-700 text-white hover:bg-slate-600 transition"
+                                >
+                                    İptal
+                                </button>
+                                <button 
+                                    onClick={handleApplyFilters} 
+                                    className="px-8 py-2 rounded-lg font-bold bg-blue-600 text-white hover:bg-blue-500 transition shadow-lg shadow-blue-900/20"
+                                >
+                                    Sonuçları Göster
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            )}
+
             {/* INCOMING OFFERS MODAL */}
             {isOffersModalOpen && (
                 <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setIsOffersModalOpen(false)}>
@@ -253,71 +596,68 @@ const TransferView: React.FC<TransferViewProps> = ({ transferList, team, budget,
                     <div className="text-xs text-slate-400 hidden md:block mr-2">
                         <span className="font-bold text-white">{totalItems}</span> Oyuncu Bulundu
                     </div>
+
+                    {/* NEW: QUICK FILTERS */}
+                    <div className="flex items-center gap-2 bg-slate-900 p-1 rounded-lg border border-slate-700">
+                        <button
+                            onClick={() => setQuickFilters(prev => ({ ...prev, transfer: !prev.transfer }))}
+                            className={`px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1 ${quickFilters.transfer ? 'bg-green-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                            title="Sadece bonservisi ile alınabilecek oyuncuları göster (Kiralık istemeyenler)"
+                        >
+                            {quickFilters.transfer ? <Check size={12}/> : null} Satılık
+                        </button>
+                        <div className="w-px h-4 bg-slate-700"></div>
+                        <button
+                            onClick={() => setQuickFilters(prev => ({ ...prev, loan: !prev.loan }))}
+                            className={`px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1 ${quickFilters.loan ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                            title="Sadece kiralık olarak alınabilecek oyuncuları göster"
+                        >
+                            {quickFilters.loan ? <Check size={12}/> : null} Kiralık
+                        </button>
+                    </div>
+
+                    {/* NEW: INTEREST SETTINGS BUTTON */}
+                    <div className="relative">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); setIsInterestSettingsOpen(!isInterestSettingsOpen); }}
+                            className={`p-2 rounded-lg border border-slate-700 hover:bg-slate-700 transition ${interestFilter !== 'ALL' ? 'text-yellow-500 bg-slate-900' : 'text-slate-400'}`}
+                            title="İlgi Düzeyi Filtresi"
+                        >
+                            <Settings size={18}/>
+                        </button>
+
+                        {isInterestSettingsOpen && (
+                            <div className="absolute top-full right-0 mt-2 w-40 bg-[#1e232e] border border-slate-600 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100" onClick={e => e.stopPropagation()}>
+                                <div className="text-[10px] uppercase font-bold text-slate-500 px-3 py-2 bg-[#161a1f] border-b border-slate-700">
+                                    İlgi Düzeyi
+                                </div>
+                                {['ALL', 'HIGH', 'MEDIUM', 'LOW'].map(lvl => (
+                                    <button
+                                        key={lvl}
+                                        onClick={() => { setInterestFilter(lvl); setIsInterestSettingsOpen(false); }}
+                                        className={`w-full text-left px-4 py-2 text-xs font-bold flex items-center justify-between hover:bg-slate-700 ${interestFilter === lvl ? 'text-white bg-slate-700' : 'text-slate-400'}`}
+                                    >
+                                        <span>{lvl === 'ALL' ? 'Tümü' : lvl === 'HIGH' ? 'İstiyor' : lvl === 'MEDIUM' ? 'Belki' : 'Hayır'}</span>
+                                        {interestFilter === lvl && <Check size={12} className="text-green-500"/>}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                     
                     <button 
-                        onClick={() => setIsFilterOpen(!isFilterOpen)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border transition ${isFilterOpen ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'}`}
+                        onClick={() => setIsFilterModalOpen(true)}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border bg-blue-600 border-blue-500 text-white hover:bg-blue-500 transition shadow-lg shadow-blue-900/20"
                     >
-                        <Filter size={16}/> Filtreler
+                        <Filter size={16}/> Detaylı Filtrele
+                        {filters.attributes.length > 0 && (
+                            <span className="bg-white text-blue-600 text-[10px] px-1.5 rounded-full font-black">
+                                {filters.attributes.length}
+                            </span>
+                        )}
                     </button>
                 </div>
             </div>
-
-            {/* --- FILTER PANEL (Collapsible) --- */}
-            {isFilterOpen && !isExpanded && (
-                <div className="bg-slate-800 border-b border-slate-700 p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 shrink-0 animate-in slide-in-from-top-2">
-                    <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Mevki</label>
-                        <select 
-                            value={filters.position} 
-                            onChange={(e) => { setFilters(prev => ({ ...prev, position: e.target.value })); setCurrentPage(1); }}
-                            className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white outline-none"
-                        >
-                            <option value="ALL">Tümü</option>
-                            <option value="GK">Kaleci</option>
-                            <option value="STP">Stoper</option>
-                            <option value="SLB">Sol Bek</option>
-                            <option value="SGB">Sağ Bek</option>
-                            <option value="OS">Orta Saha</option>
-                            <option value="OOS">Ofansif OS</option>
-                            <option value="SLK">Sol Kanat</option>
-                            <option value="SGK">Sağ Kanat</option>
-                            <option value="SNT">Forvet</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Min. Güç</label>
-                        <input 
-                            type="range" min="40" max="99" 
-                            value={filters.minSkill} 
-                            onChange={(e) => { setFilters(prev => ({ ...prev, minSkill: parseInt(e.target.value) })); setCurrentPage(1); }}
-                            className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500 mt-2"
-                        />
-                        <div className="text-right text-xs text-white mt-1">{filters.minSkill}+</div>
-                    </div>
-                    <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Maks. Yaş</label>
-                        <input 
-                            type="range" min="16" max="40" 
-                            value={filters.maxAge} 
-                            onChange={(e) => { setFilters(prev => ({ ...prev, maxAge: parseInt(e.target.value) })); setCurrentPage(1); }}
-                            className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500 mt-2"
-                        />
-                        <div className="text-right text-xs text-white mt-1">{filters.maxAge}</div>
-                    </div>
-                    <div className="flex items-end">
-                        <label className="flex items-center gap-2 cursor-pointer w-full p-2 bg-slate-900 border border-slate-700 rounded hover:bg-slate-700 transition">
-                            <input 
-                                type="checkbox" 
-                                checked={filters.onlyAffordable}
-                                onChange={(e) => { setFilters(prev => ({ ...prev, onlyAffordable: e.target.checked })); setCurrentPage(1); }}
-                                className="w-4 h-4 accent-blue-500"
-                            />
-                            <span className="text-sm font-bold text-slate-300">Sadece Bütçeme Uygun</span>
-                        </label>
-                    </div>
-                </div>
-            )}
 
             {/* --- MAIN TABLE --- */}
             <div className={`flex-1 overflow-auto custom-scrollbar relative transition-all duration-500 ${isExpanded ? 'bg-slate-950' : ''}`}>
@@ -363,7 +703,14 @@ const TransferView: React.FC<TransferViewProps> = ({ transferList, team, budget,
                                         </div>
                                     </td>
                                     <td className="p-3">
-                                        <span className="text-slate-400 text-xs font-mono uppercase">{p.nationality.substring(0, 3)}</span>
+                                        <div className="flex items-center gap-2">
+                                            <img 
+                                                src={`https://flagcdn.com/w20/${COUNTRY_CODES[p.nationality] || 'un'}.png`} 
+                                                className="w-4 h-3 object-contain opacity-70"
+                                                onError={(e) => e.currentTarget.style.display='none'} 
+                                            />
+                                            <span className="text-slate-400 text-xs font-mono uppercase">{p.nationality}</span>
+                                        </div>
                                     </td>
                                     <td className="p-3 text-slate-300 text-xs truncate max-w-[120px]">
                                         {displayClub}

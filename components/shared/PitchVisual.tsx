@@ -9,6 +9,8 @@ interface PitchVisualProps {
     onPlayerClick: (p: Player) => void;
     selectedPlayerId: string | null;
     formation?: string;
+    matchCompetitionId?: string; // New Prop for specific suspension check
+    currentWeek?: number; // Added to check general suspension expiry
 }
 
 const FORMATIONS: Record<string, { left: string, bottom: string }[]> = {
@@ -92,7 +94,7 @@ const FORMATIONS: Record<string, { left: string, bottom: string }[]> = {
     ]
 };
 
-const PitchVisual = ({ players, onPlayerClick, selectedPlayerId, formation = '4-4-2' }: PitchVisualProps) => {
+const PitchVisual = ({ players, onPlayerClick, selectedPlayerId, formation = '4-4-2', matchCompetitionId, currentWeek }: PitchVisualProps) => {
     // Default to 4-4-2 if formation not found
     const positions = FORMATIONS[formation] || FORMATIONS['4-4-2'];
 
@@ -127,6 +129,19 @@ const PitchVisual = ({ players, onPlayerClick, selectedPlayerId, formation = '4-
                  const condition = p.condition !== undefined ? p.condition : p.stats.stamina;
                  const isSelected = selectedPlayerId === p.id;
                  const posCoords = positions[i] || { left: '50%', bottom: '50%' };
+                 
+                 let isSuspended = false;
+                 // Use granular check if match context is provided, otherwise generic
+                 if (matchCompetitionId) {
+                     if (p.suspensions && p.suspensions[matchCompetitionId] && p.suspensions[matchCompetitionId] > 0) isSuspended = true;
+                 } else {
+                     // Check against currentWeek if provided, else fallback to simple existence (likely persisted view)
+                     if (currentWeek && p.suspendedUntilWeek) {
+                         isSuspended = p.suspendedUntilWeek > currentWeek;
+                     } else if (p.suspendedUntilWeek) {
+                         isSuspended = true; // Fallback if no week context
+                     }
+                 }
 
                  return (
                      <div key={p.id} onClick={() => onPlayerClick(p)}
@@ -163,7 +178,7 @@ const PitchVisual = ({ players, onPlayerClick, selectedPlayerId, formation = '4-
                                         <Syringe className="text-white drop-shadow-md" size={24} />
                                     </div>
                                 )}
-                                {p.suspendedUntilWeek && (
+                                {isSuspended && (
                                     <div className="absolute inset-0 bg-red-500/60 flex items-center justify-center backdrop-blur-[1px]">
                                         <Ban className="text-white drop-shadow-md" size={24} />
                                     </div>

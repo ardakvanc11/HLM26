@@ -1,13 +1,21 @@
 
-import React, { useState } from 'react';
-import { Team, Player, ManagerProfile } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Team, Player, ManagerProfile, SquadViewState } from '../types';
 import PlayerRow from '../components/shared/PlayerRow';
 import { ArrowUpDown, Users, Activity } from 'lucide-react';
 import TeamDynamicsView from './TeamDynamicsView';
 
-const SquadView = ({ team, onPlayerClick, manager, currentWeek }: { team: Team, onPlayerClick: (p: Player) => void, manager: ManagerProfile, currentWeek: number }) => {
-    const [viewMode, setViewMode] = useState<'SQUAD' | 'DYNAMICS'>('SQUAD');
-    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
+const SquadView = ({ team, onPlayerClick, manager, currentWeek, savedState, onSaveState }: { team: Team, onPlayerClick: (p: Player) => void, manager: ManagerProfile, currentWeek: number, savedState?: SquadViewState | null, onSaveState?: (s: SquadViewState) => void }) => {
+    // Init state from saved props or default
+    const [viewMode, setViewMode] = useState<'SQUAD' | 'DYNAMICS'>(savedState?.viewMode || 'SQUAD');
+    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(savedState?.sortConfig || null);
+
+    // Save state on change
+    useEffect(() => {
+        if (onSaveState) {
+            onSaveState({ viewMode, sortConfig });
+        }
+    }, [viewMode, sortConfig, onSaveState]);
 
     const sortPlayers = (players: Player[]) => {
         if (!sortConfig) return players;
@@ -114,7 +122,7 @@ const SquadView = ({ team, onPlayerClick, manager, currentWeek }: { team: Team, 
                                         </thead>
                                         <tbody>
                                             {group.players.length > 0 ? (
-                                                sortPlayers(group.players).map((p, i) => <PlayerRow key={p.id} p={p} index={group.startIndex + i} onClick={onPlayerClick} />)
+                                                sortPlayers(group.players).map((p, i) => <PlayerRow key={p.id} p={p} index={group.startIndex + i} onClick={onPlayerClick} currentWeek={currentWeek} />)
                                             ) : (
                                                 <tr>
                                                     <td colSpan={10} className="px-4 py-8 text-center text-slate-400 italic">Bu bölümde oyuncu yok.</td>

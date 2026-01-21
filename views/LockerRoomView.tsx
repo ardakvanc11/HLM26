@@ -1,11 +1,10 @@
 
-
 import React from 'react';
 import { Team } from '../types';
 import TacticsView from './TacticsView';
 import { FastForward, PlayCircle } from 'lucide-react';
 
-const LockerRoomView = ({ team, setTeam, onStartMatch, onSimulateMatch, currentWeek }: { team: Team, setTeam: (t: Team) => void, onStartMatch: () => void, onSimulateMatch: () => void, currentWeek: number }) => {
+const LockerRoomView = ({ team, setTeam, onStartMatch, onSimulateMatch, currentWeek, nextMatchCompetitionId }: { team: Team, setTeam: (t: Team) => void, onStartMatch: () => void, onSimulateMatch: () => void, currentWeek: number, nextMatchCompetitionId?: string }) => {
     
     const validateAndStart = (isSimulate: boolean) => {
         // Check First 18 players (XI + Bench) for issues
@@ -19,11 +18,21 @@ const LockerRoomView = ({ team, setTeam, onStartMatch, onSimulateMatch, currentW
             return;
         }
 
-        // 2. Suspension Check
-        const suspendedPlayers = activeSquad.filter(p => p.suspendedUntilWeek && p.suspendedUntilWeek > currentWeek);
+        // 2. Suspension Check (Updated for Competition Specifics)
+        let suspendedPlayers;
+        const compId = nextMatchCompetitionId || 'LEAGUE'; // Default fallback
+
+        // If specific logic passed, check suspension map
+        if (nextMatchCompetitionId) {
+             suspendedPlayers = activeSquad.filter(p => p.suspensions && p.suspensions[nextMatchCompetitionId] && p.suspensions[nextMatchCompetitionId] > 0);
+        } else {
+             // Legacy check
+             suspendedPlayers = activeSquad.filter(p => p.suspendedUntilWeek && p.suspendedUntilWeek > currentWeek);
+        }
+        
         if (suspendedPlayers.length > 0) {
             const names = suspendedPlayers.map(p => p.name).join(', ');
-            alert(`Kadroda sıkıntılı oyuncu var!\n\nAşağıdaki oyuncular CEZALI ve maç kadrosunda (İlk 11 veya Yedek) bulunamaz:\n${names}\n\nLütfen bu oyuncuları 'Kadro Dışı' bölümüne taşıyın.`);
+            alert(`Kadroda sıkıntılı oyuncu var!\n\nAşağıdaki oyuncular CEZALI (${compId}) ve maç kadrosunda (İlk 11 veya Yedek) bulunamaz:\n${names}\n\nLütfen bu oyuncuları 'Kadro Dışı' bölümüne taşıyın.`);
             return;
         }
 
@@ -50,7 +59,7 @@ const LockerRoomView = ({ team, setTeam, onStartMatch, onSimulateMatch, currentW
                  </div>
             </div>
             <div className="flex-1 overflow-hidden p-4">
-                 <TacticsView team={team} setTeam={setTeam} currentWeek={currentWeek} />
+                 <TacticsView team={team} setTeam={setTeam} currentWeek={currentWeek} matchCompetitionId={nextMatchCompetitionId} />
             </div>
         </div>
     );

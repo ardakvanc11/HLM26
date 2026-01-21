@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Team, Player, Fixture, ManagerProfile, Position } from '../types';
-import { ChevronLeft, Trophy, Users, Home, Star, DollarSign, BarChart3, Wallet, Globe, TrendingUp, TrendingDown, Landmark, Scale, Activity, Calendar, Goal, Zap, Disc, AlertCircle, ArrowRight, ArrowLeft, History, Archive, ArrowRightLeft, Coins, CheckCircle, Building2, User, Briefcase, School, HardHat, Target, Sparkles, UserPlus, FileSignature, Wallet2, Building, ToggleLeft, ToggleRight, Bug, LayoutTemplate } from 'lucide-react';
+import { ChevronLeft, Trophy, Users, Home, Star, DollarSign, BarChart3, Wallet, Globe, TrendingUp, TrendingDown, Landmark, Scale, Activity, Calendar, Goal, Zap, Disc, AlertCircle, ArrowRight, ArrowLeft, History, Archive, ArrowRightLeft, Coins, CheckCircle, Building2, User, Briefcase, School, HardHat, Target, Sparkles, UserPlus, FileSignature, Wallet2, Building, ToggleLeft, ToggleRight, Bug, LayoutTemplate, StarHalf, ArrowUpDown, Shield, Clock, Info } from 'lucide-react';
 import SquadView from './SquadView';
 import PlayerFace from '../components/shared/PlayerFace';
 import PitchVisual from '../components/shared/PitchVisual';
@@ -9,6 +9,7 @@ import { calculateForm, calculateMonthlyNetFlow } from '../utils/teamCalculation
 import { isSameDay, getFormattedDate } from '../utils/calendarAndFixtures';
 import { GAME_CALENDAR } from '../data/gameConstants';
 import StandingsTable from '../components/shared/StandingsTable';
+import PlayerRow from '../components/shared/PlayerRow';
 
 interface TeamDetailViewProps {
     team: Team;
@@ -24,7 +25,9 @@ interface TeamDetailViewProps {
     onBoardRequest?: (type: string, isDebug?: boolean) => void; 
     yearsAtClub?: number; 
     lastSeasonGoalAchieved?: boolean; 
-    consecutiveFfpYears?: number; 
+    consecutiveFfpYears?: number;
+    onFixtureClick?: (f: Fixture) => void; // Added
+    onCompetitionClick?: (compId: string) => void; // Added
 }
 
 // --- HELPER COMPONENTS ---
@@ -83,10 +86,42 @@ const generateLeagueHistory = (team: Team) => {
     return history;
 };
 
+// --- STAR RATING LOGIC ---
+const getTeamStarRating = (strength: number) => {
+    if (strength >= 83) return 5;
+    if (strength >= 79) return 4.5;
+    if (strength >= 75) return 4;
+    if (strength >= 71) return 3.5;
+    if (strength >= 69) return 3;
+    if (strength >= 67) return 2.5;
+    if (strength === 66) return 2;
+    if (strength >= 63) return 1.5;
+    if (strength >= 60) return 1;
+    return 0.5;
+};
+
+const renderTeamStars = (strength: number, size: number = 24) => {
+    const rating = getTeamStarRating(strength);
+    const fullStars = Math.floor(rating);
+    const hasHalf = rating % 1 !== 0;
+    const emptyStars = 5 - Math.ceil(rating);
+
+    return (
+        <div className="flex gap-1">
+            {[...Array(fullStars)].map((_, i) => <Star key={`full-${i}`} size={size} className="fill-yellow-500 text-yellow-500 drop-shadow-sm" />)}
+            {hasHalf && <StarHalf size={size} className="fill-yellow-500 text-yellow-500 drop-shadow-sm" />}
+            {[...Array(emptyStars)].map((_, i) => <Star key={`empty-${i}`} size={size} className="text-slate-600 dark:text-slate-700" />)}
+        </div>
+    );
+};
+
 // --- MAIN COMPONENT ---
 
-const TeamDetailView = ({ team, allTeams, fixtures, currentDate, currentWeek, manager, myTeamId, onClose, onPlayerClick, onTeamClick, onBoardRequest, yearsAtClub = 0, lastSeasonGoalAchieved = false, consecutiveFfpYears = 0 }: TeamDetailViewProps) => {
+const TeamDetailView = ({ team, allTeams, fixtures, currentDate, currentWeek, manager, myTeamId, onClose, onPlayerClick, onTeamClick, onBoardRequest, yearsAtClub = 0, lastSeasonGoalAchieved = false, consecutiveFfpYears = 0, onFixtureClick, onCompetitionClick }: TeamDetailViewProps) => {
     const [activeTab, setActiveTab] = useState<'GENERAL' | 'SQUAD' | 'FIXTURES' | 'TRANSFERS' | 'HISTORY' | 'MANAGEMENT' | 'TACTICS'>('GENERAL');
+    
+    // Sorting State
+    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
 
     // Filter teams based on the current league of the VIEWED team
     const currentLeagueId = team.leagueId || 'LEAGUE';
@@ -103,7 +138,9 @@ const TeamDetailView = ({ team, allTeams, fixtures, currentDate, currentWeek, ma
     const squadValue = team.players.reduce((sum, p) => sum + p.value, 0);
     const form = calculateForm(team.id, fixtures);
     const reputation = team.reputation || 1.0;
-    const monthlyNet = calculateMonthlyNetFlow(team, fixtures, currentDate, manager);
+    
+    // Use OPERATIONAL net flow (excludeTransfers=true) for status display
+    const monthlyNet = calculateMonthlyNetFlow(team, fixtures, currentDate, manager, true);
 
     let financeStatus = "Dengeli";
     let financeColor = "text-yellow-600 dark:text-yellow-400";
@@ -119,6 +156,50 @@ const TeamDetailView = ({ team, allTeams, fixtures, currentDate, currentWeek, ma
     const pastMatches = teamFixtures.filter(f => f.played).reverse();
     const futureMatches = teamFixtures.filter(f => !f.played);
 
+    // FIXTURE GROUPING LOGIC FOR TAB
+    const groupedFixtures: Record<string, Fixture[]> = {};
+    teamFixtures.forEach(f => {
+        const date = new Date(f.date);
+        const monthKey = date.toLocaleString('tr-TR', { month: 'long', year: 'numeric' });
+        if (!groupedFixtures[monthKey]) {
+            groupedFixtures[monthKey] = [];
+        }
+        groupedFixtures[monthKey].push(f);
+    });
+
+    const getFullDate = (dateStr: string) => {
+        return new Date(dateStr).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' });
+    };
+
+    const getCompetitionDetails = (compId?: string) => {
+        switch (compId) {
+            case 'SUPER_CUP': return { name: 'Süper Kupa', icon: Star, color: 'text-yellow-500' };
+            case 'CUP': return { name: 'Türkiye Kupası', icon: Shield, color: 'text-red-500' };
+            case 'LEAGUE_1': return { name: '1. Lig', icon: TrendingUp, color: 'text-orange-500' };
+            case 'EUROPE': return { name: 'Avrupa', icon: Globe, color: 'text-blue-500' };
+            default: return { name: 'Lig', icon: Trophy, color: 'text-slate-600' };
+        }
+    };
+    
+    const getResultStatus = (f: Fixture, isHome: boolean) => {
+        if (!f.played || f.homeScore === null || f.awayScore === null) return null;
+        let myScore = isHome ? f.homeScore : f.awayScore;
+        let oppScore = isHome ? f.awayScore : f.homeScore;
+
+        const isKnockout = ['CUP', 'SUPER_CUP', 'PLAYOFF', 'PLAYOFF_FINAL', 'EUROPE'].includes(f.competitionId || '');
+
+        if (isKnockout && myScore === oppScore && f.pkHome !== undefined && f.pkAway !== undefined) {
+             const myPk = isHome ? f.pkHome : f.pkAway;
+             const oppPk = isHome ? f.pkAway : f.pkHome;
+             if (myPk > oppPk) return { color: 'bg-green-600 text-white', label: 'G (P)' };
+             else return { color: 'bg-red-600 text-white', label: 'M (P)' };
+        }
+
+        if (myScore > oppScore) return { color: 'bg-green-600 text-white', label: 'G' };
+        if (myScore < oppScore) return { color: 'bg-red-600 text-white', label: 'M' };
+        return { color: 'bg-orange-500 text-white', label: 'B' };
+    };
+
     const getTopPlayer = (players: Player[], sortFn: (a: Player, b: Player) => number) => [...players].sort(sortFn)[0];
     const topScorer = getTopPlayer(team.players, (a, b) => b.seasonStats.goals - a.seasonStats.goals);
     const topAssister = getTopPlayer(team.players, (a, b) => b.seasonStats.assists - a.seasonStats.assists);
@@ -126,25 +207,29 @@ const TeamDetailView = ({ team, allTeams, fixtures, currentDate, currentWeek, ma
 
     const transfers = useMemo(() => {
         const history = team.transferHistory || [];
-        const arrivals = history.filter(t => t.type === 'BOUGHT').map(t => ({ date: t.date, name: t.playerName, from: t.counterparty, price: t.price }));
-        const departures = history.filter(t => t.type === 'SOLD').map(t => ({ date: t.date, name: t.playerName, to: t.counterparty, price: t.price }));
-        const totalSpent = arrivals.reduce((sum, item) => sum + (parseFloat(item.price.replace(' M€', '')) || 0), 0);
-        const totalIncome = departures.reduce((sum, item) => sum + (parseFloat(item.price.replace(' M€', '')) || 0), 0);
-        return { arrivals, departures, totalSpent, totalIncome, netBalance: totalIncome - totalSpent };
+        const arrivals = history.filter(t => t.type === 'BOUGHT' || t.type === 'LOAN_IN').map(t => ({ date: t.date, name: t.playerName, from: t.counterparty, price: t.price }));
+        const departures = history.filter(t => t.type === 'SOLD' || t.type === 'LOAN_OUT').map(t => ({ date: t.date, name: t.playerName, to: t.counterparty, price: t.price }));
+        
+        let totalSpent = 0;
+        let totalIncome = 0;
+
+        arrivals.forEach(a => {
+            const val = parseFloat(a.price.replace(/[^0-9.-]+/g,""));
+            if (!isNaN(val)) totalSpent += Math.abs(val);
+        });
+
+        departures.forEach(d => {
+            const val = parseFloat(d.price.replace(/[^0-9.-]+/g,""));
+            if (!isNaN(val)) totalIncome += Math.abs(val);
+        });
+
+        return { arrivals: arrivals.reverse(), departures: departures.reverse(), totalSpent, totalIncome, netBalance: totalIncome - totalSpent };
     }, [team.transferHistory]);
     
     const history = useMemo(() => {
         if (team.leagueHistory && team.leagueHistory.length > 0) return [...team.leagueHistory].reverse();
         return generateLeagueHistory(team);
     }, [team.id, team.leagueHistory]);
-
-    const getRelativeTime = (matchDate: string) => {
-        if (isSameDay(matchDate, currentDate)) return "Bugün";
-        const diffTime = new Date(matchDate).getTime() - new Date(currentDate).getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        if (diffDays === 1) return "Yarın";
-        return `${diffDays} gün`;
-    };
 
     const getPosBadgeColor = (pos: string) => {
         if (pos === 'GK') return 'bg-yellow-600';
@@ -173,6 +258,58 @@ const TeamDetailView = ({ team, allTeams, fixtures, currentDate, currentWeek, ma
 
     // Display Championship Logic: Only Super League counts as "Major" championship in the header
     const displayChampionships = team.leagueId === 'LEAGUE_1' ? 0 : team.championships;
+
+    // --- SQUAD GROUPING LOGIC (Exactly like SquadView) ---
+    const startingXI = team.players.slice(0, 11);
+    const substitutes = team.players.slice(11, 18);
+    const reserves = team.players.slice(18);
+
+    const playerGroups = [
+        { title: 'İLK 11', players: startingXI, colorClass: 'text-green-600 dark:text-green-400', startIndex: 0 },
+        { title: 'YEDEKLER', players: substitutes, colorClass: 'text-blue-600 dark:text-blue-400', startIndex: 11 },
+        { title: 'KADRO DIŞI (REZERV)', players: reserves, colorClass: 'text-slate-500 dark:text-slate-400', startIndex: 18 }
+    ];
+
+    // --- SORTING HELPERS ---
+    const requestSort = (key: string) => {
+        let direction: 'asc' | 'desc' = 'desc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'desc') {
+            direction = 'asc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const sortPlayers = (players: Player[]) => {
+        if (!sortConfig) return players;
+        return [...players].sort((a, b) => {
+            let aValue: any = a[sortConfig.key as keyof Player];
+            let bValue: any = b[sortConfig.key as keyof Player];
+            // Handle complex objects or specific keys
+            if (sortConfig.key === 'stamina') {
+                 aValue = a.condition !== undefined ? a.condition : a.stats.stamina;
+                 bValue = b.condition !== undefined ? b.condition : b.stats.stamina;
+            }
+            if (sortConfig.key === 'goals') { aValue = a.seasonStats.goals; bValue = b.seasonStats.goals; }
+            if (sortConfig.key === 'assists') { aValue = a.seasonStats.assists; bValue = b.seasonStats.assists; }
+            if (sortConfig.key === 'rating') { aValue = a.seasonStats.averageRating || 0; bValue = b.seasonStats.averageRating || 0; }
+
+            if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    };
+
+    const SortableHeader = ({ label, sortKey, align = 'center', className = '' }: any) => (
+        <th 
+            className={`px-2 md:px-4 py-3 text-${align} cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-800 transition select-none group ${className}`} 
+            onClick={() => requestSort(sortKey)}
+        >
+            <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'}`}>
+                {label} 
+                <ArrowUpDown size={12} className={`text-slate-400 group-hover:text-yellow-600 ${sortConfig?.key === sortKey ? 'text-yellow-600' : ''}`}/>
+            </div>
+        </th>
+    );
 
     return (
         <div className="h-full bg-slate-100 dark:bg-slate-900 overflow-y-auto custom-scrollbar flex flex-col">
@@ -213,12 +350,22 @@ const TeamDetailView = ({ team, allTeams, fixtures, currentDate, currentWeek, ma
                                     <span className="text-lg">{displayChampionships} Şampiyonluk</span>
                                 </div>
                                 <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 hidden sm:block"></div>
-                                <div className="flex gap-1.5 items-center"><Globe size={18} className="text-blue-500" /><span className="font-bold">Türkiye</span></div>
-                                <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 hidden sm:block"></div>
-                                <div className="flex gap-0.5">{[...Array(5)].map((_, i) => (<Star key={i} size={18} className={`${i < Math.floor(reputation) ? 'fill-yellow-500 text-yellow-500' : 'text-slate-300 dark:text-slate-700'}`} />))}<span className="ml-2 text-sm font-bold text-yellow-600 dark:text-yellow-500">{reputation.toFixed(1)}</span></div>
+                                <div className="flex gap-1.5 items-center">
+                                    <img 
+                                        src="https://flagcdn.com/w40/tr.png" 
+                                        className="w-5 h-auto object-contain rounded-[2px] shadow-sm" 
+                                        alt="Türkiye" 
+                                    />
+                                    <span className="font-bold">Türkiye</span>
+                                </div>
                             </div>
                         </div>
-                        <div className="hidden lg:flex flex-col items-center justify-center p-6 bg-slate-900 dark:bg-black rounded-2xl border-b-4 border-yellow-500 shadow-xl min-w-[140px]"><div className="text-[10px] text-slate-500 font-bold uppercase mb-1">Takım Gücü</div><div className="text-5xl font-black text-white font-teko leading-none">{Math.round(team.strength)}</div><div className="w-full h-1 bg-slate-800 mt-3 rounded-full overflow-hidden"><div className="bg-yellow-500 h-full" style={{width: `${team.strength}%`}}></div></div></div>
+                        <div className="hidden lg:flex flex-col items-center justify-center p-6 bg-slate-900 dark:bg-black rounded-2xl border-b-4 border-yellow-500 shadow-xl min-w-[140px]">
+                            <div className="text-[10px] text-slate-500 font-bold uppercase mb-1">Reyting</div>
+                            <div className="py-2">
+                                {renderTeamStars(team.strength, 32)}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -239,6 +386,277 @@ const TeamDetailView = ({ team, allTeams, fixtures, currentDate, currentWeek, ma
                             <StatCard label="İtibar" value={`${reputation.toFixed(1)}/5.0`} subValue="Popülerlik" icon={Star} colorClass="text-yellow-500" />
                         </div>
                         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm"><h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2 uppercase tracking-widest"><Users size={20} className="text-indigo-500" /> Öne Çıkan Oyuncular</h3><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"><PlayerStatCard label="Gol Kralı" player={topScorer} statValue={topScorer.seasonStats.goals} statLabel="Gol" icon={Goal} colorClass="text-green-500" onClick={onPlayerClick}/><PlayerStatCard label="Asist Kralı" player={topAssister} statValue={topAssister.seasonStats.assists} statLabel="Asist" icon={Zap} colorClass="text-blue-500" onClick={onPlayerClick}/><PlayerStatCard label="En Yüksek Reyting" player={topRating} statValue={topRating.seasonStats.averageRating || 0} statLabel="Reyting" icon={Star} colorClass="text-yellow-500" onClick={onPlayerClick}/></div></div>
+                    </div>
+                )}
+
+                {/* --- SQUAD TAB IMPLEMENTATION --- */}
+                {activeTab === 'SQUAD' && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-right-2">
+                        {playerGroups.map((group, idx) => (
+                            <div key={idx} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+                                <div className={`px-4 md:px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 font-bold flex justify-between ${group.colorClass}`}>
+                                    <span>{group.title}</span>
+                                    <span className="text-xs text-slate-500 font-normal">{group.players.length} Oyuncu</span>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-sm whitespace-nowrap">
+                                        <thead>
+                                            <tr className="text-xs text-slate-500 uppercase border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+                                                <th className="px-2 md:px-4 py-3 w-8 text-center">#</th>
+                                                <SortableHeader label="Oyuncu" sortKey="name" align="left"/>
+                                                <SortableHeader label="Güç" sortKey="skill"/>
+                                                <SortableHeader label="Yaş" sortKey="age" className="hidden sm:table-cell"/>
+                                                <SortableHeader label="Kondisyon" sortKey="stamina" className="hidden md:table-cell"/>
+                                                <SortableHeader label="Moral" sortKey="morale" className="hidden md:table-cell"/>
+                                                <SortableHeader label="Gol" sortKey="goals"/>
+                                                <SortableHeader label="Asist" sortKey="assists"/>
+                                                <SortableHeader label="Form (5)" sortKey="rating" className="hidden sm:table-cell"/>
+                                                <SortableHeader label="Değer" sortKey="value" align="right"/>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {group.players.length > 0 ? (
+                                                sortPlayers(group.players).map((p, i) => (
+                                                    <PlayerRow 
+                                                        key={p.id} 
+                                                        p={p} 
+                                                        index={group.startIndex + i} 
+                                                        onClick={onPlayerClick} 
+                                                        currentWeek={currentWeek}
+                                                    />
+                                                ))
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan={10} className="px-4 py-8 text-center text-slate-400 italic">Bu bölümde oyuncu yok.</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+                
+                {/* --- TRANSFERS TAB IMPLEMENTATION --- */}
+                {activeTab === 'TRANSFERS' && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                        {/* Top Cards: Spent & Income */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Expense Card */}
+                            <div className="bg-[#121519] border border-red-900/30 p-6 rounded-xl relative overflow-hidden group shadow-lg">
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-red-600 text-white p-3 rounded-lg shadow-lg shadow-red-900/50">
+                                    <ArrowRight size={24} />
+                                </div>
+                                <div className="text-xs font-bold text-red-500 uppercase tracking-widest mb-1">TOPLAM HARCAMA</div>
+                                <div className="text-4xl font-black text-white font-mono">{Math.abs(transfers.totalSpent).toFixed(1)} M€</div>
+                            </div>
+                            {/* Income Card */}
+                            <div className="bg-[#121519] border border-green-900/30 p-6 rounded-xl relative overflow-hidden group shadow-lg">
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-green-600 text-white p-3 rounded-lg shadow-lg shadow-green-900/50">
+                                    <ArrowLeft size={24} />
+                                </div>
+                                <div className="text-xs font-bold text-green-500 uppercase tracking-widest mb-1">TOPLAM GELİR</div>
+                                <div className="text-4xl font-black text-white font-mono">+{transfers.totalIncome.toFixed(1)} M€</div>
+                            </div>
+                        </div>
+
+                        {/* Lists: Arrivals & Departures */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Arrivals List */}
+                            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col h-full">
+                                <div className="p-3 bg-emerald-900/20 border-b border-emerald-900/50 flex justify-between items-center">
+                                    <h3 className="text-emerald-500 font-black uppercase tracking-wider text-sm flex items-center gap-2">
+                                        <ArrowRight size={16}/> Gelenler
+                                    </h3>
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase">Bu Sezon</span>
+                                </div>
+                                <div className="flex-1 overflow-x-auto">
+                                    <table className="w-full text-left text-xs whitespace-nowrap">
+                                        <thead className="bg-slate-100 dark:bg-slate-900/50 text-slate-500 uppercase font-bold border-b border-slate-200 dark:border-slate-700">
+                                            <tr>
+                                                <th className="px-3 py-2 w-16">Tarih</th>
+                                                <th className="px-3 py-2">Oyuncu</th>
+                                                <th className="px-3 py-2">Geldiği Takım</th>
+                                                <th className="px-3 py-2 text-right">Bedel</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                                            {transfers.arrivals.length > 0 ? (
+                                                transfers.arrivals.map((t, idx) => (
+                                                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
+                                                        <td className="px-3 py-2 text-slate-500">{t.date}</td>
+                                                        <td className="px-3 py-2 font-bold text-slate-900 dark:text-white">{t.name}</td>
+                                                        <td className="px-3 py-2 text-emerald-600 dark:text-emerald-400 font-medium">{t.from}</td>
+                                                        <td className="px-3 py-2 text-right font-mono text-slate-700 dark:text-slate-300 font-bold">{t.price}</td>
+                                                    </tr>
+                                                ))
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan={4} className="px-4 py-8 text-center text-slate-400 italic bg-slate-50 dark:bg-slate-900/20">
+                                                        Henüz gelen oyuncu yok.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* Departures List */}
+                            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col h-full">
+                                <div className="p-3 bg-red-900/20 border-b border-red-900/50 flex justify-between items-center">
+                                    <h3 className="text-red-500 font-black uppercase tracking-wider text-sm flex items-center gap-2">
+                                        <ArrowLeft size={16}/> Gidenler
+                                    </h3>
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase">Bu Sezon</span>
+                                </div>
+                                <div className="flex-1 overflow-x-auto">
+                                    <table className="w-full text-left text-xs whitespace-nowrap">
+                                        <thead className="bg-slate-100 dark:bg-slate-900/50 text-slate-500 uppercase font-bold border-b border-slate-200 dark:border-slate-700">
+                                            <tr>
+                                                <th className="px-3 py-2 w-16">Tarih</th>
+                                                <th className="px-3 py-2">Oyuncu</th>
+                                                <th className="px-3 py-2">Gittiği Takım</th>
+                                                <th className="px-3 py-2 text-right">Bedel</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                                            {transfers.departures.length > 0 ? (
+                                                transfers.departures.map((t, idx) => (
+                                                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
+                                                        <td className="px-3 py-2 text-slate-500">{t.date}</td>
+                                                        <td className="px-3 py-2 font-bold text-slate-900 dark:text-white">{t.name}</td>
+                                                        <td className="px-3 py-2 text-red-600 dark:text-red-400 font-medium">{t.to}</td>
+                                                        <td className="px-3 py-2 text-right font-mono text-slate-700 dark:text-slate-300 font-bold">{t.price}</td>
+                                                    </tr>
+                                                ))
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan={4} className="px-4 py-8 text-center text-slate-400 italic bg-slate-50 dark:bg-slate-900/20">
+                                                        Henüz giden oyuncu yok.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'FIXTURES' && (
+                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+                         {Object.entries(groupedFixtures).map(([monthLabel, matches], groupIndex) => (
+                            <div key={groupIndex} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4 border-b border-slate-200 dark:border-slate-700 pb-2 flex items-center gap-2">
+                                    <Calendar className="text-slate-400" />
+                                    {monthLabel}
+                                </h3>
+
+                                <div className="flex flex-col gap-1">
+                                    <div className="hidden lg:grid grid-cols-12 gap-4 px-4 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                        <div className="col-span-3">Tarih</div>
+                                        <div className="col-span-1">Saat</div>
+                                        <div className="col-span-2">Organizasyon</div>
+                                        <div className="col-span-2">Rakip</div>
+                                        <div className="col-span-1">Yer</div>
+                                        <div className="col-span-1 text-center">Sonuç</div>
+                                        <div className="col-span-2">Golcüler</div>
+                                    </div>
+
+                                    {matches.map(f => {
+                                        const isHome = f.homeTeamId === team.id;
+                                        const opponentId = isHome ? f.awayTeamId : f.homeTeamId;
+                                        const opponent = allTeams.find(t => t.id === opponentId);
+                                        const resultStatus = getResultStatus(f, isHome);
+                                        const isCurrentWeek = f.week === currentWeek;
+                                        const compDetails = getCompetitionDetails(f.competitionId);
+                                        const CompIcon = compDetails.icon;
+                                        
+                                        // Penalty Display Check
+                                        const showPK = f.played && f.pkHome !== undefined && f.pkAway !== undefined && f.homeScore === f.awayScore && ['CUP', 'SUPER_CUP', 'PLAYOFF', 'PLAYOFF_FINAL', 'EUROPE'].includes(f.competitionId || '');
+
+                                        let scorersText = "";
+                                        if (f.played && f.matchEvents) {
+                                            const goals = f.matchEvents.filter(e => e.type === 'GOAL');
+                                            scorersText = goals.map(g => `${g.scorer?.split(' ').pop()} ${g.minute}'`).join(', ');
+                                            if (scorersText.length > 40) scorersText = scorersText.substring(0, 37) + "...";
+                                        }
+
+                                        return (
+                                            <div 
+                                                key={f.id}
+                                                className={`
+                                                    grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-4 items-center 
+                                                    p-4 rounded-lg border transition-all duration-200
+                                                    ${isCurrentWeek 
+                                                            ? 'bg-slate-100 dark:bg-slate-800/60 border-slate-300 dark:border-slate-700 ring-1 ring-blue-500/30' 
+                                                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                                    }
+                                                `}
+                                            >
+                                                <div className="col-span-3 text-sm font-medium text-slate-600 dark:text-slate-300">
+                                                    {getFullDate(f.date)}
+                                                </div>
+                                                <div className="col-span-1 text-sm font-mono text-slate-400">20:00</div>
+                                                
+                                                {/* Competition Name - CLICKABLE */}
+                                                <div 
+                                                    className="col-span-2 flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm cursor-pointer group/comp hover:bg-slate-200 dark:hover:bg-white/5 p-1 rounded -ml-1 transition-colors"
+                                                    onClick={(e) => { 
+                                                        e.stopPropagation(); 
+                                                        if (onCompetitionClick) onCompetitionClick(f.competitionId || 'LEAGUE'); 
+                                                    }}
+                                                    title="Turnuva detaylarını görüntüle"
+                                                >
+                                                    <CompIcon size={14} className={compDetails.color} />
+                                                    <span className="truncate font-bold group-hover/comp:text-slate-900 dark:group-hover/comp:text-white group-hover/comp:underline transition-colors">
+                                                        {compDetails.name}
+                                                    </span>
+                                                </div>
+
+                                                <div 
+                                                    className="col-span-2 flex items-center gap-3 cursor-pointer group hover:bg-slate-200 dark:hover:bg-white/5 p-1 rounded -ml-1 transition-colors"
+                                                    onClick={(e) => { e.stopPropagation(); if(opponent) onTeamClick(opponent.id); }}
+                                                    title="Takım profiline git"
+                                                >
+                                                    {opponent?.logo ? (<img src={opponent.logo} className="w-8 h-8 object-contain group-hover:scale-110 transition-transform" alt={opponent.name} />) : (<div className={`w-8 h-8 rounded-full ${opponent?.colors[0]}`}></div>)}
+                                                    <span className="font-bold truncate group-hover:underline text-slate-900 dark:text-slate-200">{opponent?.name}</span>
+                                                </div>
+                                                <div className="col-span-1 text-sm text-slate-500">{isHome ? 'İç Saha' : 'Deplasman'}</div>
+                                                <div 
+                                                    className="col-span-1 flex justify-center cursor-pointer hover:scale-105 transition-transform"
+                                                    onClick={(e) => { e.stopPropagation(); if(f.played && onFixtureClick) onFixtureClick(f); }}
+                                                    title={f.played ? "Maç istatistiklerini görüntüle" : ""}
+                                                >
+                                                    {f.played ? (
+                                                        <div className={`flex flex-col items-center justify-center`}>
+                                                            <div className={`flex items-center gap-2 px-3 py-1 rounded-full font-bold text-sm shadow-sm ${resultStatus?.color}`}>
+                                                                {f.homeScore} - {f.awayScore}
+                                                            </div>
+                                                            {showPK && (
+                                                                <span className="text-[9px] font-mono text-slate-400 mt-0.5">
+                                                                    (P: {f.pkHome}-{f.pkAway})
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ) : (<span className="text-slate-400 font-mono">- : -</span>)}
+                                                </div>
+                                                <div className="col-span-2 flex justify-between items-center">
+                                                    <div className="text-xs text-slate-500 truncate max-w-[100px]" title={scorersText}>{scorersText}</div>
+                                                    <Info size={16} className="lg:hidden text-slate-400"/>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ))}
+                        {teamFixtures.length === 0 && (
+                            <div className="text-center py-12 text-slate-400 italic">Fikstür bilgisi bulunamadı.</div>
+                        )}
                     </div>
                 )}
 
@@ -277,6 +695,7 @@ const TeamDetailView = ({ team, allTeams, fixtures, currentDate, currentWeek, ma
                                         onPlayerClick={onPlayerClick} 
                                         selectedPlayerId={null} 
                                         formation={team.formation} 
+                                        currentWeek={currentWeek}
                                     />
                                 </div>
                             </div>
@@ -383,29 +802,8 @@ const TeamDetailView = ({ team, allTeams, fixtures, currentDate, currentWeek, ma
                         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
                             <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50"><h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2"><Users className="text-indigo-500"/> Teknik Heyet</h3></div>
                             <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                                {team.staff && team.staff.length > 0 ? team.staff.map((staff, i) => (<div key={i} className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/30 transition"><div className="flex items-center gap-4"><div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-500 dark:text-slate-400 text-lg">{staff.name.charAt(0)}</div><div><div className="font-bold text-slate-900 dark:text-white">{staff.name}</div><div className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase">{staff.role}</div></div></div><div className="flex flex-col items-end"><div className={`font-black text-lg ${staff.rating >= 80 ? 'text-green-500' : staff.rating >= 60 ? 'text-yellow-500' : 'text-slate-500'}`}>{staff.rating}</div><div className="text-[10px] uppercase text-slate-400">Yetenek</div></div></div>)) : (<div className="p-8 text-center text-slate-500 italic">Personel verisi bulunamadı.</div>)}
+                                {team.staff && team.staff.length > 0 ? team.staff.map((staff, i) => (<div key={i} className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/30 transition"><div className="flex items-center gap-4"><div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-500 dark:text-slate-400 text-lg">{staff.name.charAt(0)}</div><div><div className="font-bold text-slate-900 dark:text-white">{staff.name}</div><div className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase">{staff.role}</div></div></div><div className="flex flex-col items-end"><div className={`font-black text-lg ${staff.rating >= 80 ? 'text-green-500' : staff.rating >= 60 ? 'text-yellow-500' : 'text-slate-500'}`}>{staff.rating}</div><div className="text-[10px] uppercase text-slate-400">Yetenek</div></div></div>)) : (<div className="p-8 text-center text-slate-500 italic">Personel verisi yüklenemedi.</div>)}
                             </div>
-                        </div>
-                    </div>
-                )}
-
-                {activeTab === 'SQUAD' && (<div className="animate-in fade-in slide-in-from-bottom-2"><SquadView team={team} onPlayerClick={onPlayerClick} manager={manager} currentWeek={currentWeek} /></div>)}
-                {activeTab === 'FIXTURES' && (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-                        {futureMatches.length > 0 && (<div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden"><div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700"><h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2"><Calendar className="text-blue-500" size={20}/> Gelecek Maçlar</h3></div><div className="divide-y divide-slate-100 dark:divide-slate-700">{futureMatches.slice(0, 8).map(f => { const opponentId = f.homeTeamId === team.id ? f.awayTeamId : f.homeTeamId; const opponent = allTeams.find(t => t.id === opponentId); const isHome = f.homeTeamId === team.id; return (<div key={f.id} onClick={() => onTeamClick(opponentId)} className="flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition cursor-pointer"><div className="flex items-center gap-4"><div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${isHome ? 'bg-green-600' : 'bg-red-600'}`}>{isHome ? 'EV' : 'DEP'}</div><div><div className="font-bold text-slate-900 dark:text-white">{opponent?.name}</div><div className="text-xs text-slate-500">{getFormattedDate(f.date).label} • {getRelativeTime(f.date)}</div></div></div><div className="text-sm font-mono text-slate-400">20:00</div></div>); })}</div></div>)}
-                        {pastMatches.length > 0 && (<div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden"><div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700"><h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2"><History className="text-slate-500" size={20}/> Sonuçlar</h3></div><div className="divide-y divide-slate-100 dark:divide-slate-700">{pastMatches.map(f => { const opponentId = f.homeTeamId === team.id ? f.awayTeamId : f.homeTeamId; const opponent = allTeams.find(t => t.id === opponentId); const isHome = f.homeTeamId === team.id; const myScore = isHome ? f.homeScore! : f.awayScore!; const oppScore = isHome ? f.awayScore! : f.homeScore!; let resColor = "bg-slate-500"; if (myScore > oppScore) resColor = "bg-green-600"; else if (myScore < oppScore) resColor = "bg-red-600"; else resColor = "bg-yellow-500"; return (<div key={f.id} onClick={() => onTeamClick(opponentId)} className="flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition cursor-pointer"><div className="flex items-center gap-4"><div className={`w-8 h-8 rounded flex items-center justify-center text-sm font-bold text-white ${resColor}`}>{isHome ? `${f.homeScore}-${f.awayScore}` : `${f.awayScore}-${f.homeScore}`}</div><div><div className="font-bold text-slate-900 dark:text-white">{opponent?.name}</div><div className="text-xs text-slate-500">{getFormattedDate(f.date).label} • {isHome ? 'İç Saha' : 'Deplasman'}</div></div></div></div>); })}</div></div>)}
-                    </div>
-                )}
-
-                {activeTab === 'TRANSFERS' && (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="bg-red-50 dark:bg-red-900/10 p-4 rounded-xl border border-red-200 dark:border-red-800/30 flex items-center justify-between"><div><p className="text-xs font-bold text-red-600 dark:text-red-400 uppercase">Toplam Harcama</p><p className="text-2xl font-black text-red-700 dark:text-red-300 font-mono">-{transfers.totalSpent.toFixed(1)} M€</p></div><div className="p-2 bg-red-200 dark:bg-red-800 rounded-lg text-red-700 dark:text-red-200"><ArrowRight size={24}/></div></div>
-                            <div className="bg-emerald-50 dark:bg-emerald-900/10 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800/30 flex items-center justify-between"><div><p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase">Toplam Gelir</p><p className="text-2xl font-black text-emerald-700 dark:text-emerald-300 font-mono">+{transfers.totalIncome.toFixed(1)} M€</p></div><div className="p-2 bg-emerald-200 dark:bg-emerald-800 rounded-lg text-emerald-700 dark:text-emerald-200"><ArrowLeft size={24}/></div></div>
-                        </div>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm"><div className="p-4 bg-emerald-50 dark:bg-emerald-900/10 border-b border-emerald-100 dark:border-emerald-800/30 flex items-center justify-between"><h3 className="font-bold text-emerald-800 dark:text-emerald-400 flex items-center gap-2"><ArrowRight className="bg-emerald-200 dark:bg-emerald-800 rounded-full p-1 w-6 h-6"/> Gelenler</h3><span className="text-xs font-bold text-emerald-600 dark:text-emerald-500 uppercase">Bu Sezon</span></div><div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="bg-slate-50 dark:bg-slate-900 text-xs text-slate-500 uppercase font-bold"><tr><th className="px-4 py-3">Tarih</th><th className="px-4 py-3">Oyuncu</th><th className="px-4 py-3">Geldiği Takım</th><th className="px-4 py-3 text-right">Bedel</th></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-700">{transfers.arrivals.length === 0 ? (<tr><td colSpan={4} className="p-4 text-center text-slate-500 italic">Henüz gelen oyuncu yok.</td></tr>) : transfers.arrivals.map((t, i) => (<tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition"><td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{t.date}</td><td className="px-4 py-3 font-bold text-slate-900 dark:text-white">{t.name}</td><td className="px-4 py-3 text-slate-600 dark:text-slate-300 flex items-center gap-2"><ArrowLeft size={12} className="text-green-500"/> {t.from}</td><td className="px-4 py-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">{t.price}</td></tr>))}</tbody></table></div></div>
-                            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm"><div className="p-4 bg-red-50 dark:bg-red-900/10 border-b border-red-100 dark:border-red-800/30 flex items-center justify-between"><h3 className="font-bold text-red-800 dark:text-red-400 flex items-center gap-2"><ArrowRight className="bg-red-200 dark:bg-red-800 rounded-full p-1 w-6 h-6"/> Gidenler</h3><span className="text-xs font-bold text-red-600 dark:text-red-500 uppercase">Bu Sezon</span></div><div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="bg-slate-50 dark:bg-slate-900 text-xs text-slate-500 uppercase font-bold"><tr><th className="px-4 py-3">Tarih</th><th className="px-4 py-3">Oyuncu</th><th className="px-4 py-3">Gittiği Takım</th><th className="px-4 py-3 text-right">Bedel</th></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-700">{transfers.departures.length === 0 ? (<tr><td colSpan={4} className="p-4 text-center text-slate-500 italic">Henüz giden oyuncu yok.</td></tr>) : transfers.departures.map((t, i) => (<tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition"><td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{t.date}</td><td className="px-4 py-3 font-bold text-slate-900 dark:text-white">{t.name}</td><td className="px-4 py-3 text-slate-600 dark:text-slate-300 flex items-center gap-2"><ArrowRight size={12} className="text-red-500"/> {t.to}</td><td className="px-4 py-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">{t.price}</td></tr>))}</tbody></table></div></div>
                         </div>
                     </div>
                 )}

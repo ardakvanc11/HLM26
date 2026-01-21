@@ -153,7 +153,7 @@ const Dashboard = ({
                     </div>
                     <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
                         <NavItem id="home" label="Genel Bakış" icon={Home} onClick={(id:string) => {onNavigate(id); setMobileMenuOpen(false);}} currentView={currentView} isMatchMode={isMatchMode} />
-                        <NavItem id="social" label="Sosyal Medya" icon={Smartphone} badge={unreadMessagesCount} onClick={(id:string) => {onNavigate(id); setMobileMenuOpen(false);}} currentView={currentView} isMatchMode={isMatchMode} />
+                        <NavItem id="social" label="Sosyal Medya" icon={Smartphone} onClick={(id:string) => {onNavigate(id); setMobileMenuOpen(false);}} currentView={currentView} isMatchMode={isMatchMode} />
                         <NavItem id="squad" label="Kadro" icon={Users} onClick={(id:string) => {onNavigate(id); setMobileMenuOpen(false);}} currentView={currentView} isMatchMode={isMatchMode} />
                         <NavItem id="tactics" label="Taktik" icon={Briefcase} onClick={(id:string) => {onNavigate(id); setMobileMenuOpen(false);}} currentView={currentView} isMatchMode={isMatchMode} />
                         <NavItem id="health_center" label="Sağlık Merkezi" icon={Activity} badge={injuredCount} onClick={(id:string) => {onNavigate(id); setMobileMenuOpen(false);}} currentView={currentView} isMatchMode={isMatchMode} />

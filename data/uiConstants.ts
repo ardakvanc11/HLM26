@@ -1,4 +1,5 @@
 
+
 // FACE ASSETS (IMGUR LINKS)
 // Updated to use i.imgur.com for direct image rendering
 export const FACE_ASSETS = {
@@ -60,4 +61,18 @@ export const FACE_ASSETS = {
         outfield: 'https://i.imgur.com/O1J9xSW.png',
         gk: 'https://i.imgur.com/aLpywTB.png'
     }
+};
+
+export const COUNTRY_CODES: Record<string, string> = {
+    'Türkiye': 'tr', 'Almanya': 'de', 'İngiltere': 'gb-eng', 'Fransa': 'fr', 'İtalya': 'it',
+    'İspanya': 'es', 'Portekiz': 'pt', 'Hollanda': 'nl', 'Belçika': 'be', 'Brezilya': 'br',
+    'Arjantin': 'ar', 'Uruguay': 'uy', 'Kolombiya': 'co', 'Şili': 'cl', 'ABD': 'us',
+    'Rusya': 'ru', 'Ukrayna': 'ua', 'Yunanistan': 'gr', 'Hırvatistan': 'hr', 'Sırbistan': 'rs',
+    'Polonya': 'pl', 'Danimarka': 'dk', 'İsveç': 'se', 'Norveç': 'no', 'Finlandiya': 'fi',
+    'Makedonya': 'mk', 'Bosna': 'ba', 'Bulgaristan': 'bg', 'Çekya': 'cz', 'Macaristan': 'hu',
+    'İrlanda': 'ie', 'İskoçya': 'gb-sct', 'Meksika': 'mx', 'Kanada': 'ca', 'Nijerya': 'ng',
+    'Gana': 'gh', 'Senegal': 'sn', 'Fildişi Sahili': 'ci', 'Mali': 'ml', 'Fas': 'ma',
+    'Cezayir': 'dz', 'Gine': 'gn', 'Angola': 'ao', 'Venezuela': 've', 'Ekvador': 'ec',
+    'Peru': 'pe', 'Bolivya': 'bo', 'Paraguay': 'py', 'Kostarika': 'cr', 'Küba': 'cu',
+    'Avusturya': 'at', 'Romanya': 'ro', 'İsrail': 'il', 'Arabistan': 'sa'
 };

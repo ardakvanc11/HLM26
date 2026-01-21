@@ -3,7 +3,7 @@ import { Player } from '../../types';
 import { Syringe, Heart } from 'lucide-react';
 import PlayerFace from './PlayerFace';
 
-const PlayerRow: React.FC<{ p: Player, index: number, onClick: (p: Player) => void }> = ({ p, index, onClick }) => {
+const PlayerRow: React.FC<{ p: Player, index: number, onClick: (p: Player) => void, currentWeek?: number }> = ({ p, index, onClick, currentWeek }) => {
     // UPDATED: Using `p.condition` instead of `p.stats.stamina`
     const currentCondition = p.condition !== undefined ? p.condition : p.stats.stamina;
     const getConditionColor = (cond: number) => cond >= 80 ? 'text-green-500 fill-green-500' : cond >= 50 ? 'text-yellow-500 fill-yellow-500' : 'text-red-500 fill-red-500';
@@ -14,6 +14,9 @@ const PlayerRow: React.FC<{ p: Player, index: number, onClick: (p: Player) => vo
         if (['OS', 'OOS'].includes(pos)) return 'bg-green-600';
         return 'bg-red-600'; // SLK, SGK, SNT
     };
+
+    // Correctly check suspension status against current week
+    const isSuspended = p.suspendedUntilWeek && currentWeek ? p.suspendedUntilWeek > currentWeek : !!p.suspendedUntilWeek;
 
     return (
         <tr onClick={() => onClick(p)} className="hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer border-b border-slate-200 dark:border-slate-700/50 last:border-0 group transition-colors">
@@ -28,7 +31,7 @@ const PlayerRow: React.FC<{ p: Player, index: number, onClick: (p: Player) => vo
                         <div className="flex items-center gap-2">
                             <span className="truncate max-w-[120px] md:max-w-none">{p.name}</span>
                             {p.injury && <Syringe size={14} className="text-red-500 animate-pulse shrink-0"/>}
-                            {p.suspendedUntilWeek && <div className="w-3 h-4 bg-red-600 rounded-[2px] shrink-0" title="Cezalı"/>}
+                            {isSuspended && <div className="w-3 h-4 bg-red-600 rounded-[2px] shrink-0" title="Cezalı"/>}
                         </div>
                         <div className="flex gap-1">
                             <span className={`text-[9px] px-1.5 py-0.5 rounded w-fit text-white font-bold ${getPosBadgeColor(p.position)}`}>

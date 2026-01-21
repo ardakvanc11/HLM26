@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { GameState, Team, Player, Fixture, MatchEvent, MatchStats, PendingTransfer, IncomingOffer, BoardInteraction } from '../types';
+import { GameState, Team, Player, Fixture, MatchEvent, MatchStats, PendingTransfer, IncomingOffer, BoardInteraction, TransferViewState, SquadViewState } from '../types';
 import { GAME_CALENDAR } from '../data/gameConstants';
 import { INITIAL_MESSAGES } from '../data/messagePool';
 
@@ -46,6 +46,10 @@ export const useCoreState = () => {
     const [negotiatingTransferPlayer, setNegotiatingTransferPlayer] = useState<Player | null>(null);
     const [incomingTransfer, setIncomingTransfer] = useState<PendingTransfer | null>(null);
 
+    // Persisted UI States (For back navigation)
+    const [transferViewState, setTransferViewState] = useState<TransferViewState | null>(null);
+    const [squadViewState, setSquadViewState] = useState<SquadViewState | null>(null);
+
     // Theme State
     const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
@@ -81,6 +85,8 @@ export const useCoreState = () => {
         boardInteraction, setBoardInteraction,
         negotiatingTransferPlayer, setNegotiatingTransferPlayer,
         incomingTransfer, setIncomingTransfer,
+        transferViewState, setTransferViewState,
+        squadViewState, setSquadViewState,
         theme, toggleTheme
     };
 };

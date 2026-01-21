@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { GameState, Player, IncomingOffer, PendingTransfer, TrainingConfig, IndividualTrainingType, Position } from '../types';
-import { calculateTransferStrengthImpact, recalculateTeamStrength, calculateMonthlyNetFlow, applyTraining } from '../utils/gameEngine';
+import { calculateTransferStrengthImpact, recalculateTeamStrength, calculateMonthlyNetFlow, applyTraining, calculateTransferRevenueRetention } from '../utils/gameEngine';
 import { generateStarSoldRiotTweets } from '../utils/newsAndSocial';
 
 export const usePlayerActions = (
@@ -197,22 +197,26 @@ export const usePlayerActions = (
         }
         
         const monthlyNet = calculateMonthlyNetFlow(myTeam, gameState.fixtures, gameState.currentDate, gameState.manager!);
-        let injectionRate = 0.5;
-        let statusLabel = 'Riskli (%50)';
         
-        if (monthlyNet > 10) { injectionRate = 1.0; statusLabel = 'Zengin (%100)'; }
-        else if (monthlyNet > 0) { injectionRate = 0.8; statusLabel = 'Güvende (%80)'; }
-        else if (monthlyNet >= -5) { injectionRate = 0.6; statusLabel = 'Dengeli (%60)'; }
-
-        const budgetAddition = player.value * injectionRate;
+        // --- NEW: CALCULATE RETENTION PERCENTAGE ---
+        const retentionPct = calculateTransferRevenueRetention(myTeam, monthlyNet, gameState.lastSeasonGoalAchieved);
+        const retentionRate = retentionPct / 100;
+        
+        const budgetAddition = player.value * retentionRate;
         const retainedAmount = player.value - budgetAddition;
+        
+        // YENİ MANTIK: Kalan parayı ikiye böl (Borç ve Kulüp Kasası)
+        const debtRepayment = retainedAmount / 2;
+        const clubCash = retainedAmount / 2;
 
         const financials = { ...myTeam.financialRecords };
         financials.income.transfers += player.value;
         
         let updatedTeam = { 
             ...myTeam, 
-            budget: myTeam.budget + budgetAddition, 
+            budget: myTeam.budget + budgetAddition,
+            // Mevcut borçtan düş, borç 0'ın altına inmesin
+            initialDebt: Math.max(0, (myTeam.initialDebt || 0) - debtRepayment),
             players: myTeam.players.filter(p => p.id !== player.id), 
             financialRecords: financials 
         };
@@ -248,9 +252,13 @@ export const usePlayerActions = (
         }
         setGameState(prev => ({ ...prev, teams: prev.teams.map(t => t.id === myTeam.id ? updatedTeam : t), manager: updatedManager, news: [...riotNews, ...prev.news] }));
         
-        let msg = `${player.name} satıldı! Bonservis: ${player.value} M€\n\nFinansal Durum: ${statusLabel}\nBütçeye Eklenen: ${budgetAddition.toFixed(1)} M€`;
+        let msg = `${player.name} satıldı! Bonservis: ${player.value} M€\n\n`;
+        msg += `Transfer Bütçesine Aktarılan: ${budgetAddition.toFixed(1)} M€ (%${retentionPct})\n`;
+        
         if (retainedAmount > 0) {
-            msg += `\n(Yönetim ${retainedAmount.toFixed(1)} M€ tutara borçlar ve giderler için el koydu.)`;
+            msg += `\nYönetim Kesintisi Dağılımı:\n`;
+            msg += `- Borç Ödemesi: ${debtRepayment.toFixed(1)} M€\n`;
+            msg += `- Kulüp Kasası: ${clubCash.toFixed(1)} M€`;
         }
         
         if (isStarPlayer) msg += `\n\nTARAFTAR TEPKİLİ! Takımın yıldızı satıldığı için güven seviyeniz düştü (-3).`;
@@ -307,7 +315,10 @@ export const usePlayerActions = (
             }
 
             let budgetAddition = 0;
-            let statusLabel = '';
+            let retainedAmount = 0;
+            let debtRepayment = 0;
+            let clubCash = 0;
+
             let msg = '';
             
             // Financial Update Object
@@ -318,16 +329,24 @@ export const usePlayerActions = (
             if (isLoan && offer.loanDetails) {
                 // LOAN LOGIC
                 // For loans, we assume the monthly fee is paid upfront for the loan duration (simplified)
-                // or just added as a lump sum "Loan Fee" to transfer income.
-                const totalLoanFee = offer.loanDetails.monthlyFee * 10; // Approx 10 months season
+                const totalLoanFee = offer.loanDetails.monthlyFee * 10; 
                 
+                // Retention logic also applies to loan fees (income)
+                const monthlyNet = calculateMonthlyNetFlow(myTeam, gameState.fixtures, gameState.currentDate, gameState.manager!);
+                const retentionPct = calculateTransferRevenueRetention(myTeam, monthlyNet, gameState.lastSeasonGoalAchieved);
+                const retentionRate = retentionPct / 100;
+
+                budgetAddition = totalLoanFee * retentionRate;
+                retainedAmount = totalLoanFee - budgetAddition;
+                debtRepayment = retainedAmount / 2;
+                clubCash = retainedAmount / 2;
+
                 financials.income.transfers += totalLoanFee;
-                budgetAddition = totalLoanFee;
-                statusLabel = 'Kiralık Geliri';
 
                 updatedTeam = { 
                     ...myTeam, 
-                    budget: myTeam.budget + budgetAddition, 
+                    budget: myTeam.budget + budgetAddition,
+                    initialDebt: Math.max(0, (myTeam.initialDebt || 0) - debtRepayment),
                     players: myTeam.players.filter(p => p.id !== player.id), // Remove player temporarily (simulated loan out)
                     financialRecords: financials 
                 };
@@ -341,26 +360,34 @@ export const usePlayerActions = (
                 };
                 updatedTeam.transferHistory = [...(updatedTeam.transferHistory || []), record];
 
-                msg = `${player.name}, ${offer.fromTeamName} takımına kiralandı!\n\nAylık Bedel: ${offer.loanDetails.monthlyFee} M€\nMaaş Katkısı: %${offer.loanDetails.wageContribution}`;
+                msg = `${player.name}, ${offer.fromTeamName} takımına kiralandı!\n\nToplam Kiralama Geliri: ${totalLoanFee.toFixed(2)} M€\n`;
+                msg += `Transfer Bütçesine: ${budgetAddition.toFixed(1)} M€\n`;
+                if (retainedAmount > 0) {
+                     msg += `Borç Ödemesi: ${debtRepayment.toFixed(1)} M€\n`;
+                     msg += `Kulüp Kasası: ${clubCash.toFixed(1)} M€`;
+                }
 
             } else {
                 // TRANSFER LOGIC (Existing)
                 const monthlyNet = calculateMonthlyNetFlow(myTeam, gameState.fixtures, gameState.currentDate, gameState.manager!);
-                let injectionRate = 0.5;
-                statusLabel = 'Riskli (%50)';
                 
-                if (monthlyNet > 10) { injectionRate = 1.0; statusLabel = 'Zengin (%100)'; }
-                else if (monthlyNet > 0) { injectionRate = 0.8; statusLabel = 'Güvende (%80)'; }
-                else if (monthlyNet >= -5) { injectionRate = 0.6; statusLabel = 'Dengeli (%60)'; }
+                // --- NEW: CALCULATE RETENTION PERCENTAGE ---
+                const retentionPct = calculateTransferRevenueRetention(myTeam, monthlyNet, gameState.lastSeasonGoalAchieved);
+                const retentionRate = retentionPct / 100;
 
-                budgetAddition = offer.amount * injectionRate;
-                const retainedAmount = offer.amount - budgetAddition;
+                budgetAddition = offer.amount * retentionRate;
+                retainedAmount = offer.amount - budgetAddition;
+                
+                // YENİ MANTIK: Kalan parayı böl
+                debtRepayment = retainedAmount / 2;
+                clubCash = retainedAmount / 2;
 
                 financials.income.transfers += offer.amount;
                 
                 updatedTeam = { 
                     ...myTeam, 
-                    budget: myTeam.budget + budgetAddition, 
+                    budget: myTeam.budget + budgetAddition,
+                    initialDebt: Math.max(0, (myTeam.initialDebt || 0) - debtRepayment),
                     players: myTeam.players.filter(p => p.id !== player.id), 
                     financialRecords: financials 
                 };
@@ -374,9 +401,13 @@ export const usePlayerActions = (
                 };
                 updatedTeam.transferHistory = [...(updatedTeam.transferHistory || []), record];
 
-                msg = `${player.name}, ${offer.fromTeamName} takımına satıldı! Gelir: ${offer.amount} M€\n\nFinansal Durum: ${statusLabel}\nBütçeye Eklenen: ${budgetAddition.toFixed(1)} M€`;
+                msg = `${player.name}, ${offer.fromTeamName} takımına satıldı! Gelir: ${offer.amount} M€\n\n`;
+                msg += `Transfer Bütçesine: ${budgetAddition.toFixed(1)} M€ (%${retentionPct})\n`;
+                
                 if (retainedAmount > 0) {
-                    msg += `\n(Yönetim ${retainedAmount.toFixed(1)} M€ tutara borçlar ve giderler için el koydu.)`;
+                     msg += `Yönetim Kesintisi Dağılımı:\n`;
+                     msg += `- Borç Ödemesi: ${debtRepayment.toFixed(1)} M€\n`;
+                     msg += `- Kulüp Kasası: ${clubCash.toFixed(1)} M€`;
                 }
             }
 

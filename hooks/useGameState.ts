@@ -177,6 +177,13 @@ export const useGameState = () => {
         setNegotiatingTransferPlayer: core.setNegotiatingTransferPlayer,
         incomingTransfer: core.incomingTransfer,
         setIncomingTransfer: core.setIncomingTransfer,
+        
+        // UI Persistence
+        transferViewState: core.transferViewState,
+        setTransferViewState: core.setTransferViewState,
+        squadViewState: core.squadViewState,
+        setSquadViewState: core.setSquadViewState,
+
         myTeam,
         injuredBadgeCount: Math.max(0, injuredBadgeCount),
         isTransferWindowOpen: isTransferWindowOpen(core.gameState.currentDate),

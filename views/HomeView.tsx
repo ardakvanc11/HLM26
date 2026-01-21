@@ -1,9 +1,10 @@
+
 import React, { useState } from 'react';
 import { ManagerProfile, Team, Fixture, StaffRelation } from '../types';
 import { calculateForm, calculateManagerPower } from '../utils/gameEngine';
 import { getFormattedDate } from '../utils/calendarAndFixtures';
 // FIX: Added 'Users' to imports from lucide-react
-import { Home, User, Users, FileText, Heart, Calendar, Star, Feather, AlertTriangle, Clock, Trophy, Wallet, BarChart3, Building2, ArrowRightLeft, TrendingUp, TrendingDown, Power, Check, X, Crown, LogOut, UserCircle2, Smile, Meh, Frown } from 'lucide-react';
+import { Home, User, Users, FileText, Heart, Calendar, Star, StarHalf, Feather, AlertTriangle, Clock, Trophy, Wallet, BarChart3, Building2, ArrowRightLeft, TrendingUp, TrendingDown, Power, Check, X, Crown, LogOut, UserCircle2, Smile, Meh, Frown } from 'lucide-react';
 import StandingsTable from '../components/shared/StandingsTable';
 import HallOfFameModal from '../modals/HallOfFameModal';
 
@@ -137,6 +138,35 @@ const HomeView = ({ manager, team, teams, myTeamId, currentWeek, fixtures, onTea
         return { label: 'Gergin', color: 'text-red-500', icon: Frown };
     };
 
+    // --- STAR RATING LOGIC (Copied from TeamDetailView for consistency) ---
+    const getTeamStarRating = (strength: number) => {
+        if (strength >= 83) return 5;
+        if (strength >= 79) return 4.5;
+        if (strength >= 75) return 4;
+        if (strength >= 71) return 3.5;
+        if (strength >= 69) return 3;
+        if (strength >= 67) return 2.5;
+        if (strength === 66) return 2;
+        if (strength >= 63) return 1.5;
+        if (strength >= 60) return 1;
+        return 0.5;
+    };
+
+    const renderTeamStars = (strength: number, size: number = 24) => {
+        const rating = getTeamStarRating(strength);
+        const fullStars = Math.floor(rating);
+        const hasHalf = rating % 1 !== 0;
+        const emptyStars = 5 - Math.ceil(rating);
+
+        return (
+            <div className="flex gap-1 justify-center">
+                {[...Array(fullStars)].map((_, i) => <Star key={`full-${i}`} size={size} className="fill-yellow-500 text-yellow-500 drop-shadow-sm" />)}
+                {hasHalf && <StarHalf size={size} className="fill-yellow-500 text-yellow-500 drop-shadow-sm" />}
+                {[...Array(emptyStars)].map((_, i) => <Star key={`empty-${i}`} size={size} className="text-slate-600 dark:text-slate-700" />)}
+            </div>
+        );
+    };
+
     return (
         <div className="space-y-6 pb-10">
             {showHallOfFame && <HallOfFameModal manager={manager} onClose={() => setShowHallOfFame(false)} />}
@@ -177,9 +207,11 @@ const HomeView = ({ manager, team, teams, myTeamId, currentWeek, fixtures, onTea
                         <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                             <h2 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white mb-4">Takım Durumu</h2>
                             <div className="grid grid-cols-3 gap-2 md:gap-4 mb-4">
-                                <div className="bg-slate-100 dark:bg-slate-700 p-2 md:p-4 rounded-lg text-center">
-                                    <div className="text-slate-500 dark:text-slate-400 text-[10px] md:text-xs uppercase font-bold">Takım Gücü</div>
-                                    <div className="text-xl md:text-3xl font-bold text-green-600 dark:text-green-400 mt-1 md:mt-2">{Math.round(team.strength)}</div>
+                                <div className="bg-slate-100 dark:bg-slate-700 p-2 md:p-4 rounded-lg text-center flex flex-col items-center justify-center">
+                                    <div className="text-slate-500 dark:text-slate-400 text-[10px] md:text-xs uppercase font-bold mb-1">Reyting</div>
+                                    <div className="mt-1 md:mt-2">
+                                        {renderTeamStars(team.strength)}
+                                    </div>
                                 </div>
                                 <div className="bg-slate-100 dark:bg-slate-700 p-2 md:p-4 rounded-lg text-center relative">
                                     <div className="text-slate-500 dark:text-slate-400 text-[10px] md:text-xs uppercase font-bold">Taraftar</div>

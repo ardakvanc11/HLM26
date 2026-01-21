@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { GameState, Team, Player, Fixture, MatchEvent, MatchStats, PendingTransfer, SponsorDeal, IncomingOffer, TrainingConfig, IndividualTrainingType, BoardInteraction, Position } from '../types';
+import { GameState, Team, Player, Fixture, MatchEvent, MatchStats, PendingTransfer, SponsorDeal, IncomingOffer, TrainingConfig, IndividualTrainingType, BoardInteraction, Position, TransferViewState, SquadViewState } from '../types';
 import { FileWarning, LogOut, Trophy, Building2, BarChart3, ArrowRightLeft, Wallet, Clock, TrendingUp, TrendingDown, Crown } from 'lucide-react';
 import { isSameDay } from '../utils/calendarAndFixtures';
 
@@ -99,6 +99,10 @@ interface MainContentProps {
     setNegotiatingTransferPlayer: React.Dispatch<React.SetStateAction<Player | null>>; 
     incomingTransfer: PendingTransfer | null; 
     setIncomingTransfer: React.Dispatch<React.SetStateAction<PendingTransfer | null>>;
+    transferViewState: TransferViewState | null; // NEW PROP
+    setTransferViewState: React.Dispatch<React.SetStateAction<TransferViewState | null>>; // NEW PROP
+    squadViewState: SquadViewState | null; // NEW PROP
+    setSquadViewState: React.Dispatch<React.SetStateAction<SquadViewState | null>>; // NEW PROP
     myTeam?: Team;
     injuredBadgeCount: number;
     isTransferWindowOpen: boolean;
@@ -164,6 +168,10 @@ const MainContent: React.FC<MainContentProps> = (props) => {
         setNegotiatingTransferPlayer,
         incomingTransfer,
         setIncomingTransfer,
+        transferViewState,
+        setTransferViewState,
+        squadViewState,
+        setSquadViewState,
         myTeam,
         injuredBadgeCount,
         isTransferWindowOpen
@@ -616,6 +624,9 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     onPlayerClick={handleShowPlayerDetail}
                     manager={gameState.manager!} 
                     currentWeek={gameState.currentWeek}
+                    // Persist state
+                    savedState={squadViewState}
+                    onSaveState={setSquadViewState}
                 />
             )}
 
@@ -677,6 +688,9 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     onAcceptOffer={handleAcceptOffer}
                     onRejectOffer={handleRejectOffer}
                     onNegotiateOffer={handleNegotiateOffer}
+                    // Persist state
+                    savedState={transferViewState}
+                    onSaveState={setTransferViewState}
                 />
             )}
 
@@ -702,6 +716,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     onUpdateMessages={(msgs) => setGameState(prev => ({ ...prev, messages: msgs }))}
                     onReply={handleMessageReply}
                     isTransferWindowOpen={isTransferWindowOpen}
+                    myTeamId={gameState.myTeamId!} // Add this line
                 />
             )}
 
@@ -743,6 +758,8 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     yearsAtClub={gameState.yearsAtCurrentClub}
                     lastSeasonGoalAchieved={gameState.lastSeasonGoalAchieved}
                     consecutiveFfpYears={gameState.consecutiveFfpYears}
+                    onFixtureClick={(f) => setSelectedFixtureForDetail(f)} // ADDED
+                    onCompetitionClick={handleCompetitionClick} // ADDED
                 />
             )}
 
@@ -762,6 +779,8 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     yearsAtClub={gameState.yearsAtCurrentClub}
                     lastSeasonGoalAchieved={gameState.lastSeasonGoalAchieved}
                     consecutiveFfpYears={gameState.consecutiveFfpYears}
+                    onFixtureClick={(f) => setSelectedFixtureForDetail(f)} // ADDED
+                    onCompetitionClick={handleCompetitionClick} // ADDED
                 />
             )}
 
@@ -843,6 +862,8 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                         onStartMatch={() => navigateTo('match_live')}
                         onSimulateMatch={handleFastSimulateWrapper}
                         currentWeek={gameState.currentWeek}
+                        // Pass active fixture competition ID
+                        nextMatchCompetitionId={activeMatchFixture?.competitionId}
                     />
                 </div>
             )}

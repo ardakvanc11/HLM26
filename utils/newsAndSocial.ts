@@ -1,4 +1,5 @@
 
+
 import { Fixture, Team, NewsItem, Message, Player, MatchEvent, Position } from '../types';
 import { generateId, RIVALRIES } from '../constants';
 import { FAN_NAMES, DERBY_TWEETS_WIN, DERBY_TWEETS_LOSS, FAN_TWEETS_WIN, FAN_TWEETS_LOSS, FAN_TWEETS_DRAW, RESIGNATION_TWEETS, EVENT_TWEETS } from '../data/tweetPool';
@@ -228,6 +229,15 @@ export const generateStarSoldRiotTweets = (week: number, myTeam: Team, soldPlaye
 export const generateWeeklyNews = (week: number, fixtures: Fixture[], teams: Team[], myTeamId?: string | null): NewsItem[] => {
     const socialFeed: NewsItem[] = [];
     
+    // Determine User's League for Filtering
+    let userLeagueId = 'LEAGUE'; // Default
+    if (myTeamId) {
+        const userTeam = teams.find(t => t.id === myTeamId);
+        if (userTeam) {
+            userLeagueId = userTeam.leagueId || 'LEAGUE';
+        }
+    }
+
     // Filter for played matches this week
     const playedFixtures = fixtures.filter(f => f.week === week && f.played);
 
@@ -237,15 +247,21 @@ export const generateWeeklyNews = (week: number, fixtures: Fixture[], teams: Tea
             return;
         }
 
-        // FİLTRELEME: Eğer maç 1. Lig (Süper Lig Dışı) maçıysa tweet atma.
-        // Takımın leagueId özelliğini kontrol ediyoruz.
+        // FİLTRELEME: Sadece kullanıcının ligindeki takımların maçlarını göster
         const homeTeam = teams.find(t => t.id === fixture.homeTeamId);
-        // Varsayılan olarak leagueId yoksa (eski save) Süper Lig kabul et, varsa kontrol et.
-        if (homeTeam && homeTeam.leagueId === 'LEAGUE_1') {
+        if (!homeTeam) return;
+
+        const fixtureLeagueId = homeTeam.leagueId || 'LEAGUE';
+        
+        // Eğer maçın ligi, Avrupa Ligi ise (çakma takımlar) atla
+        if (fixtureLeagueId === 'EUROPE_LEAGUE') return;
+        
+        // Eğer maçın ligi, kullanıcının ligi ile aynı DEĞİLSE atla
+        if (fixtureLeagueId !== userLeagueId) {
             return;
         }
 
-        // For other computer matches (Super League), generate tweets
+        // Generate match tweets
         const matchTweets = generateMatchTweets(fixture, teams, false);
         socialFeed.push(...matchTweets);
     });
@@ -359,14 +375,18 @@ export const generateWeeklyNews = (week: number, fixtures: Fixture[], teams: Tea
             }
         }
 
-        // Add a random generic rumor from another team
+        // Add a random generic rumor from another team IN THE SAME LEAGUE
         if (Math.random() > 0.3) {
-            // FİLTRELEME: Sadece Süper Lig takımlarından rastgele seç
-            const superLeagueTeams = teams.filter(t => t.leagueId !== 'LEAGUE_1');
+            // FİLTRELEME: Sadece kullanıcının ligindeki diğer takımlar ve çakma olmayanlar
+            const leaguePeerTeams = teams.filter(t => 
+                (t.leagueId || 'LEAGUE') === userLeagueId && // Aynı lig
+                t.id !== myTeamId && // Kullanıcı takımı hariç
+                t.leagueId !== 'EUROPE_LEAGUE' // Avrupa Ligi takımları hariç
+            );
             
-            if (superLeagueTeams.length > 0) {
+            if (leaguePeerTeams.length > 0) {
                 const randomFan = FAN_NAMES[Math.floor(Math.random() * FAN_NAMES.length)];
-                const randomTeam = superLeagueTeams[Math.floor(Math.random() * superLeagueTeams.length)];
+                const randomTeam = leaguePeerTeams[Math.floor(Math.random() * leaguePeerTeams.length)];
                 const content = genericRumors[Math.floor(Math.random() * genericRumors.length)];
                 
                 socialFeed.push({

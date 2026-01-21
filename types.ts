@@ -11,6 +11,35 @@ export enum Position {
     SNT = 'SNT'  // Santrafor
 }
 
+// --- NEW UI PERSISTENCE TYPES ---
+export interface TransferViewState {
+    searchTerm: string;
+    currentPage: number;
+    sortConfig: { key: string, direction: 'asc' | 'desc' };
+    filters: {
+        minSkill: number;
+        maxAge: number;
+        position: string;
+        minValue: number; // NEW: Min Market Value
+        maxValue: number; // NEW: Max Market Value
+        nationality: string; // NEW: Nationality Filter
+        contractStatus: string; // NEW: 'ALL', 'FREE', 'LISTED'
+        attributes: { key: string; min: number }[]; // NEW: Specific Attributes (e.g. Pace > 15)
+    };
+    isFilterOpen: boolean;
+    // NEW: Quick toggle filters for Transfer/Loan and Interest settings
+    quickFilters?: {
+        transfer: boolean;
+        loan: boolean;
+    };
+    interestFilter?: string; // 'ALL', 'HIGH', 'MEDIUM', 'LOW'
+}
+
+export interface SquadViewState {
+    viewMode: 'SQUAD' | 'DYNAMICS';
+    sortConfig: { key: string, direction: 'asc' | 'desc' } | null;
+}
+
 // --- NEW DETAILED TACTICAL ENUMS ---
 export enum PassingStyle {
     EXTREME_SHORT = 'Aşırı Kısa Pas',
@@ -431,7 +460,8 @@ export interface Player {
     clubName?: string; 
     morale: number;
     condition: number; 
-    suspendedUntilWeek?: number;
+    suspendedUntilWeek?: number; // Legacy, kept for compatibility
+    suspensions?: Record<string, number>; // NEW: Map of Competition ID -> Matches Remaining
     injury?: Injury; 
     hasInjectionForNextMatch?: boolean; 
     injurySusceptibility: number; 
@@ -449,6 +479,7 @@ export interface Player {
     developmentFeedback?: string;
     statProgress?: Record<string, number>;
     recentAttributeChanges?: Record<string, 'UP' | 'DOWN' | 'PARTIAL_UP'>;
+    loanWillingness?: number; // NEW: Hidden attribute (0-100) determining player's desire to go on loan
     
     // Position Evolution
     positionTrainingTarget?: Position;
@@ -885,5 +916,5 @@ export interface GameState {
     consecutiveFfpYears: number;
     yearsAtCurrentClub: number;
     lastSeasonGoalAchieved: boolean;
-    uiAlert?: UIAlert | null; // NEW: Global UI Alert State
+    uiAlert?: UIAlert | null; 
 }

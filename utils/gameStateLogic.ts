@@ -15,7 +15,8 @@ import {
     simulatePlayerDevelopmentAndAging,
     generateAiOffersForUser, 
     getAssistantTrainingConfig, 
-    applyTraining 
+    applyTraining,
+    optimizeAiSquad // IMPORTED
 } from './gameEngine';
 import { isSameDay, addDays, isTransferWindowOpen, generateFixtures, generateSuperCupFixtures, generateCupRoundFixtures, generateEuropeanKnockoutFixtures } from './calendarAndFixtures';
 import { getWeightedInjury } from './matchLogic';
@@ -159,6 +160,16 @@ export const processNextDayLogic = (
     let updatedManager = currentState.manager ? { ...currentState.manager } : null;
     let lastTrainingReport = currentState.lastTrainingReport || [];
     let newWeek = currentState.currentWeek;
+
+    // --- AI KADRO OPTİMİZASYONU (SAKATLIK/CEZA YÖNETİMİ) ---
+    // Her gün AI takımlarının kadrosunu kontrol et ve sakat/cezalı oyuncuları ilk 11'den çıkar
+    updatedTeams = updatedTeams.map(t => {
+        // Kullanıcının takımını atla (kendi yönetiyor)
+        if (t.id === currentState.myTeamId) return t; 
+        
+        // AI takımı için kadro düzenlemesi yap
+        return optimizeAiSquad(t, currentState.currentWeek);
+    });
 
     // --- TURKISH CUP FIXTURE GENERATION ---
     const month = nextDateObj.getMonth();
@@ -472,13 +483,41 @@ export const processNextDayLogic = (
 
     const allEventsForToday: MatchEvent[] = [];
     
-    const { updatedTeams: teamsAfterTransfers, newNews: transferNews } = simulateAiDailyTransfers(
-        updatedTeams, 
-        nextDate, 
-        currentState.currentWeek, 
-        currentState.myTeamId
+    const { updatedTeams: teamsAfterTransfers, updatedTransferList: transferListAfterTransfers, newNews: transferNews } = simulateAiDailyTransfers(
+        updatedTeams,
+        nextDate,
+        currentState.currentWeek,
+        currentState.myTeamId,
+        currentState.transferList
     );
+    
+    // FİLTRELEME: Sadece kullanıcının ligindeki takımların transfer haberlerini göster
+    // Avrupa ligi (çakma takımlar) hariç tutulur.
+    let userLeagueId = 'LEAGUE';
+    if (currentState.myTeamId) {
+        const uTeam = updatedTeams.find(t => t.id === currentState.myTeamId);
+        if (uTeam) userLeagueId = uTeam.leagueId || 'LEAGUE';
+    }
+
+    const filteredTransferNews = transferNews.filter(n => {
+        const teamName = n.title.split('|')[0];
+        const t = updatedTeams.find(x => x.name === teamName);
+        if (!t) return false;
+        
+        // ÖNEMLİ: Çakma takımları (Avrupa Ligi) ve farklı ligleri ele
+        if (t.leagueId === 'EUROPE_LEAGUE') return false;
+        
+        return (t.leagueId || 'LEAGUE') === userLeagueId;
+    });
+
     updatedTeams = teamsAfterTransfers;
+    let newTransferList = transferListAfterTransfers;
+
+    // --- REFILL TRANSFER LIST IF LOW ---
+    if (isTransferWindowOpen(nextDate) && newTransferList.length < 30) {
+        // Generate a small batch to ensure supply
+        newTransferList = [...newTransferList, ...generateTransferMarket(20, nextDate)];
+    }
 
     let newIncomingOffers: IncomingOffer[] = [];
     const withdrawnNews: any[] = [];
@@ -702,7 +741,7 @@ export const processNextDayLogic = (
 
     const dailyNews = generateWeeklyNews(currentState.currentWeek, updatedFixtures, updatedTeams, currentState.myTeamId);
     
-    let newTransferList = [...currentState.transferList];
+    // Add market players to transfer list occasionally (existing logic)
     if (isTransferWindowOpen(nextDate)) {
         if (newTransferList.length > 5 && Math.random() > 0.7) newTransferList.shift(); 
         if (Math.random() > 0.6) newTransferList = [...newTransferList, ...generateTransferMarket(1, nextDate)];
@@ -784,7 +823,7 @@ export const processNextDayLogic = (
         return null;
     }
 
-    const filteredNews = [...withdrawnNews, ...transferNews, ...dailyNews, ...currentState.news].slice(0, 30);
+    const filteredNews = [...withdrawnNews, ...filteredTransferNews, ...dailyNews, ...currentState.news].slice(0, 30);
 
     return {
         currentDate: nextDate,

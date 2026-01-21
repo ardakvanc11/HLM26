@@ -1,6 +1,4 @@
 
-
-
 import { Player, Team, Position, TrainingType, TrainingIntensity, TrainingConfig, TrainingReportItem, PlayerPersonality, ManagerProfile } from '../types';
 import { generatePlayer } from '../constants';
 import { calculateMarketValue } from '../data/playerConstants';
@@ -56,6 +54,30 @@ export const generateTransferMarket = (count: number, dateStr: string): Player[]
         player.value = calculateMarketValue(player.position, player.skill, player.age);
         let marketValue = (player.value * (0.8 + Math.random() * 0.4)) * priceMultiplier;
         player.value = Number(marketValue.toFixed(1));
+
+        // --- NEW: LISTING LOGIC ---
+        if (!isFreeAgent) {
+            player.transferListed = true; // Default: Listed for transfer
+            
+            // Loan Listing Logic
+            // Based on Age and Hidden Loan Willingness
+            const willingness = player.loanWillingness || 50;
+            let loanChance = 0.1; // Base chance
+
+            // Young players are more likely to be loan listed
+            if (player.age <= 22) loanChance += 0.4;
+            
+            // High willingness increases chance
+            if (willingness > 70) loanChance += 0.3;
+            
+            // Low skill players in market might be loan listed more often
+            if (player.skill < 70) loanChance += 0.1;
+
+            if (Math.random() < loanChance) {
+                player.loanListed = true;
+            }
+        }
+
         players.push(player);
     }
     return players;

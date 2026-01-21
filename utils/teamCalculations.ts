@@ -475,7 +475,8 @@ export const calculateTeamReputation = (team: Team): number => {
     return team.reputation || 1;
 };
 
-export const calculateMonthlyNetFlow = (team: Team, fixtures: Fixture[], currentDate: string, manager?: ManagerProfile): number => {
+// MODIFIED: Accepts optional excludeTransfers boolean
+export const calculateMonthlyNetFlow = (team: Team, fixtures: Fixture[], currentDate: string, manager?: ManagerProfile, excludeTransfers: boolean = false): number => {
     const dateObj = new Date(currentDate);
     const currentMonth = dateObj.getMonth();
     const currentYear = dateObj.getFullYear();
@@ -512,7 +513,10 @@ export const calculateMonthlyNetFlow = (team: Team, fixtures: Fixture[], current
     const inc_Gate = homePlayedThisMonth.length * (fanFactor * 0.01944444);
     const inc_Loca = inc_Gate * 0.45;
 
-    const inc_Transfers = manager && manager.contract.teamName === team.name ? (manager.stats.transferIncomeThisMonth || 0) : 0;
+    // Apply exclusion logic
+    const inc_Transfers = (!excludeTransfers && manager && manager.contract.teamName === team.name) 
+        ? (manager.stats.transferIncomeThisMonth || 0) 
+        : 0;
 
     const totalIncome = inc_Sponsor + inc_Merch + inc_Trade + inc_TV + inc_Gate + inc_Loca + inc_Transfers;
 
@@ -527,9 +531,68 @@ export const calculateMonthlyNetFlow = (team: Team, fixtures: Fixture[], current
     
     const exp_Debt = (team.initialDebt || 0) / 60;
     
-    const exp_Transfers = manager && manager.contract.teamName === team.name ? (manager.stats.transferSpendThisMonth || 0) : 0;
+    // Apply exclusion logic
+    const exp_Transfers = (!excludeTransfers && manager && manager.contract.teamName === team.name) 
+        ? (manager.stats.transferSpendThisMonth || 0) 
+        : 0;
 
     const totalExpense = monthlyWages + exp_Staff + exp_Stadium + exp_Academy + exp_Debt + exp_Transfers + 0.35; 
 
     return totalIncome - totalExpense;
+};
+
+// NEW FUNCTION: Calculate the percentage of transfer fee that goes to budget
+// LOGIC: Base calculation using Debt/Reputation + Monthly Net Flow Modifier
+export const calculateTransferRevenueRetention = (team: Team, monthlyNet: number, objectivesMet: boolean): number => {
+    const reputation = team.reputation || 1.0;
+    const debt = team.initialDebt || 0;
+
+    // 1. Determine Debt Threshold based on Reputation (Base Logic)
+    let threshold = 3; // Default (Rep ~1.0)
+    if (reputation >= 4.5) threshold = 800;
+    else if (reputation >= 4.0) threshold = 500;
+    else if (reputation >= 3.5) threshold = 100;
+    else if (reputation >= 3.0) threshold = 20; 
+    else if (reputation >= 2.0) threshold = 5;  
+    else threshold = 3; // Rep < 2.0
+
+    // 2. Calculate BASE Percentage from Debt Situation
+    let basePct = 100;
+
+    if (debt > threshold) {
+        // Crisis Mode base calculation
+        const ratio = threshold / debt;
+        basePct = 10 + (39 * ratio);
+    } else {
+        // Okay Mode base calculation
+        const ratio = debt / threshold;
+        basePct = 100 - (30 * ratio);
+    }
+
+    // Optional: Small bonus for objectives
+    if (objectivesMet) {
+        basePct += 5;
+    }
+
+    // 3. Apply Financial Status Penalty based on Monthly Net Flow
+    // Zengin (>10): 0% penalty
+    // Güvende (>0): 5% penalty
+    // Dengeli (>=-5): 10% penalty
+    // Riskli (< -5): 20% penalty
+    
+    let penalty = 0;
+    if (monthlyNet > 10) {
+        penalty = 0;
+    } else if (monthlyNet > 0) {
+        penalty = 5;
+    } else if (monthlyNet >= -5) {
+        penalty = 10;
+    } else {
+        penalty = 20;
+    }
+
+    let finalPct = basePct - penalty;
+
+    // 4. Clamp result (Min 5%, Max 100%)
+    return Math.floor(Math.max(5, Math.min(100, finalPct)));
 };

@@ -3,6 +3,45 @@ import { Position, PlayerStats, Player, PlayerFaceData, PlayerPersonality } from
 import { FACE_ASSETS } from './uiConstants';
 import { generateId } from './gameConstants';
 
+// Turkish Translations for Stat Keys - EXPORTED GLOBAL
+export const STAT_TRANSLATIONS: Record<string, string> = {
+    finishing: 'Bitiricilik',
+    composure: 'Soğukkanlılık',
+    firstTouch: 'İlk Kontrol',
+    passing: 'Pas',
+    vision: 'Vizyon',
+    decisions: 'Karar Alma',
+    dribbling: 'Dripling',
+    balance: 'Denge',
+    acceleration: 'Hızlanma',
+    concentration: 'Konsantrasyon',
+    leadership: 'Liderlik',
+    determination: 'Kararlılık',
+    teamwork: 'Takım Oyunu',
+    stamina: 'Dayanıklılık',
+    naturalFitness: 'Vücut Zindeliği',
+    pace: 'Hız',
+    physical: 'Güç',
+    aggression: 'Agresiflik',
+    agility: 'Çeviklik',
+    positioning: 'Pozisyon Alma',
+    anticipation: 'Önsezi',
+    marking: 'Markaj',
+    tackling: 'Top Kapma',
+    crossing: 'Orta Yapma',
+    heading: 'Kafa Vuruşu',
+    longShots: 'Uzaktan Şut',
+    penalty: 'Penaltı',
+    freeKick: 'Serbest Vuruş',
+    longThrows: 'Uzun Taç',
+    bravery: 'Cesaret',
+    workRate: 'Çalışkanlık',
+    flair: 'Özel Yetenek',
+    offTheBall: 'Topsuz Alan',
+    jumping: 'Zıplama',
+    technique: 'Teknik'
+};
+
 // Random Turkish First Names - EXPORTED
 export const FIRST_NAMES = [
     'Ahmet','Mehmet','Mustafa','Can','Burak','Emre','Arda','Semih','Cenk','Hakan','Oğuzhan','Volkan','Onur','Gökhan','Selçuk','Mert','Altay','Uğur','Kerem','Yunus','Barış','Ferdi','İrfan','Ozan','Salih','Taylan','Berkan','Halil','Kenan','Umut','Enes','Çağlar','Yiğit','Efe','Berat','Emir','Kaan','Doruk','Çınar','Rüzgar',
@@ -431,6 +470,30 @@ export const generatePlayer = (position: Position, targetSkill: number, teamId: 
         tattoo: Math.random() < 0.04 ? FACE_ASSETS.tattoo[skinIndex === 2 ? 0 : 1] : undefined
     };
 
+    // --- LOAN WILLINGNESS CALCULATION (HIDDEN ATTRIBUTE) ---
+    // 0 = Refuses loans, 100 = Desperate for loans
+    let loanWillingness = 50; // Neutral base
+
+    // Age Factor
+    if (age >= 28) {
+        // Older players generally dislike loans unless surplus
+        loanWillingness -= 30; 
+    } else if (age <= 21) {
+        // Young players generally want loans for development
+        loanWillingness += 30; 
+    } else if (age >= 24 && age < 28) {
+        // Prime years: slightly averse
+        loanWillingness -= 10;
+    }
+
+    // Personality Factor
+    // Ambitious/Hardworking might accept loans to play. Lazy might stay put.
+    // We add a random factor to simulate personality variance
+    loanWillingness += (Math.random() * 40 - 20); 
+
+    // Clamp 0-100
+    loanWillingness = Math.max(0, Math.min(100, Math.floor(loanWillingness)));
+
     return {
         id: generateId(), name, position, secondaryPosition, skill, potential, stats,
         seasonStats: { goals: 0, assists: 0, yellowCards: 0, redCards: 0, ratings: [], averageRating: 0, matchesPlayed: 0, processedMatchIds: [] },
@@ -442,6 +505,8 @@ export const generatePlayer = (position: Position, targetSkill: number, teamId: 
         injuryHistory: [],
         personality: getRandomPersonality(), 
         activeTrainingWeeks: 0, 
-        statProgress: {} 
+        statProgress: {},
+        suspensions: {}, // Initialize empty suspensions
+        loanWillingness: loanWillingness // Hidden attribute
     };
 };

@@ -246,18 +246,45 @@ const TransferOfferNegotiationView: React.FC<TransferOfferNegotiationViewProps> 
         } else {
             // --- LOAN LOGIC (UPDATED) ---
 
-            // 1. OYUNCU İRADESİ: Mutlu ve Yüksek Statüdeki Oyuncu Kiralık Gitmeyi Reddeder
+            // 1. OYUNCU İRADESİ (KİRALIK İSTEMEME DURUMU - GİZLİ KARAKTER)
+            // loanWillingness: 0 (Hiç istemez) - 100 (Çok ister)
+            // Eğer loanWillingness < 25 ise oyuncu kesin reddeder (kulüp anlaşsa bile)
+            // Eğer loanWillingness < 40 ise zorluk çıkarır (büyük ihtimalle reddeder)
+            const loanWill = player.loanWillingness !== undefined ? player.loanWillingness : 50;
+            
+            if (loanWill < 25) {
+                // Oyuncu kesin reddediyor (Yaşlı veya karaktersel)
+                setStatus('REJECTED');
+                setHasBeenRejected(true);
+                
+                const reason = player.age > 28 
+                    ? "Kariyerimin bu aşamasında kiralık gitmek istemiyorum. Sadece kalıcı transferleri değerlendiririm."
+                    : "Kiralık olarak dolaşmak istemiyorum, düzenli bir kariyer planı istiyorum.";
+                
+                setFeedback(`KULÜP KABUL ETTİ FAKAT OYUNCU REDDETTİ! \n\n${player.name}: "${reason}"`);
+                return;
+            }
+
+            // 2. OYUNCU İRADESİ: Mutlu ve Yüksek Statüdeki Oyuncu Kiralık Gitmeyi Reddeder
             const isHappy = player.morale > 70;
             const isHighStatus = ['STAR', 'IMPORTANT'].includes(player.squadStatus || '');
 
-            if (isHappy && isHighStatus) {
+            if (mode === 'BUY' && isHappy && isHighStatus) {
                 setStatus('REJECTED');
                 setHasBeenRejected(true);
                 setFeedback(`OYUNCU REDDETTİ! ${player.name}: "Takımda mutluyum ve önemli bir rolüm var. Kiralık olarak başka bir yere gitmek istemiyorum."`);
                 return;
             }
 
-            // 2. KULÜP ENGELİ: İlk 11 Oyuncuları AI tarafından kolay kolay verilmez (BUY Mode)
+            // 3. KULÜP POLİTİKASI: PİYASA DEĞERİ LİMİTİ (>50M€)
+            if (player.value > 50) {
+                setStatus('REJECTED');
+                setHasBeenRejected(true);
+                setFeedback(`REDDEDİLDİ! Kulüp Yönetimi: "Piyasa değeri ${player.value} M€ olan bir oyuncuyu kiralık göndermemiz kulüp politikalarına aykırıdır. Sadece bonservisiyle satış görüşülebilir."`);
+                return;
+            }
+
+            // 4. KULÜP ENGELİ: KADRO STATÜSÜ (İlk 11, Yıldız, Önemli Oyuncular)
             const nonLoanableStatuses = ['STAR', 'IMPORTANT', 'FIRST_XI'];
             const playerStatus = player.squadStatus; 
             const isImportantStatus = playerStatus && nonLoanableStatuses.includes(playerStatus);
@@ -275,10 +302,22 @@ const TransferOfferNegotiationView: React.FC<TransferOfferNegotiationViewProps> 
                 return;
             }
 
-            // 3. Normal Pazarlık (Eğer engelleri aşarsa)
+            // 5. Normal Pazarlık (Reluctance Calculation)
             let reluctance = 0;
             
-            // Oyuncunun gücüne göre hafif bir direnç ekle
+            // YAŞ FAKTÖRÜ (YENİ)
+            if (player.age <= 19) {
+                reluctance -= 40; // 17-19 Yaş: Çok Kolay (Gelişsin diye yollarlar)
+            } else if (player.age <= 23) {
+                reluctance -= 15; // 20-23 Yaş: Kolay (Pişsin diye)
+            } else {
+                // 24+ Yaş: İhtiyaç fazlası değilse kiralama zorlaşır
+                if (player.squadStatus !== 'SURPLUS' && player.squadStatus !== 'JOKER') {
+                    reluctance += 25; // Satmayı tercih ederler
+                }
+            }
+            
+            // Oyuncunun gücüne göre ek direnç
             reluctance += (player.skill * 0.5); 
 
             // Wage contribution is huge factor. 
@@ -318,7 +357,7 @@ const TransferOfferNegotiationView: React.FC<TransferOfferNegotiationViewProps> 
                 }
             } else {
                 setStatus('REJECTED');
-                setFeedback("Teklifiniz, oyuncunun kalitesi göz önüne alındığında yetersiz bulundu.");
+                setFeedback("Teklifiniz, oyuncunun kalitesi ve durumu göz önüne alındığında yetersiz bulundu.");
             }
         }
     };
