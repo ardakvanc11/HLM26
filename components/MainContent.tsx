@@ -95,6 +95,7 @@ interface MainContentProps {
     handleRejectOffer: (offer: IncomingOffer) => void;
     handleToggleTrainingDelegation: () => void;
     handleBoardRequest: (type: string, isDebug?: boolean) => void; // NEW
+    handleToggleShortlist: (playerId: string) => void; // NEW PROP
     negotiatingTransferPlayer: Player | null; 
     setNegotiatingTransferPlayer: React.Dispatch<React.SetStateAction<Player | null>>; 
     incomingTransfer: PendingTransfer | null; 
@@ -164,6 +165,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
         handleRejectOffer,
         handleToggleTrainingDelegation,
         handleBoardRequest,
+        handleToggleShortlist, // Added
         negotiatingTransferPlayer,
         setNegotiatingTransferPlayer,
         incomingTransfer,
@@ -228,6 +230,16 @@ const MainContent: React.FC<MainContentProps> = (props) => {
         }));
         
         alert("Bütçe dağılımı başarıyla güncellendi!"); 
+    };
+
+    const handleManagerContractUpdate = (newWage: number, newExpiry: number) => {
+        setGameState(prev => ({
+            ...prev,
+            manager: {
+                ...prev.manager!,
+                contract: { ...prev.manager!.contract, salary: newWage, expires: newExpiry }
+            }
+        }));
     };
 
     // Handler for clicking competition in player stats OR fixture list
@@ -600,6 +612,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     playTime={gameState.playTime}
                     onRetire={handleRetire}
                     onTerminateContract={handleTerminateContract}
+                    onUpdateManagerContract={handleManagerContractUpdate} // Passed here
                 />
             )}
             
@@ -691,6 +704,9 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     // Persist state
                     savedState={transferViewState}
                     onSaveState={setTransferViewState}
+                    // MISSING PROPS ADDED HERE
+                    allTeams={gameState.teams}
+                    shortlist={gameState.shortlist}
                 />
             )}
 
@@ -800,6 +816,8 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     fixtures={gameState.fixtures}
                     onCompetitionClick={handleCompetitionClick} // PASS HANDLER
                     isTransferWindowOpen={isTransferWindowOpen} // PASS PROP
+                    shortlist={gameState.shortlist || []} // PASS SHORTLIST
+                    onToggleShortlist={handleToggleShortlist} // PASS TOGGLE
                 />
             )}
 

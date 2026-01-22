@@ -1,9 +1,7 @@
 
-
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Player, Team, IncomingOffer, TransferViewState } from '../types';
-import { Lock, ChevronLeft, ChevronRight, ArrowUpDown, Filter, Search, X, Check, AlertCircle, Plane, Coins, Maximize2, Minimize2, Unlock, List, Wallet, Briefcase, Mail, Handshake, ArrowRight, UserPlus, Globe, Plus, Trash2, Settings, UserMinus } from 'lucide-react';
+import { Lock, ChevronLeft, ChevronRight, ArrowUpDown, Filter, Search, X, Check, AlertCircle, Plane, Coins, Maximize2, Minimize2, Unlock, List, Wallet, Briefcase, Mail, Handshake, ArrowRight, UserPlus, Globe, Plus, Trash2, Settings, UserMinus, Eye } from 'lucide-react';
 import PlayerFace from '../components/shared/PlayerFace';
 import { calculatePlayerWage } from '../utils/teamCalculations';
 import { STAT_TRANSLATIONS } from '../data/playerConstants';
@@ -23,6 +21,8 @@ interface TransferViewProps {
     onNegotiateOffer?: (offer: IncomingOffer) => void;
     savedState?: TransferViewState | null;
     onSaveState?: (state: TransferViewState) => void;
+    allTeams?: Team[]; // Added prop for Shortlist lookup
+    shortlist?: string[]; // Added prop
 }
 
 // Filter Types
@@ -31,7 +31,7 @@ interface AttributeFilter {
     min: number;
 }
 
-const TransferView: React.FC<TransferViewProps> = ({ transferList, team, budget, isWindowOpen, onBuy, onPlayerClick, incomingOffers, onAcceptOffer, onRejectOffer, onNegotiateOffer, savedState, onSaveState }) => {
+const TransferView: React.FC<TransferViewProps> = ({ transferList, team, budget, isWindowOpen, onBuy, onPlayerClick, incomingOffers, onAcceptOffer, onRejectOffer, onNegotiateOffer, savedState, onSaveState, allTeams, shortlist = [] }) => {
     // Initialize State with Saved State if available, else defaults
     const [searchTerm, setSearchTerm] = useState(savedState?.searchTerm || '');
     const [currentPage, setCurrentPage] = useState(savedState?.currentPage || 1);
@@ -40,6 +40,7 @@ const TransferView: React.FC<TransferViewProps> = ({ transferList, team, budget,
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(savedState?.isFilterOpen || false); // Renamed and used for modal
     const [isExpanded, setIsExpanded] = useState(false);
     const [isOffersModalOpen, setIsOffersModalOpen] = useState(false);
+    const [isShortlistModalOpen, setIsShortlistModalOpen] = useState(false); // NEW STATE
     
     // Quick Filters State
     const [quickFilters, setQuickFilters] = useState<{ transfer: boolean, loan: boolean }>(savedState?.quickFilters || { transfer: false, loan: false });
@@ -121,6 +122,36 @@ const TransferView: React.FC<TransferViewProps> = ({ transferList, team, budget,
         if (val >= 65) return 'text-yellow-400';
         return 'text-slate-400';
     };
+
+    // --- SHORTLIST LOGIC ---
+    const shortlistPlayers = useMemo(() => {
+        if (!shortlist || shortlist.length === 0) return [];
+        
+        // Try to find player object from ALL possible sources
+        // 1. Transfer List
+        // 2. All Teams (if provided)
+        const players: Player[] = [];
+        
+        shortlist.forEach(id => {
+            // Check Transfer List first
+            let p = transferList.find(x => x.id === id);
+            
+            // If not found, check teams
+            if (!p && allTeams) {
+                for (const t of allTeams) {
+                    const found = t.players.find(x => x.id === id);
+                    if (found) {
+                        p = found;
+                        break;
+                    }
+                }
+            }
+
+            if (p) players.push(p);
+        });
+
+        return players;
+    }, [shortlist, transferList, allTeams]);
 
     // --- FILTERING & SORTING ---
 
@@ -482,6 +513,98 @@ const TransferView: React.FC<TransferViewProps> = ({ transferList, team, budget,
                 </div>
             )}
 
+            {/* SHORTLIST MODAL */}
+            {isShortlistModalOpen && (
+                <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setIsShortlistModalOpen(false)}>
+                    <div className="bg-slate-800 w-full max-w-4xl rounded-xl border border-slate-700 shadow-2xl flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
+                        <div className="p-4 border-b border-slate-700 bg-slate-900 flex justify-between items-center">
+                            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                <Eye className="text-blue-500"/> Takip Listesi ({shortlistPlayers.length})
+                            </h3>
+                            <button onClick={() => setIsShortlistModalOpen(false)} className="text-slate-400 hover:text-white"><X size={24}/></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-0 custom-scrollbar">
+                            <table className="w-full text-left text-sm border-collapse">
+                                <thead className="bg-slate-950 sticky top-0 z-10 shadow-md">
+                                    <tr>
+                                        <th className="p-3 w-10 text-center text-slate-500 font-bold">Bil</th>
+                                        <th className="p-3">Oyuncu</th>
+                                        <th className="p-3 text-center">Ülke</th>
+                                        <th className="p-3 text-center">Kulüp</th>
+                                        <th className="p-3 text-center">Mevki</th>
+                                        <th className="p-3 text-center">Yaş</th>
+                                        <th className="p-3 text-center">Güç</th>
+                                        <th className="p-3 text-right">Değer</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800">
+                                    {shortlistPlayers.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={8} className="p-12 text-center text-slate-500 italic">
+                                                Takip listenizde henüz oyuncu bulunmuyor.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        shortlistPlayers.map(p => {
+                                            const displayClub = p.clubName || (p.teamId === 'free_agent' ? 'Serbest' : 'Yurt Dışı Kulübü');
+                                            
+                                            // Find Team Name if ID is standard
+                                            let teamName = displayClub;
+                                            if (allTeams) {
+                                                const foundTeam = allTeams.find(t => t.id === p.teamId);
+                                                if (foundTeam) teamName = foundTeam.name;
+                                            }
+
+                                            return (
+                                                <tr 
+                                                    key={p.id} 
+                                                    onClick={() => { onPlayerClick(p); setIsShortlistModalOpen(false); }}
+                                                    className="bg-slate-900 hover:bg-slate-800 transition-colors cursor-pointer group"
+                                                >
+                                                    <td className="p-3 text-center">
+                                                        <div className="flex flex-col gap-1 items-center">
+                                                            {p.id === 'placeholder' && <span className="w-2 h-2 rounded-full bg-blue-500"></span>}
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-full bg-slate-700 overflow-hidden border border-slate-600 shrink-0">
+                                                                <PlayerFace player={p} />
+                                                            </div>
+                                                            <span className="font-bold text-white group-hover:text-blue-400 transition-colors">{p.name}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-3 text-center">
+                                                        <span className="text-slate-400 text-xs font-mono uppercase">{p.nationality}</span>
+                                                    </td>
+                                                    <td className="p-3 text-center text-slate-300 text-xs truncate max-w-[120px]">
+                                                        {teamName}
+                                                    </td>
+                                                    <td className="p-3 text-center">
+                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold text-white ${getPosBadgeColor(p.position)}`}>
+                                                            {p.position}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-3 text-center text-slate-300 font-mono">{p.age}</td>
+                                                    <td className="p-3 text-center">
+                                                        <span className={`font-black text-lg ${getSkillColor(p.skill)}`}>
+                                                            {p.skill}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-3 text-right font-mono font-bold text-slate-200">
+                                                        {p.value.toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1})} M€
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* INCOMING OFFERS MODAL */}
             {isOffersModalOpen && (
                 <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setIsOffersModalOpen(false)}>
@@ -800,12 +923,15 @@ const TransferView: React.FC<TransferViewProps> = ({ transferList, team, budget,
                             </div>
                         </div>
 
-                        {/* 2. Takip Listesi */}
-                        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-center relative overflow-hidden">
+                        {/* 2. Takip Listesi (EDITED: Clickable) */}
+                        <div 
+                            className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-center relative overflow-hidden cursor-pointer hover:bg-slate-800 transition group"
+                            onClick={() => setIsShortlistModalOpen(true)}
+                        >
                             <h4 className="text-slate-500 text-[10px] uppercase font-bold mb-1 tracking-wider">Takip Listesi</h4>
                             <div className="text-xl font-black text-white flex items-center gap-2">
                                 <List size={20} className="text-blue-500"/>
-                                0 <span className="text-xs font-bold text-slate-600 uppercase mt-1">Oyuncu</span>
+                                {shortlistPlayers.length} <span className="text-xs font-bold text-slate-600 uppercase mt-1">Oyuncu</span>
                             </div>
                         </div>
 

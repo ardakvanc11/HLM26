@@ -138,7 +138,7 @@ export const simulatePlayerDevelopmentAndAging = (player: Player, trainingIntens
             if (stats[targetStat] > 1) {
                 // @ts-ignore
                 stats[targetStat] = Math.max(1, Math.floor(stats[targetStat] - 1));
-                recentChanges[targetStat] = 'DOWN';
+                recentChanges[targetStat as string] = 'DOWN';
                 changed = true;
                 
                 let ovrDropChance = 0.1;
@@ -170,7 +170,7 @@ export const simulatePlayerDevelopmentAndAging = (player: Player, trainingIntens
             if (stats[targetStat] < 20) {
                 // @ts-ignore
                 stats[targetStat] = Math.min(20, Math.floor(stats[targetStat] + 1));
-                recentChanges[targetStat] = 'UP';
+                recentChanges[targetStat as string] = 'UP';
                 changed = true;
 
                 if (Math.random() < 0.30) {

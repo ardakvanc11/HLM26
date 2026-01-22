@@ -193,13 +193,13 @@ export const applyTraining = (team: Team, config: TrainingConfig): { updatedTeam
                 // @ts-ignore
                 statProgress[statName] = 0; // Reset pool
                 
-                recentChanges[statName] = 'UP'; // VISUAL MARKER
+                recentChanges[statName as string] = 'UP'; // VISUAL MARKER
 
                 // Add to Report (Major Event)
                 report.push({
                     playerId: p.id,
                     playerName: p.name,
-                    message: `${statName.toUpperCase()} özelliği gelişti! (${currentVal} -> ${currentVal+1})`,
+                    message: `${(statName as string).toUpperCase()} özelliği gelişti! (${currentVal} -> ${currentVal+1})`,
                     type: 'POSITIVE'
                 });
                 

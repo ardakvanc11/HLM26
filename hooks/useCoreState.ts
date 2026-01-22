@@ -22,6 +22,7 @@ export const useCoreState = () => {
         lastSeenInjuryCount: 0,
         pendingTransfers: [],
         incomingOffers: [],
+        shortlist: [], // NEW: Initialize Shortlist
         seasonChampion: null,
         lastSeasonSummary: null,
         lastTrainingReport: [],

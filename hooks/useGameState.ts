@@ -222,6 +222,7 @@ export const useGameState = () => {
         handlePlayerUpdate: playerActions.handlePlayerUpdate,
         handleCancelTransfer: playerActions.handleCancelTransfer,
         handleMessageReply: playerActions.handleMessageReply,
+        handleToggleShortlist: playerActions.handleToggleShortlist, // NEW
 
         handleTakeEmergencyLoan: finance.handleTakeEmergencyLoan,
         handleUpdateSponsor: finance.handleUpdateSponsor,

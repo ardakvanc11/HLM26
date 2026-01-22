@@ -1,6 +1,8 @@
 
+
+
 import React from 'react';
-import { GameState, Player, IncomingOffer, PendingTransfer, TrainingConfig, IndividualTrainingType, Position } from '../types';
+import { GameState, Player, IncomingOffer, PendingTransfer, TrainingConfig, IndividualTrainingType, Position, Team } from '../types';
 import { calculateTransferStrengthImpact, recalculateTeamStrength, calculateMonthlyNetFlow, applyTraining, calculateTransferRevenueRetention } from '../utils/gameEngine';
 import { generateStarSoldRiotTweets } from '../utils/newsAndSocial';
 
@@ -80,6 +82,18 @@ export const usePlayerActions = (
         }));
     };
 
+    // --- NEW: TOGGLE SHORTLIST ---
+    const handleToggleShortlist = (playerId: string) => {
+        setGameState(prev => {
+            const list = prev.shortlist || [];
+            if (list.includes(playerId)) {
+                return { ...prev, shortlist: list.filter(id => id !== playerId) };
+            } else {
+                return { ...prev, shortlist: [...list, playerId] };
+            }
+        });
+    };
+
     const handleBuyPlayer = (player: Player) => {
         if (!gameState.myTeamId) return;
         const myTeam = gameState.teams.find(t => t.id === gameState.myTeamId)!;
@@ -111,7 +125,16 @@ export const usePlayerActions = (
             };
             updatedTeam.transferHistory = [...(updatedTeam.transferHistory || []), record];
 
-            setGameState(prev => ({ ...prev, transferList: newTransferList, teams: prev.teams.map(t => t.id === myTeam.id ? updatedTeam : t), manager: updatedManager }));
+            // Remove from shortlist if bought
+            const updatedShortlist = (gameState.shortlist || []).filter(id => id !== player.id);
+
+            setGameState(prev => ({ 
+                ...prev, 
+                transferList: newTransferList, 
+                teams: prev.teams.map(t => t.id === myTeam.id ? updatedTeam : t), 
+                manager: updatedManager,
+                shortlist: updatedShortlist 
+            }));
             alert(`${player.name} takımınıza katıldı!`);
         } else alert("Bütçeniz yetersiz!");
     };
@@ -212,7 +235,7 @@ export const usePlayerActions = (
         const financials = { ...myTeam.financialRecords };
         financials.income.transfers += player.value;
         
-        let updatedTeam = { 
+        let updatedTeam: Team = { 
             ...myTeam, 
             budget: myTeam.budget + budgetAddition,
             // Mevcut borçtan düş, borç 0'ın altına inmesin
@@ -701,6 +724,7 @@ export const usePlayerActions = (
         handlePlayerInteraction,
         handlePlayerUpdate,
         handleCancelTransfer,
-        handleMessageReply
+        handleMessageReply,
+        handleToggleShortlist // NEW EXPORT
     };
 };

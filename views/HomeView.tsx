@@ -4,15 +4,33 @@ import { ManagerProfile, Team, Fixture, StaffRelation } from '../types';
 import { calculateForm, calculateManagerPower } from '../utils/gameEngine';
 import { getFormattedDate } from '../utils/calendarAndFixtures';
 // FIX: Added 'Users' to imports from lucide-react
-import { Home, User, Users, FileText, Heart, Calendar, Star, StarHalf, Feather, AlertTriangle, Clock, Trophy, Wallet, BarChart3, Building2, ArrowRightLeft, TrendingUp, TrendingDown, Power, Check, X, Crown, LogOut, UserCircle2, Smile, Meh, Frown } from 'lucide-react';
+import { Home, User, Users, FileText, Heart, Calendar, Star, StarHalf, Feather, AlertTriangle, Clock, Trophy, Wallet, BarChart3, Building2, ArrowRightLeft, TrendingUp, TrendingDown, Power, Check, X, Crown, LogOut, UserCircle2, Smile, Meh, Frown, FileSignature, CheckCircle, XCircle } from 'lucide-react';
 import StandingsTable from '../components/shared/StandingsTable';
 import HallOfFameModal from '../modals/HallOfFameModal';
 
-const HomeView = ({ manager, team, teams, myTeamId, currentWeek, fixtures, onTeamClick, onFixtureClick, playTime, onRetire, onTerminateContract }: { manager: ManagerProfile, team: Team, teams: Team[], myTeamId: string, currentWeek: number, fixtures: Fixture[], onTeamClick: (id: string) => void, onFixtureClick?: (f: Fixture) => void, playTime: number, onRetire?: () => void, onTerminateContract?: () => void }) => {
+interface HomeViewProps {
+    manager: ManagerProfile;
+    team: Team;
+    teams: Team[];
+    myTeamId: string;
+    currentWeek: number;
+    fixtures: Fixture[];
+    onTeamClick: (id: string) => void;
+    onFixtureClick?: (f: Fixture) => void;
+    playTime: number;
+    onRetire?: () => void;
+    onTerminateContract?: () => void;
+    onUpdateManagerContract?: (wage: number, years: number) => void; // New Prop
+}
+
+const HomeView: React.FC<HomeViewProps> = ({ manager, team, teams, myTeamId, currentWeek, fixtures, onTeamClick, onFixtureClick, playTime, onRetire, onTerminateContract, onUpdateManagerContract }) => {
     const [tab, setTab] = useState('GENERAL');
     const [retireConfirm, setRetireConfirm] = useState(false);
     const [terminateConfirm, setTerminateConfirm] = useState(false);
     const [showHallOfFame, setShowHallOfFame] = useState(false);
+    
+    // Contract Renewal State
+    const [renewalOffer, setRenewalOffer] = useState<{ wage: number, years: number } | null>(null);
     
     // Calculate stats
     // FIX: Find next match based on Date (First unplayed), not strictly currentWeek ID to support cups
@@ -167,9 +185,90 @@ const HomeView = ({ manager, team, teams, myTeamId, currentWeek, fixtures, onTea
         );
     };
 
+    // --- CONTRACT RENEWAL LOGIC ---
+    const handleRequestRenewal = () => {
+        // Condition: Trust >= 80%
+        if (manager.trust.board < 80) {
+            alert("Yönetim Talebi Reddetti!\n\n'Henüz kendinizi tam olarak kanıtlamadınız. İlişkilerimiz %80 seviyesine ulaşmadan yeni sözleşme konuşamayız.'");
+            return;
+        }
+
+        // Generate Offer (Max 1.5x)
+        const currentSalary = manager.contract.salary;
+        const maxSalary = currentSalary * 1.5;
+        const minMultiplier = 1.1;
+        const maxMultiplier = 1.5;
+        const randomMult = minMultiplier + (Math.random() * (maxMultiplier - minMultiplier));
+        
+        const offeredSalary = parseFloat((currentSalary * randomMult).toFixed(2));
+        const extensionYears = 3; 
+
+        setRenewalOffer({ wage: offeredSalary, years: extensionYears });
+    };
+
+    const handleAcceptRenewal = () => {
+        if (renewalOffer && onUpdateManagerContract) {
+            const newExpiry = 2025 + (manager.stats.matchesManaged > 0 ? Math.floor(manager.stats.matchesManaged/34) : 0) + renewalOffer.years; 
+            // Simplified Expiry: Just add years to current year approx or use fixed logic
+            // Since we don't have currentYear easily accessible as string, let's use manager.contract.expires + years
+            const finalExpiry = manager.contract.expires + renewalOffer.years;
+
+            onUpdateManagerContract(renewalOffer.wage, finalExpiry);
+            setRenewalOffer(null);
+            alert("TEBRİKLER!\n\nYeni sözleşme imzalandı. Yönetimle olan bağınız güçlendi.");
+        }
+    };
+
     return (
         <div className="space-y-6 pb-10">
             {showHallOfFame && <HallOfFameModal manager={manager} onClose={() => setShowHallOfFame(false)} />}
+            
+            {/* CONTRACT RENEWAL MODAL */}
+            {renewalOffer && (
+                <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-slate-800 w-full max-w-md rounded-xl border-2 border-blue-500 shadow-2xl p-6 text-center animate-in zoom-in duration-200">
+                        <div className="flex justify-center mb-4">
+                            <div className="bg-blue-500/20 p-4 rounded-full border border-blue-500">
+                                <FileSignature size={48} className="text-blue-500" />
+                            </div>
+                        </div>
+                        <h3 className="text-2xl font-bold text-white mb-2">Sözleşme Yenileme Teklifi</h3>
+                        <p className="text-slate-400 mb-6 text-sm">
+                            Yönetim performansınızdan memnun ve sizinle devam etmek istiyor. İşte teklif:
+                        </p>
+                        
+                        <div className="bg-slate-900/50 p-4 rounded-lg text-left mb-6 space-y-3 border border-slate-700">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-slate-400">Yeni Yıllık Ücret</span>
+                                <span className="text-green-400 font-bold text-lg">{renewalOffer.wage} M€</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                                <span className="text-slate-400">Sözleşme Süresi</span>
+                                <span className="text-white font-bold">+{renewalOffer.years} Yıl</span>
+                            </div>
+                            <div className="h-px bg-slate-700 my-1"></div>
+                            <div className="text-xs text-slate-500 italic text-center">
+                                * Bu teklif son tekliftir ve pazarlığa kapalıdır.
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => setRenewalOffer(null)} 
+                                className="flex-1 py-3 rounded-lg font-bold bg-slate-700 text-white hover:bg-slate-600 transition flex items-center justify-center gap-2"
+                            >
+                                <XCircle size={18}/> Reddet
+                            </button>
+                            <button 
+                                onClick={handleAcceptRenewal} 
+                                className="flex-1 py-3 rounded-lg font-bold bg-green-600 text-white hover:bg-green-500 transition shadow-lg shadow-green-900/20 flex items-center justify-center gap-2"
+                            >
+                                <CheckCircle size={18}/> İmzala
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* New Tabs Style - Scrollable on mobile */}
             <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-700/50 px-2 overflow-x-auto no-scrollbar">
@@ -323,16 +422,20 @@ const HomeView = ({ manager, team, teams, myTeamId, currentWeek, fixtures, onTea
                                         const meta = getFixtureMeta(f); // USE HELPER
                                         
                                         return (
-                                            <div key={f.id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-700/30 p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition cursor-not-allowed">
+                                            <div key={f.id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-700/30 p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-8 text-center bg-white dark:bg-slate-800 rounded py-1 border border-slate-200 dark:border-slate-700">
                                                         <span className="text-xs font-bold text-slate-600 dark:text-slate-400 block">{meta.label}</span>
                                                         <span className="text-[10px] text-slate-400 dark:text-slate-500 block uppercase">{meta.sub}</span>
                                                     </div>
                                                     <div className="flex flex-col">
-                                                        <div className="flex items-center gap-2">
-                                                            {opp?.logo && <img src={opp.logo} className="w-4 h-4 object-contain"/>}
-                                                            <span className="text-sm font-bold text-slate-900 dark:text-white truncate max-w-[120px]">{opp?.name}</span>
+                                                        {/* Clickable Opponent */}
+                                                        <div 
+                                                            className="flex items-center gap-2 cursor-pointer group"
+                                                            onClick={() => onTeamClick(opponentId)}
+                                                        >
+                                                            {opp?.logo && <img src={opp.logo} className="w-4 h-4 object-contain group-hover:scale-110 transition-transform"/>}
+                                                            <span className="text-sm font-bold text-slate-900 dark:text-white truncate max-w-[120px] group-hover:text-yellow-500 transition-colors">{opp?.name}</span>
                                                         </div>
                                                         <span className="text-[10px] text-slate-500 dark:text-slate-400">{dateLabel}</span>
                                                     </div>
@@ -578,9 +681,9 @@ const HomeView = ({ manager, team, teams, myTeamId, currentWeek, fixtures, onTea
                             </div>
                         </div>
                     </div>
-
-                    {/* TERMINATE CONTRACT BUTTON */}
-                    <div className="w-full max-w-xl">
+                    
+                    <div className="w-full max-w-xl space-y-3">
+                        {/* TERMINATE CONTRACT BUTTON */}
                         {!terminateConfirm ? (
                             <button 
                                 onClick={() => setTerminateConfirm(true)}
@@ -607,7 +710,16 @@ const HomeView = ({ manager, team, teams, myTeamId, currentWeek, fixtures, onTea
                                 </div>
                             </div>
                         )}
+
+                        {/* REQUEST RENEWAL BUTTON */}
+                        <button 
+                            onClick={handleRequestRenewal}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 shadow-lg transition-all"
+                        >
+                            <FileSignature size={20} /> Sözleşme Yenileme Talebi
+                        </button>
                     </div>
+
                 </div>
             )}
 

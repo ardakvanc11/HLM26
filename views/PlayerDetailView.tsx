@@ -1,8 +1,7 @@
 
-
 import React, { useState } from 'react';
 import { Player, Position, ManagerProfile, Fixture } from '../types';
-import { ChevronLeft, Trophy, Activity, Heart, Shield, Swords, Zap, Star, TrendingUp, AlertTriangle, Ruler, Anchor, FileText, Goal, ArrowRightLeft, Scale, History, Calendar, Lock, Unlock, Briefcase, Coins, CheckCircle2, ChevronDown, MessageCircle, BedDouble, FileSignature, UserMinus, Smile, Users, ThumbsUp, ThumbsDown, UserCheck, Medal, Crown, X, Check, Wallet, MessageSquare, ListPlus, ListMinus, ArrowUp, ArrowDown, ArrowUpRight, ArrowRight } from 'lucide-react';
+import { ChevronLeft, Trophy, Activity, Heart, Shield, Swords, Zap, Star, TrendingUp, AlertTriangle, Ruler, Anchor, FileText, Goal, ArrowRightLeft, Scale, History, Calendar, Lock, Unlock, Briefcase, Coins, CheckCircle2, ChevronDown, MessageCircle, BedDouble, FileSignature, UserMinus, Smile, Users, ThumbsUp, ThumbsDown, UserCheck, Medal, Crown, X, Check, Wallet, MessageSquare, ListPlus, ListMinus, ArrowUp, ArrowDown, ArrowUpRight, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import PlayerFace from '../components/shared/PlayerFace';
 import PlayerPositionPitch from '../components/shared/PlayerPositionPitch';
 import PlayerStatsTable from '../components/shared/PlayerStatsTable';
@@ -25,9 +24,11 @@ interface PlayerDetailViewProps {
     fixtures?: Fixture[];
     onCompetitionClick?: (compId: string) => void;
     isTransferWindowOpen?: boolean;
+    shortlist?: string[]; // New Prop
+    onToggleShortlist?: (playerId: string) => void; // New Prop
 }
 
-const PlayerDetailView: React.FC<PlayerDetailViewProps> = ({ player, onClose, myTeamId, manager, teammates, onInteract, onUpdatePlayer, onStartNegotiation, onStartTransferNegotiation, onReleasePlayer, currentWeek, fixtures, onCompetitionClick, isTransferWindowOpen }) => {
+const PlayerDetailView: React.FC<PlayerDetailViewProps> = ({ player, onClose, myTeamId, manager, teammates, onInteract, onUpdatePlayer, onStartNegotiation, onStartTransferNegotiation, onReleasePlayer, currentWeek, fixtures, onCompetitionClick, isTransferWindowOpen, shortlist, onToggleShortlist }) => {
     const [activeTab, setActiveTab] = useState<'GENERAL' | 'HAPPINESS' | 'CONTRACT' | 'TRANSFER' | 'DEVELOPMENT' | 'COMPARE' | 'HISTORY'>('GENERAL');
     const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -38,6 +39,8 @@ const PlayerDetailView: React.FC<PlayerDetailViewProps> = ({ player, onClose, my
 
     const isMyPlayer = myTeamId && player.teamId === myTeamId;
     const isNegotiationOnCooldown = player.nextNegotiationWeek && currentWeek && currentWeek < player.nextNegotiationWeek;
+    
+    const isInShortlist = shortlist ? shortlist.includes(player.id) : false;
 
     const actualWage = player.wage !== undefined ? player.wage : calculatePlayerWage(player);
     const estimatedWage = actualWage.toFixed(2);
@@ -83,6 +86,13 @@ const PlayerDetailView: React.FC<PlayerDetailViewProps> = ({ player, onClose, my
                 if (onStartTransferNegotiation) onStartTransferNegotiation(player); else alert("Transfer modülü şu an devre dışı."); break;
             case 'TALK': setInteractionResult(null); setInteractionModal('TALK'); break;
             case 'REST': setInteractionResult(null); setInteractionModal('REST'); break;
+            case 'TOGGLE_SHORTLIST': 
+                if (onToggleShortlist) {
+                    onToggleShortlist(player.id);
+                    if (isInShortlist) alert("Oyuncu takip listesinden çıkarıldı.");
+                    else alert("Oyuncu takip listesine eklendi.");
+                }
+                break;
             default: break;
         }
     };
@@ -289,6 +299,10 @@ const PlayerDetailView: React.FC<PlayerDetailViewProps> = ({ player, onClose, my
                                         Yeni Transfer/Kiralama Teklifi Yap
                                     </>
                                 )}
+                            </button>
+                            <button onClick={() => handleAction('TOGGLE_SHORTLIST')} className={btnClass}>
+                                {isInShortlist ? <EyeOff size={16} className="text-red-500"/> : <Eye size={16} className="text-blue-500"/>}
+                                {isInShortlist ? 'Takip Listesinden Çıkar' : 'Takip Listesine Ekle'}
                             </button>
                         </>
                     )}

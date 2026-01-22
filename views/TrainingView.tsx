@@ -1,8 +1,4 @@
 
-
-
-
-
 import React, { useState, useEffect } from 'react';
 import { Team, TrainingConfig, TrainingType, TrainingIntensity, Player, ManagerProfile, TrainingReportItem } from '../types';
 import { Check, Swords, Shield, Dumbbell, Brain, Crosshair, Zap, Activity, Users, AlertTriangle, Calendar, Info, Play, ClipboardList, TrendingUp, Target, UserCheck, ToggleLeft, ToggleRight, Lock } from 'lucide-react';
@@ -24,9 +20,9 @@ const TrainingView: React.FC<TrainingViewProps> = ({ onTrain, performed, team, m
     const lastReport = gameState.lastTrainingReport || [];
 
     // Initialize state with existing team config or defaults
-    const [mainFocus, setMainFocus] = useState<TrainingType>(team.trainingConfig?.mainFocus || TrainingType.TACTICAL);
-    const [subFocus, setSubFocus] = useState<TrainingType>(team.trainingConfig?.subFocus || TrainingType.PHYSICAL);
-    const [intensity, setIntensity] = useState<TrainingIntensity>(team.trainingConfig?.intensity || TrainingIntensity.STANDARD);
+    const [mainFocus, setMainFocus] = useState<TrainingType>((team.trainingConfig?.mainFocus as TrainingType) || TrainingType.TACTICAL);
+    const [subFocus, setSubFocus] = useState<TrainingType>((team.trainingConfig?.subFocus as TrainingType) || TrainingType.PHYSICAL);
+    const [intensity, setIntensity] = useState<TrainingIntensity>((team.trainingConfig?.intensity as TrainingIntensity) || TrainingIntensity.STANDARD);
     
     // Check delegation status
     const isDelegated = team.isTrainingDelegated || false;
@@ -42,6 +38,7 @@ const TrainingView: React.FC<TrainingViewProps> = ({ onTrain, performed, team, m
     const trainingOptions = [
         { 
             id: TrainingType.ATTACK, 
+            label: 'HÜCUM',
             icon: Swords, 
             color: 'text-purple-500', 
             bg: 'bg-purple-500/10 border-purple-500/50',
@@ -51,6 +48,7 @@ const TrainingView: React.FC<TrainingViewProps> = ({ onTrain, performed, team, m
         },
         { 
             id: TrainingType.DEFENSE, 
+            label: 'SAVUNMA',
             icon: Shield, 
             color: 'text-blue-500', 
             bg: 'bg-blue-500/10 border-blue-500/50',
@@ -60,6 +58,7 @@ const TrainingView: React.FC<TrainingViewProps> = ({ onTrain, performed, team, m
         },
         { 
             id: TrainingType.PHYSICAL, 
+            label: 'FİZİKSEL',
             icon: Dumbbell, 
             color: 'text-green-500', 
             bg: 'bg-green-500/10 border-green-500/50',
@@ -69,6 +68,7 @@ const TrainingView: React.FC<TrainingViewProps> = ({ onTrain, performed, team, m
         },
         { 
             id: TrainingType.TACTICAL, 
+            label: 'TAKTİKSEL',
             icon: Brain, 
             color: 'text-yellow-500', 
             bg: 'bg-yellow-500/10 border-yellow-500/50',
@@ -78,6 +78,7 @@ const TrainingView: React.FC<TrainingViewProps> = ({ onTrain, performed, team, m
         },
         { 
             id: TrainingType.MATCH_PREP, 
+            label: 'MAÇ HAZIRLIĞI',
             icon: Crosshair, 
             color: 'text-slate-400', 
             bg: 'bg-slate-500/10 border-slate-500/50',
@@ -87,6 +88,7 @@ const TrainingView: React.FC<TrainingViewProps> = ({ onTrain, performed, team, m
         },
         { 
             id: TrainingType.SET_PIECES, // ADDED
+            label: 'DURAN TOPLAR',
             icon: Target, 
             color: 'text-orange-500', 
             bg: 'bg-orange-500/10 border-orange-500/50',
@@ -100,6 +102,12 @@ const TrainingView: React.FC<TrainingViewProps> = ({ onTrain, performed, team, m
         if (i === TrainingIntensity.LOW) return 'text-blue-400';
         if (i === TrainingIntensity.STANDARD) return 'text-yellow-400';
         return 'text-red-500';
+    };
+
+    const getIntensityLabel = (i: TrainingIntensity) => {
+        if (i === TrainingIntensity.LOW) return 'DÜŞÜK';
+        if (i === TrainingIntensity.STANDARD) return 'STANDART';
+        return 'YÜKSEK';
     };
 
     const handleConfirm = () => {
@@ -132,7 +140,7 @@ const TrainingView: React.FC<TrainingViewProps> = ({ onTrain, performed, team, m
                 <div className={`flex items-center gap-6 bg-slate-800 p-2 rounded-lg border border-slate-700 transition-opacity ${isDelegated ? 'opacity-50 pointer-events-none' : ''}`}>
                     <div className="text-right px-2">
                         <div className="text-xs font-bold text-slate-500 uppercase">Antrenman Yoğunluğu</div>
-                        <div className={`text-lg font-black ${getIntensityColor(intensity)}`}>{intensity}</div>
+                        <div className={`text-lg font-black ${getIntensityColor(intensity)}`}>{getIntensityLabel(intensity)}</div>
                     </div>
                     <div className="flex gap-1">
                         <button onClick={() => setIntensity(TrainingIntensity.LOW)} className={`p-2 rounded ${intensity === TrainingIntensity.LOW ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400'}`} title="Düşük"><Zap size={16} className={intensity === TrainingIntensity.LOW ? 'fill-white' : ''}/></button>
@@ -199,7 +207,7 @@ const TrainingView: React.FC<TrainingViewProps> = ({ onTrain, performed, team, m
                                                 <opt.icon size={20}/>
                                             </div>
                                             <div className="flex-1 z-10">
-                                                <div className={`font-bold ${opt.color}`}>{opt.id}</div>
+                                                <div className={`font-bold ${opt.color}`}>{opt.label}</div>
                                                 <div className="text-[10px] text-slate-400">{opt.desc}</div>
                                             </div>
                                             {mainFocus === opt.id && <Check className={`ml-auto ${opt.color}`} size={20}/>}
@@ -223,7 +231,7 @@ const TrainingView: React.FC<TrainingViewProps> = ({ onTrain, performed, team, m
                                                 <opt.icon size={16}/>
                                             </div>
                                             <div className="flex-1 z-10">
-                                                <div className={`font-bold ${opt.color} opacity-90`}>{opt.id}</div>
+                                                <div className={`font-bold ${opt.color} opacity-90`}>{opt.label}</div>
                                             </div>
                                             {subFocus === opt.id && <Check className={`ml-auto ${opt.color}`} size={16}/>}
                                         </button>
