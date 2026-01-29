@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { X, Trophy, Medal, Crown } from 'lucide-react';
+import { X, Trophy, Medal, Crown, Star, StarHalf } from 'lucide-react';
 import { ManagerProfile } from '../types';
 import { LEGEND_MANAGERS, LegendManager } from '../data/hallOfFameData';
 import { calculateManagerPower } from '../utils/gameEngine';
@@ -37,6 +38,43 @@ const HallOfFameModal: React.FC<HallOfFameModalProps> = ({ manager, onClose }) =
     // If user is not in top 20, we need to show top 20 AND the user at the bottom
     const userEntry = allManagers[userIndex];
 
+    // Helper to convert Power to Stars based on specific ranges
+    // UPDATED: New ranges per user request
+    const getManagerStarRating = (power: number) => {
+        if (power >= 90) return 5;
+        if (power >= 85) return 4.5;
+        if (power >= 80) return 4;
+        if (power >= 75) return 3.5;
+        if (power >= 70) return 3;
+        if (power >= 65) return 2.5;
+        if (power >= 60) return 2;
+        if (power >= 55) return 1.5;
+        if (power >= 52) return 1;
+        return 0.5; // <= 51
+    };
+
+    const renderManagerStars = (power: number, isUser: boolean = false) => {
+        const rating = getManagerStarRating(power);
+        const fullStars = Math.floor(rating);
+        const hasHalf = rating % 1 !== 0;
+        const emptyStars = 5 - Math.ceil(rating);
+        const starSize = 18;
+
+        return (
+            <div className="flex gap-0.5 justify-center items-center" title={`Güç Puanı: ${power}`}>
+                {[...Array(fullStars)].map((_, i) => (
+                    <Star key={`full-${i}`} size={starSize} className="fill-yellow-400 text-yellow-400 drop-shadow-sm" />
+                ))}
+                {hasHalf && (
+                    <StarHalf size={starSize} className="fill-yellow-400 text-yellow-400 drop-shadow-sm" />
+                )}
+                {[...Array(emptyStars)].map((_, i) => (
+                    <Star key={`empty-${i}`} size={starSize} className="text-slate-700" />
+                ))}
+            </div>
+        );
+    };
+
     return (
         <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4 backdrop-blur-md overflow-hidden">
             <div className="bg-slate-900 w-full max-w-5xl h-[90vh] rounded-2xl border-2 border-yellow-600/50 flex flex-col shadow-2xl relative overflow-hidden">
@@ -68,7 +106,7 @@ const HallOfFameModal: React.FC<HallOfFameModalProps> = ({ manager, onClose }) =
                     <div className="col-span-1 text-center text-yellow-500">Lig</div>
                     <div className="col-span-1 text-center text-blue-400">Kupa</div>
                     <div className="col-span-1 text-center text-purple-400">Avr</div>
-                    <div className="col-span-2 text-center text-white text-base">GÜÇ</div>
+                    <div className="col-span-2 text-center text-white text-base">SEVİYE</div>
                 </div>
 
                 {/* List Container */}
@@ -100,10 +138,8 @@ const HallOfFameModal: React.FC<HallOfFameModalProps> = ({ manager, onClose }) =
                                 <div className="col-span-1 text-center text-purple-500 font-bold font-mono">{m.europeanCups}</div>
                                 <div className="col-span-2 text-center">
                                     <div className="inline-block relative">
-                                        <div className={`text-2xl font-black font-teko tracking-wide ${isUser ? 'text-white scale-110' : 'text-slate-300'}`}>
-                                            {m.power}
-                                        </div>
-                                        {isUser && <div className="absolute -bottom-1 left-0 right-0 h-0.5 bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.8)]"></div>}
+                                        {renderManagerStars(m.power, isUser)}
+                                        {isUser && <div className="absolute -bottom-2 left-0 right-0 h-0.5 bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.8)] opacity-50"></div>}
                                     </div>
                                 </div>
                             </div>
@@ -126,7 +162,7 @@ const HallOfFameModal: React.FC<HallOfFameModalProps> = ({ manager, onClose }) =
                             <div className="col-span-1 text-center text-blue-500 font-bold font-mono">{userEntry.domesticCups}</div>
                             <div className="col-span-1 text-center text-purple-500 font-bold font-mono">{userEntry.europeanCups}</div>
                             <div className="col-span-2 text-center">
-                                <div className="text-2xl font-black font-teko tracking-wide text-white drop-shadow-md">{userEntry.power}</div>
+                                {renderManagerStars(userEntry.power, true)}
                             </div>
                         </div>
                         <div className="bg-black/40 text-center py-1 text-[10px] text-slate-500 uppercase tracking-widest">

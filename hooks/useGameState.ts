@@ -190,6 +190,8 @@ export const useGameState = () => {
 
         // Navigation
         navigateTo: nav.navigateTo,
+        // Add comment above the fix: Include resetTo from useNavigation to allow resetting view history
+        resetTo: nav.resetTo,
         goBack: nav.goBack,
         goForward: nav.goForward,
 
@@ -209,7 +211,7 @@ export const useGameState = () => {
 
         handleTrain: playerActions.handleTrain,
         handleAssignIndividualTraining: playerActions.handleAssignIndividualTraining, 
-        handleAssignPositionTraining: playerActions.handleAssignPositionTraining, // NEW
+        handleAssignPositionTraining: playerActions.handleAssignPositionTraining, 
         handleToggleTrainingDelegation: playerActions.handleToggleTrainingDelegation, 
         handleBuyPlayer: playerActions.handleBuyPlayer,
         handleSellPlayer: playerActions.handleSellPlayer,
@@ -222,10 +224,12 @@ export const useGameState = () => {
         handlePlayerUpdate: playerActions.handlePlayerUpdate,
         handleCancelTransfer: playerActions.handleCancelTransfer,
         handleMessageReply: playerActions.handleMessageReply,
-        handleToggleShortlist: playerActions.handleToggleShortlist, // NEW
+        handleToggleShortlist: playerActions.handleToggleShortlist, 
 
         handleTakeEmergencyLoan: finance.handleTakeEmergencyLoan,
         handleUpdateSponsor: finance.handleUpdateSponsor,
+        // Add comment above the fix: Include handleUpdateBudget from finance hook to fix missing prop error in App.tsx
+        handleUpdateBudget: finance.handleUpdateBudget,
 
         handleBoardRequest, 
 

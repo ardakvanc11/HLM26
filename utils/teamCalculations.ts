@@ -163,6 +163,41 @@ export const calculateEffectiveSkill = (player: Player): number => {
 };
 
 /**
+ * Calculates the RAW Overall Rating (Skill) purely from Attributes.
+ * Used to update player OVR after training without relying on arbitrary increments.
+ */
+export const calculatePlayerOverallFromStats = (player: Player): number => {
+    const weights = STAT_WEIGHTS[player.position] || {};
+    let totalScore = 0;
+    let totalWeight = 0;
+    
+    // If no weights (unmapped position), just return existing skill
+    if (Object.keys(weights).length === 0) return player.skill;
+
+    for (const [statKey, weight] of Object.entries(weights)) {
+        // @ts-ignore
+        let statValue = player.stats[statKey] || 10;
+        // Convert 1-20 attribute to 1-100 scale
+        totalScore += (statValue * 5) * weight;
+        totalWeight += weight;
+    }
+    
+    // Add baseline score for unweighted stats (general athleticism) to prevent drastic drops
+    // A player isn't just their key stats.
+    const averageAllStats = Object.values(player.stats).reduce((a, b) => a + (typeof b === 'number' ? b : 0), 0) / 36;
+    const baselineScore = averageAllStats * 5;
+    
+    if (totalWeight === 0) return Math.round(baselineScore);
+
+    const weightedAvg = totalScore / totalWeight;
+    
+    // Mix: 70% Weighted Key Stats, 30% General Athleticism Baseline
+    const finalRating = (weightedAvg * 0.7) + (baselineScore * 0.3);
+
+    return Math.max(1, Math.min(99, Math.round(finalRating)));
+};
+
+/**
  * Calculates the RAW Weighted Team Strength (THG) based on squad roles.
  * UPDATED: Uses `calculateEffectiveSkill` instead of raw `skill`.
  */
@@ -264,19 +299,25 @@ export const calculateTransferStrengthImpact = (currentVisibleStrength: number, 
 export const recalculateTeamStrength = (team: Team): Team => {
     const newRawStrength = calculateRawTeamStrength(team.players);
     const delta = team.strengthDelta !== undefined ? team.strengthDelta : 0;
-    const potentialVisible = Math.round((newRawStrength + delta) * 10) / 10;
+    
+    // Raw calculation of where the team *should* be
+    const potentialVisible = newRawStrength + delta;
     const currentVisible = team.strength;
     
     let finalVisible = currentVisible;
+    
+    // DAMPENING: Only allow growing by max 0.5 per update to prevent visual bugs (instant 4.5 stars)
     if (potentialVisible > currentVisible) {
-        finalVisible = potentialVisible;
+        finalVisible = Math.min(potentialVisible, currentVisible + 0.5);
+    } else if (potentialVisible < currentVisible) {
+         // Drop slowly as well for stability
+         finalVisible = Math.max(potentialVisible, currentVisible - 0.5);
     }
-    finalVisible = Math.round(finalVisible); 
-
+    
     return {
         ...team,
         rawStrength: newRawStrength,
-        strength: finalVisible
+        strength: Math.round(finalVisible * 10) / 10
     };
 };
 

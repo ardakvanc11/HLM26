@@ -156,7 +156,9 @@ const HomeView: React.FC<HomeViewProps> = ({ manager, team, teams, myTeamId, cur
         return { label: 'Gergin', color: 'text-red-500', icon: Frown };
     };
 
-    // --- STAR RATING LOGIC (Copied from TeamDetailView for consistency) ---
+    // --- STAR RATING LOGIC ---
+    
+    // Team Rating (Existing Logic)
     const getTeamStarRating = (strength: number) => {
         if (strength >= 83) return 5;
         if (strength >= 79) return 4.5;
@@ -170,8 +172,22 @@ const HomeView: React.FC<HomeViewProps> = ({ manager, team, teams, myTeamId, cur
         return 0.5;
     };
 
-    const renderTeamStars = (strength: number, size: number = 24) => {
-        const rating = getTeamStarRating(strength);
+    // Manager Rating (NEW Logic requested)
+    const getManagerStarRating = (power: number) => {
+        if (power >= 90) return 5;
+        if (power >= 85) return 4.5;
+        if (power >= 80) return 4;
+        if (power >= 75) return 3.5;
+        if (power >= 70) return 3;
+        if (power >= 65) return 2.5;
+        if (power >= 60) return 2;
+        if (power >= 55) return 1.5;
+        if (power >= 52) return 1;
+        return 0.5;
+    };
+
+    const renderTeamStars = (strength: number, size: number = 24, isManager: boolean = false) => {
+        const rating = isManager ? getManagerStarRating(strength) : getTeamStarRating(strength);
         const fullStars = Math.floor(rating);
         const hasHalf = rating % 1 !== 0;
         const emptyStars = 5 - Math.ceil(rating);
@@ -180,7 +196,7 @@ const HomeView: React.FC<HomeViewProps> = ({ manager, team, teams, myTeamId, cur
             <div className="flex gap-1 justify-center">
                 {[...Array(fullStars)].map((_, i) => <Star key={`full-${i}`} size={size} className="fill-yellow-500 text-yellow-500 drop-shadow-sm" />)}
                 {hasHalf && <StarHalf size={size} className="fill-yellow-500 text-yellow-500 drop-shadow-sm" />}
-                {[...Array(emptyStars)].map((_, i) => <Star key={`empty-${i}`} size={size} className="text-slate-600 dark:text-slate-700" />)}
+                {[...Array(emptyStars)].map((_, i) => <Star key={`empty-${i}`} size={size} className="text-slate-300 dark:text-slate-700" />)}
             </div>
         );
     };
@@ -468,9 +484,11 @@ const HomeView: React.FC<HomeViewProps> = ({ manager, team, teams, myTeamId, cur
                         <div>
                             <h2 className="text-3xl font-bold text-slate-900 dark:text-white">{manager.name}</h2>
                             <p className="text-slate-500 dark:text-slate-400">{manager.nationality} • {manager.age} Yaşında</p>
-                            <div className="flex items-center justify-center md:justify-start gap-2 mt-2">
-                                <span className="text-yellow-600 dark:text-yellow-500 font-bold text-xl">Güç Seviyesi: {currentManagerPower}</span>
-                                <Star className="fill-yellow-600 dark:fill-yellow-500 text-yellow-600 dark:text-yellow-500" size={20}/>
+                            <div className="flex flex-col items-center md:items-start mt-2">
+                                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Menajer Reytingi</span>
+                                <div className="flex items-center gap-2">
+                                    {renderTeamStars(currentManagerPower, 20, true)}
+                                </div>
                             </div>
                         </div>
                         

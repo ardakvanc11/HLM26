@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Player } from '../../types';
-import { Syringe, Ban, Shirt } from 'lucide-react';
+import { Syringe, Ban, Shirt, RectangleVertical } from 'lucide-react';
 import PlayerFace from './PlayerFace';
 
 interface PitchVisualProps {
@@ -11,6 +11,7 @@ interface PitchVisualProps {
     formation?: string;
     matchCompetitionId?: string; // New Prop for specific suspension check
     currentWeek?: number; // Added to check general suspension expiry
+    redCardedPlayerIds?: string[]; // Added for showing red cards on pitch
 }
 
 const FORMATIONS: Record<string, { left: string, bottom: string }[]> = {
@@ -94,7 +95,7 @@ const FORMATIONS: Record<string, { left: string, bottom: string }[]> = {
     ]
 };
 
-const PitchVisual = ({ players, onPlayerClick, selectedPlayerId, formation = '4-4-2', matchCompetitionId, currentWeek }: PitchVisualProps) => {
+const PitchVisual = ({ players, onPlayerClick, selectedPlayerId, formation = '4-4-2', matchCompetitionId, currentWeek, redCardedPlayerIds = [] }: PitchVisualProps) => {
     // Default to 4-4-2 if formation not found
     const positions = FORMATIONS[formation] || FORMATIONS['4-4-2'];
 
@@ -131,22 +132,22 @@ const PitchVisual = ({ players, onPlayerClick, selectedPlayerId, formation = '4-
                  const posCoords = positions[i] || { left: '50%', bottom: '50%' };
                  
                  let isSuspended = false;
-                 // Use granular check if match context is provided, otherwise generic
-                 if (matchCompetitionId) {
-                     if (p.suspensions && p.suspensions[matchCompetitionId] && p.suspensions[matchCompetitionId] > 0) isSuspended = true;
+                 const effectiveCompId = matchCompetitionId || 'LEAGUE';
+
+                 if (p.suspensions && p.suspensions[effectiveCompId] && p.suspensions[effectiveCompId] > 0) {
+                     isSuspended = true;
                  } else {
-                     // Check against currentWeek if provided, else fallback to simple existence (likely persisted view)
                      if (currentWeek && p.suspendedUntilWeek) {
                          isSuspended = p.suspendedUntilWeek > currentWeek;
-                     } else if (p.suspendedUntilWeek) {
-                         isSuspended = true; // Fallback if no week context
-                     }
+                     } 
                  }
+                 
+                 const isRedCarded = redCardedPlayerIds.includes(p.id);
 
                  return (
                      <div key={p.id} onClick={() => onPlayerClick(p)}
                         className={`absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center cursor-pointer transition-all duration-300 z-10 group
-                            ${isSelected ? 'scale-110 z-20' : 'hover:scale-105'}
+                            ${isSelected ? 'scale-110 z-20' : isRedCarded ? 'grayscale-[80%] opacity-80' : 'hover:scale-105'}
                         `}
                         style={{ left: posCoords.left, bottom: posCoords.bottom }}
                      >
@@ -167,18 +168,27 @@ const PitchVisual = ({ players, onPlayerClick, selectedPlayerId, formation = '4-
                                 {p.skill}
                             </div>
 
+                            {/* Red Card Badge (Top Right Offset - Explicitly visible next to player) */}
+                            {isRedCarded && (
+                                <div className="absolute -top-4 -right-6 z-40 animate-pulse drop-shadow-lg" title="Kırmızı Kart - Oyundan Atıldı">
+                                    <div className="bg-red-600 w-5 h-7 rounded-[2px] border-2 border-white shadow-xl flex items-center justify-center transform rotate-12">
+                                        <div className="w-3 h-5 border border-red-800 bg-red-600"></div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Face Container */}
                             <div className={`w-14 h-14 md:w-16 md:h-16 rounded-full overflow-hidden border-2 bg-slate-200 relative shadow-inner
                                 ${isSelected ? 'border-yellow-400 ring-2 ring-yellow-400/50' : 'border-white'}
                             `}>
                                 <PlayerFace player={p} />
-                                {/* Injury / Suspension Overlays */}
+                                {/* Injury Overlays */}
                                 {p.injury && (
                                     <div className="absolute inset-0 bg-red-500/60 flex items-center justify-center backdrop-blur-[1px]">
                                         <Syringe className="text-white drop-shadow-md" size={24} />
                                     </div>
                                 )}
-                                {isSuspended && (
+                                {isSuspended && !isRedCarded && (
                                     <div className="absolute inset-0 bg-red-500/60 flex items-center justify-center backdrop-blur-[1px]">
                                         <Ban className="text-white drop-shadow-md" size={24} />
                                     </div>
@@ -189,7 +199,7 @@ const PitchVisual = ({ players, onPlayerClick, selectedPlayerId, formation = '4-
                             <div className="mt-[-8px] flex flex-col items-center z-20">
                                 {/* Name & Number */}
                                 <div className={`px-2 py-0.5 rounded-full text-[9px] md:text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-md
-                                    ${isSelected ? 'bg-yellow-500 text-black' : 'bg-slate-900 text-white border border-slate-600'}
+                                    ${isSelected ? 'bg-yellow-500 text-black' : isRedCarded ? 'bg-red-900 text-white border-red-500' : 'bg-slate-900 text-white border border-slate-600'}
                                 `}>
                                     <span className="text-slate-400 font-mono mr-0.5">{i + 1}</span>
                                     {p.name.split(' ').pop()}
@@ -202,13 +212,6 @@ const PitchVisual = ({ players, onPlayerClick, selectedPlayerId, formation = '4-
                                         style={{ width: `${condition}%` }} 
                                     />
                                 </div>
-
-                                {/* Club Name Label (Optional - Used for All-Star/Dream teams, but hidden for own players if generic) */}
-                                {p.clubName && p.clubName !== 'Serbest' && p.clubName !== 'Yurt Dışı Kulübü' && (
-                                    <div className="text-[7px] md:text-[8px] text-white/80 bg-black/40 px-1.5 rounded-sm mt-0.5 leading-tight truncate max-w-[70px] shadow-sm backdrop-blur-[1px]">
-                                        {p.clubName}
-                                    </div>
-                                )}
                             </div>
 
                          </div>

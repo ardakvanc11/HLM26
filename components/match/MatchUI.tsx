@@ -39,7 +39,6 @@ export const MatchScoreboard = ({ homeTeam, awayTeam, homeScore, awayScore, minu
                 <div className="flex flex-col">
                     <span className="text-sm md:text-3xl font-bold truncate block">{homeTeam.name}</span>
                     {homeRedCards > 0 && (<div className="flex gap-1 mt-1">{[...Array(homeRedCards)].map((_, i) => <div key={i} className="w-2 h-3 md:w-3 md:h-4 bg-red-600 rounded-[1px] border border-white/50 shadow-md" title="Kırmızı Kart" />)}</div>)}
-                    <span className="text-[10px] md:text-xs text-slate-500 mt-1">Değişiklik: {homeSubsUsed}/5</span>
                 </div>
             </div>
             <div className="flex flex-col items-center w-1/3">
@@ -56,7 +55,6 @@ export const MatchScoreboard = ({ homeTeam, awayTeam, homeScore, awayScore, minu
                 <div className="flex flex-col items-end">
                     <span className="text-sm md:text-3xl font-bold truncate block text-right">{awayTeam.name}</span>
                     {awayRedCards > 0 && (<div className="flex gap-1 mt-1">{[...Array(awayRedCards)].map((_, i) => <div key={i} className="w-2 h-3 md:w-3 md:h-4 bg-red-600 rounded-[1px] border border-white/50 shadow-md" title="Kırmızı Kart" />)}</div>)}
-                    <span className="text-[10px] md:text-xs text-slate-500 mt-1">Değişiklik: {awaySubsUsed}/5</span>
                 </div>
                 <img src={awayTeam.logo} className="w-10 h-10 md:w-16 md:h-16 object-contain" />
             </div>
@@ -64,7 +62,7 @@ export const MatchScoreboard = ({ homeTeam, awayTeam, homeScore, awayScore, minu
     );
 };
 
-export const MatchOverlays = ({ isVarActive, varMessage, isPenaltyActive, penaltyMessage, activePenaltyTeam, isTacticsOpen, forcedSubstitutionPlayerId, myTeamCurrent, handleTacticsUpdate, userIsHome, homeSubsUsed, awaySubsUsed, handleUserSubstitution, minute, onCloseTactics }: any) => (
+export const MatchOverlays = ({ isVarActive, varMessage, isPenaltyActive, penaltyMessage, activePenaltyTeam, isTacticsOpen, forcedSubstitutionPlayerId, myTeamCurrent, handleTacticsUpdate, userIsHome, homeSubsUsed, awaySubsUsed, handleUserSubstitution, minute, onCloseTactics, redCardedPlayerIds }: any) => (
     <>
         {isTacticsOpen && (
             <div className="absolute inset-0 z-[100] bg-slate-900 flex flex-col">
@@ -87,7 +85,7 @@ export const MatchOverlays = ({ isVarActive, varMessage, isPenaltyActive, penalt
                     </button>
                 </div>
                 <div className="flex-1 overflow-auto p-4">
-                    <TacticsView team={myTeamCurrent} setTeam={handleTacticsUpdate} isMatchActive={true} subsUsed={userIsHome ? homeSubsUsed : awaySubsUsed} maxSubs={5} onSubstitution={handleUserSubstitution} currentMinute={minute} compact={window.innerWidth < 768} forcedSubstitutionPlayerId={forcedSubstitutionPlayerId} />
+                    <TacticsView team={myTeamCurrent} setTeam={handleTacticsUpdate} isMatchActive={true} subsUsed={userIsHome ? homeSubsUsed : awaySubsUsed} maxSubs={5} onSubstitution={handleUserSubstitution} currentMinute={minute} compact={window.innerWidth < 768} forcedSubstitutionPlayerId={forcedSubstitutionPlayerId} redCardedPlayerIds={redCardedPlayerIds} />
                 </div>
             </div>
         )}

@@ -1,5 +1,3 @@
-
-
 export enum Position {
     GK = 'GK',
     SLB = 'SLB',
@@ -531,6 +529,7 @@ export interface TrainingReportItem {
     playerName: string;
     message: string;
     type: 'POSITIVE' | 'NEGATIVE';
+    score?: number;
 }
 
 export interface UIAlert {
@@ -654,4 +653,5 @@ export interface GameState {
     yearsAtCurrentClub: number;
     lastSeasonGoalAchieved: boolean;
     uiAlert?: UIAlert | null; 
+    activeFixtureId?: string | null; // Tracks if a match flow is in progress
 }

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { GameState, Player } from '../types';
 import { getFormattedDate, isSameDay } from '../utils/calendarAndFixtures';
@@ -70,11 +71,11 @@ const Dashboard = ({
     // If there is a match today, user CANNOT advance day without playing/simulating
     const isMatchDay = !!currentFixture;
     
-    // Updated isMatchMode to restrict navigation during active match play, match flow, AND game over
-    const isMatchMode = ['match_live', 'match_result', 'interview', 'game_over', 'contract_negotiation'].includes(currentView);
+    // Updated isMatchMode to strictly lock navigation once any match prep or play starts
+    const isMatchMode = ['match_live', 'match_result', 'interview', 'game_over', 'contract_negotiation', 'transfer_negotiation', 'pre_match_talk', 'locker_room'].includes(currentView) || !!state.activeFixtureId;
     
-    // Specifically check for live match OR contract negotiation to hide sidebar for immersion
-    const isFullScreenMode = ['match_live', 'contract_negotiation'].includes(currentView);
+    // Hide sidebar for immersion during critical sequences
+    const isFullScreenMode = ['match_live', 'contract_negotiation', 'transfer_negotiation', 'pre_match_talk', 'locker_room'].includes(currentView);
 
     // Calculate unread messages
     const unreadMessagesCount = state.messages.filter(m => !m.read).length;
@@ -98,7 +99,7 @@ const Dashboard = ({
     const searchRef = useRef<HTMLDivElement>(null);
 
     // Determine if we need padding (standard views) or full screen (match views/game over)
-    const noPaddingViews = ['match_live', 'locker_room', 'game_over', 'contract_negotiation'];
+    const noPaddingViews = ['match_live', 'locker_room', 'game_over', 'contract_negotiation', 'transfer_negotiation', 'pre_match_talk'];
     const usePadding = !noPaddingViews.includes(currentView);
 
     // Handle Click Outside for Search
@@ -268,7 +269,7 @@ const Dashboard = ({
                     <div className="flex items-center gap-2 md:gap-4 shrink-0">
                          {/* SEARCH BAR (Replaces Budget) */}
                          <div className="relative hidden sm:block" ref={searchRef}>
-                            <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-full px-4 py-1.5 w-48 lg:w-64 border border-slate-200 dark:border-slate-600 focus-within:border-yellow-500 transition-colors">
+                            <div className={`flex items-center bg-slate-100 dark:bg-slate-700 rounded-full px-4 py-1.5 w-48 lg:w-64 border border-slate-200 dark:border-slate-600 transition-colors ${isMatchMode ? 'opacity-50 cursor-not-allowed' : 'focus-within:border-yellow-500'}`}>
                                 <Search size={16} className="text-slate-400 mr-2" />
                                 <input 
                                     type="text" 
@@ -285,7 +286,7 @@ const Dashboard = ({
                             </div>
                             
                             {/* Search Dropdown */}
-                            {showSearchResults && searchTerm.length >= 2 && (
+                            {showSearchResults && searchTerm.length >= 2 && !isMatchMode && (
                                 <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-700 z-50 overflow-hidden">
                                     {filteredTeams.length > 0 && (
                                         <div>

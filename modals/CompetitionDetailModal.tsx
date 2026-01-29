@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Team, Fixture, Player, Position } from '../types';
 import { Trophy, X, ChevronLeft, ChevronRight, Star, Activity, Flame, ShieldAlert, History, Goal, Zap, Shield, Award, AlertTriangle, GitCommit, LayoutDashboard, ListTree, CalendarDays, BarChart2, ArrowRightLeft, Users, Info, ArrowRight, Filter, ChevronDown, Presentation, Calendar, Clock, Disc } from 'lucide-react';
@@ -431,77 +432,117 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
 
     // Player Stats Logic for Mini List (Top Scorers)
     const overviewPlayerStats = useMemo(() => {
-        const playerStatsMap: Record<string, {
-            goals: number, assists: number, yellow: number, red: number, 
-            ratingsSum: number, matches: number, cleanSheets: number, mvps: number
-        }> = {};
+        const playerStatsMap = new Map<string, {
+            player: Player, team: Team,
+            ratingSum: number, matches: number, 
+            goals: number, assists: number, 
+            cleanSheets: number, mvps: number,
+            tackles: number, shots: number, keyPasses: number, dribbles: number, passAccSum: number,
+            yellow: number, red: number
+        }>();
 
+        // Fix Filter to include undefined competitionId for LEAGUE
         const compFixtures = fixtures.filter(f => 
-            f.competitionId === competitionId || 
-            (competitionId === 'PLAYOFF' && f.competitionId === 'PLAYOFF_FINAL')
+            f.played &&
+            (
+                f.competitionId === competitionId || 
+                (competitionId === 'LEAGUE' && !f.competitionId) ||
+                (competitionId === 'PLAYOFF' && f.competitionId === 'PLAYOFF_FINAL')
+            )
         );
 
         compFixtures.forEach(f => {
-            if (!f.played || !f.matchEvents) return;
-            
-            // Goals / Cards
-            f.matchEvents.forEach(e => {
-                if (e.playerId) {
-                    if (!playerStatsMap[e.playerId]) playerStatsMap[e.playerId] = { goals: 0, assists: 0, yellow: 0, red: 0, ratingsSum: 0, matches: 0, cleanSheets: 0, mvps: 0 };
-                    if (e.type === 'GOAL') playerStatsMap[e.playerId].goals++;
-                    if (e.type === 'CARD_YELLOW') playerStatsMap[e.playerId].yellow++;
-                    if (e.type === 'CARD_RED') playerStatsMap[e.playerId].red++;
-                }
-                if (e.type === 'GOAL' && e.assist) {
-                    const h = teams.find(t => t.id === f.homeTeamId);
-                    const a = teams.find(t => t.id === f.awayTeamId);
-                    const assistPlayer = h?.players.find(p => p.name === e.assist) || a?.players.find(p => p.name === e.assist);
-                    if (assistPlayer) {
-                        if (!playerStatsMap[assistPlayer.id]) playerStatsMap[assistPlayer.id] = { goals: 0, assists: 0, yellow: 0, red: 0, ratingsSum: 0, matches: 0, cleanSheets: 0, mvps: 0 };
-                        playerStatsMap[assistPlayer.id].assists++;
+            // Helper to get or create entry
+            const getEntry = (pid: string, tId: string) => {
+                let entry = playerStatsMap.get(pid);
+                if (!entry) {
+                    const t = teams.find(team => team.id === tId);
+                    const p = t?.players.find(player => player.id === pid);
+                    if (t && p) {
+                        entry = {
+                            player: p, team: t,
+                            ratingSum: 0, matches: 0, goals: 0, assists: 0, cleanSheets: 0, mvps: 0,
+                            tackles: 0, shots: 0, keyPasses: 0, dribbles: 0, passAccSum: 0,
+                            yellow: 0, red: 0
+                        };
+                        playerStatsMap.set(pid, entry);
                     }
                 }
-            });
+                return entry;
+            };
 
-            // MVP
-            if (f.stats?.mvpPlayerId) {
-                if (!playerStatsMap[f.stats.mvpPlayerId]) playerStatsMap[f.stats.mvpPlayerId] = { goals: 0, assists: 0, yellow: 0, red: 0, ratingsSum: 0, matches: 0, cleanSheets: 0, mvps: 0 };
-                playerStatsMap[f.stats.mvpPlayerId].mvps++;
-            }
-
-            // Ratings & Clean Sheets
-            const processRatings = (ratings: any[], teamId: string, conceded: number) => {
+            // 1. Process Stats (Reliable for Goals/Assists/Rating)
+            const processTeamStats = (ratings: any[], teamId: string, conceded: number) => {
+                if (!ratings) return;
                 ratings.forEach(r => {
-                    if (!playerStatsMap[r.playerId]) playerStatsMap[r.playerId] = { goals: 0, assists: 0, yellow: 0, red: 0, ratingsSum: 0, matches: 0, cleanSheets: 0, mvps: 0 };
-                    playerStatsMap[r.playerId].ratingsSum += r.rating;
-                    playerStatsMap[r.playerId].matches++;
-                    if (r.position === 'GK' && conceded === 0) playerStatsMap[r.playerId].cleanSheets++;
+                    const entry = getEntry(r.playerId, teamId);
+                    if (entry) {
+                        entry.ratingSum += r.rating;
+                        entry.matches++;
+                        entry.goals += r.goals;
+                        entry.assists += r.assists;
+                        
+                        if (r.position === 'GK' && conceded === 0) entry.cleanSheets++;
+                        if (f.stats?.mvpPlayerId === r.playerId) entry.mvps++;
+
+                        // Simulated Extra Stats
+                        const isFwd = ['SNT', 'SLK', 'SGK'].includes(r.position);
+                        const isMid = ['OS', 'OOS'].includes(r.position);
+                        entry.shots += r.goals * 2 + (isFwd ? 1.5 : isMid ? 0.5 : 0.1); 
+                        entry.keyPasses += r.assists * 2 + (isMid ? 1.5 : 0.5);
+                        
+                        // Pass Acc
+                        const baseAcc = r.position === 'STP' ? 88 : r.position === 'OS' ? 85 : 75;
+                        entry.passAccSum += Math.min(100, baseAcc + (r.rating - 6)*5);
+                    }
                 });
             };
-            if (f.stats?.homeRatings) processRatings(f.stats.homeRatings, f.homeTeamId, f.awayScore!);
-            if (f.stats?.awayRatings) processRatings(f.stats.awayRatings, f.awayTeamId, f.homeScore!);
+
+            if (f.stats) {
+                processTeamStats(f.stats.homeRatings || [], f.homeTeamId, f.awayScore!);
+                processTeamStats(f.stats.awayRatings || [], f.awayTeamId, f.homeScore!);
+            }
+
+            // 2. Process Cards from Events (Since not in stats)
+            if (f.matchEvents) {
+                f.matchEvents.forEach(e => {
+                    if ((e.type === 'CARD_YELLOW' || e.type === 'CARD_RED') && e.playerId) {
+                         // We need to find which team this player belongs to
+                         // Try home then away
+                         const h = teams.find(t => t.id === f.homeTeamId);
+                         let p = h?.players.find(pl => pl.id === e.playerId);
+                         let tId = f.homeTeamId;
+                         
+                         if (!p) {
+                             const a = teams.find(t => t.id === f.awayTeamId);
+                             p = a?.players.find(pl => pl.id === e.playerId);
+                             tId = f.awayTeamId;
+                         }
+
+                         if (p) {
+                             const entry = getEntry(e.playerId, tId);
+                             if (entry) {
+                                 if (e.type === 'CARD_YELLOW') entry.yellow++;
+                                 if (e.type === 'CARD_RED') entry.red++;
+                             }
+                         }
+                    }
+                });
+            }
         });
 
-        const allPlayers = Object.entries(playerStatsMap).map(([pid, s]) => {
-            let player: Player | undefined;
-            let team: Team | undefined;
-            for (const t of teams) { 
-                const found = t.players.find(p => p.id === pid); 
-                if (found) { player = found; team = t; break; } 
+        return Array.from(playerStatsMap.values()).map(x => ({
+            ...x.player, // Base player props
+            teamName: x.team.name,
+            teamLogo: x.team.logo,
+            teamColors: x.team.colors,
+            stats: {
+                ...x,
+                averageRating: x.matches > 0 ? x.ratingSum / x.matches : 0,
+                avgPassAcc: x.matches > 0 ? x.passAccSum / x.matches : 0
             }
-            if (!player || !team) return null;
-
-            return {
-                ...player,
-                teamName: team.name,
-                teamLogo: team.logo,
-                teamColors: team.colors,
-                stats: { ...s, averageRating: s.matches > 0 ? s.ratingsSum / s.matches : 0 }
-            };
-        }).filter(Boolean) as (Player & { teamName: string, teamLogo?: string, teamColors: [string, string], stats: any })[];
-
-        return allPlayers;
-    }, [teams, fixtures, competitionId]);
+        }));
+    }, [fixtures, teams, competitionId]);
 
     const getOverviewTopPlayers = () => {
         let sorted = [];

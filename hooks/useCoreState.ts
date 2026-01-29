@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { GameState, Team, Player, Fixture, MatchEvent, MatchStats, PendingTransfer, IncomingOffer, BoardInteraction, TransferViewState, SquadViewState } from '../types';
 import { GAME_CALENDAR } from '../data/gameConstants';
@@ -29,7 +28,8 @@ export const useCoreState = () => {
         consecutiveFfpYears: 0,
         yearsAtCurrentClub: 0,
         lastSeasonGoalAchieved: false,
-        uiAlert: null
+        uiAlert: null,
+        activeFixtureId: null
     });
 
     // Selection States

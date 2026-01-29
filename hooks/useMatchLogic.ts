@@ -185,6 +185,7 @@ export const useMatchLogic = (
             teams: teamsWithUpdatedStats, 
             manager: updatedManager, 
             news: [...matchTweets, ...prev.news],
+            activeFixtureId: null // CLEAR LOCK
         }));
         
         // Pass wonTrophy and competitionId in extra data
@@ -252,7 +253,7 @@ export const useMatchLogic = (
         
         newGameState.teams = newGameState.teams.map(t => t.id === myTeam.id ? myTeam : t);
         setGameState(newGameState);
-        navigation.navigateTo('home');
+        navigation.resetTo('home');
         
         coreSetters.setMatchResultData(null);
     };
@@ -262,7 +263,7 @@ export const useMatchLogic = (
         const newManager = { ...gameState.manager };
         newManager.trust.media = Math.max(0, newManager.trust.media - 3);
         setGameState(prev => ({ ...prev, manager: newManager }));
-        navigation.navigateTo('home');
+        navigation.resetTo('home');
         coreSetters.setMatchResultData(null);
     };
 

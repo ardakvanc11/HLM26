@@ -1,8 +1,10 @@
+
 import React, { useState } from 'react';
 import { Player, IndividualTrainingType, Position, PlayerPersonality } from '../types';
 import { INDIVIDUAL_PROGRAMS, POSITION_TRANSITION_TIME } from '../data/trainingData';
 import PlayerFace from '../components/shared/PlayerFace';
 import { Check, Info, TrendingUp, X, Flame, AlertTriangle, Clock, Target, Repeat, LayoutTemplate } from 'lucide-react';
+import { PERSONALITY_TRANSLATIONS } from '../data/playerConstants';
 
 interface DevelopmentCenterViewProps {
     players: Player[];
@@ -123,7 +125,9 @@ const DevelopmentCenterView: React.FC<DevelopmentCenterViewProps> = ({ players, 
                                     <div className="flex-1 min-w-0">
                                         <div className={`text-sm font-bold truncate ${isSelected ? 'text-white' : 'text-slate-300'}`}>{p.name}</div>
                                         <div className="flex justify-between items-center mt-0.5">
-                                            <span className="text-[10px] text-slate-500 font-bold bg-slate-800 px-1.5 rounded">{p.position}</span>
+                                            <span className="text-[10px] text-slate-500 font-bold bg-slate-800 px-1.5 rounded">
+                                                {p.position}{p.secondaryPosition ? ` / ${p.secondaryPosition}` : ''}
+                                            </span>
                                             {p.positionTrainingTarget && (
                                                 <span className="text-[9px] text-indigo-400 font-bold flex items-center gap-0.5">
                                                     <Repeat size={8}/> {p.positionTrainingTarget}
@@ -149,7 +153,7 @@ const DevelopmentCenterView: React.FC<DevelopmentCenterViewProps> = ({ players, 
                                     <div className="flex items-center gap-3 mb-1">
                                         <h3 className="text-2xl font-bold text-white">{selectedPlayer.name}</h3>
                                         <span className={`text-[10px] px-2 py-0.5 rounded uppercase font-bold border ${selectedPlayer.personality === PlayerPersonality.HARDWORKING || selectedPlayer.personality === PlayerPersonality.AMBITIOUS ? 'border-green-500 text-green-400 bg-green-900/20' : selectedPlayer.personality === PlayerPersonality.LAZY ? 'border-red-500 text-red-400 bg-red-900/20' : 'border-slate-500 text-slate-400 bg-slate-800'}`}>
-                                            {selectedPlayer.personality || 'Normal'}
+                                            {PERSONALITY_TRANSLATIONS[selectedPlayer.personality || 'Normal'] || selectedPlayer.personality}
                                         </span>
                                     </div>
                                     <p className="text-slate-400 text-sm mb-2">{selectedPlayer.position} {selectedPlayer.secondaryPosition ? `(${selectedPlayer.secondaryPosition})` : ''} • {selectedPlayer.age} Yaş</p>
@@ -159,7 +163,7 @@ const DevelopmentCenterView: React.FC<DevelopmentCenterViewProps> = ({ players, 
                                             <span className="text-slate-500">Mevcut Program:</span>
                                             {selectedPlayer.activeTraining ? (
                                                 <span className="text-green-400 font-bold bg-green-900/20 px-2 py-0.5 rounded border border-green-900/50">
-                                                    {selectedPlayer.activeTraining}
+                                                    {INDIVIDUAL_PROGRAMS.find(prog => prog.id === selectedPlayer.activeTraining)?.label || selectedPlayer.activeTraining}
                                                 </span>
                                             ) : <span className="text-slate-500 italic">Yok</span>}
                                         </div>

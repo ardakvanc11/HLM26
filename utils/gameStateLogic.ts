@@ -158,7 +158,10 @@ export const processNextDayLogic = (
     let updatedTeams = [...currentState.teams];
     let updatedFixtures = [...currentState.fixtures];
     let updatedManager = currentState.manager ? { ...currentState.manager } : null;
-    let lastTrainingReport = currentState.lastTrainingReport || [];
+    
+    // GÜNCELLEME: Raporu her gün başında sıfırla. Böylece manuel antrenman yapılana kadar boş kalır.
+    let lastTrainingReport: any[] = []; 
+    
     let newWeek = currentState.currentWeek;
 
     // --- AI KADRO OPTİMİZASYONU (SAKATLIK/CEZA YÖNETİMİ) ---

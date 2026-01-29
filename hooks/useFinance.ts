@@ -1,9 +1,10 @@
+
 import React from 'react';
 import { GameState, SponsorDeal } from '../types';
 
 export const useFinance = (
     gameState: GameState,
-    // Add comment above the fix
+    // Add comment above the fix: Ensure setGameState is properly typed
     setGameState: React.Dispatch<React.SetStateAction<GameState>>
 ) => {
 
@@ -59,8 +60,32 @@ export const useFinance = (
         alert(`Sponsor anlaşması güncellendi!\nYeni ${type === 'main' ? 'Ana' : type === 'stadium' ? 'Stadyum' : 'Kol'} Sponsoru: ${deal.name}`);
     };
 
+    // Add comment above the fix: Implement handleUpdateBudget to allow redistributing budget between transfer and wage pots
+    const handleUpdateBudget = (newTransferBudget: number, newWageBudget: number) => {
+        if (!gameState.myTeamId) return;
+        
+        setGameState(prev => {
+            const team = prev.teams.find(t => t.id === prev.myTeamId);
+            if (!team) return prev;
+
+            const updatedTeam = {
+                ...team,
+                budget: newTransferBudget,
+                wageBudget: newWageBudget
+            };
+
+            return {
+                ...prev,
+                teams: prev.teams.map(t => t.id === prev.myTeamId ? updatedTeam : t)
+            };
+        });
+        
+        alert("Bütçe dağılımı başarıyla güncellendi!");
+    };
+
     return {
         handleTakeEmergencyLoan,
-        handleUpdateSponsor
+        handleUpdateSponsor,
+        handleUpdateBudget
     };
 };

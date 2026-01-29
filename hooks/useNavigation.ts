@@ -22,6 +22,11 @@ export const useNavigation = (setLastSeenInjuryCount?: (count: number) => void, 
         setHistoryIndex(newHistory.length - 1);
     };
 
+    const resetTo = (view: string) => {
+        setViewHistory([view]);
+        setHistoryIndex(0);
+    };
+
     const goBack = () => {
         if (historyIndex > 0) {
             setHistoryIndex(historyIndex - 1);
@@ -39,6 +44,7 @@ export const useNavigation = (setLastSeenInjuryCount?: (count: number) => void, 
         historyIndex,
         currentView,
         navigateTo,
+        resetTo,
         goBack,
         goForward,
         setViewHistory,

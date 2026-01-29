@@ -1,7 +1,18 @@
-
 import { Position, PlayerStats, Player, PlayerFaceData, PlayerPersonality } from '../types';
 import { FACE_ASSETS } from './uiConstants';
 import { generateId } from './gameConstants';
+
+// Maç öncesi konuşmalarında görünen kişilik tipleri - Gruplandırılmış
+export const TALK_PERSONALITIES_GROUPS = {
+    YOUNG: ["Heyecanlı", "Azimli", "Enerjik", "Hırslı", "Gelecek Vaat Eden", "Sabırsız"],
+    VETERAN: ["Profesyonel", "Dengeli", "Sabırlı", "Stratejik", "Tecrübeli", "Ağırbaşlı"],
+    LEADER: ["Lider Karakter", "Oyun Kurucu Zihin", "Soğukkanlı", "Disiplinli", "Yol Gösterici"],
+    MATURE: ["Dengeli", "Gayretli", "Mükemmeliyetçi", "İstikrarlı", "Görev Adamı"]
+};
+
+export const TALK_PERSONALITIES = [
+    "Azimli", "Dengeli", "Centilmen", "Heyecanlı", "Profesyonel", "Hırslı", "Kazanmaya Aç", "Gayretli", "Mükemmeliyetçi"
+];
 
 // Turkish Translations for Stat Keys - EXPORTED GLOBAL
 export const STAT_TRANSLATIONS: Record<string, string> = {
@@ -40,6 +51,16 @@ export const STAT_TRANSLATIONS: Record<string, string> = {
     offTheBall: 'Topsuz Alan',
     jumping: 'Zıplama',
     technique: 'Teknik'
+};
+
+// Turkish Translations for Player Personalities
+export const PERSONALITY_TRANSLATIONS: Record<string, string> = {
+    'Hardworking': 'Çalışkan',
+    'Ambitious': 'Hırslı',
+    'Lazy': 'Tembel',
+    'Inconsistent': 'İstikrarsız',
+    'Professional': 'Profesyonel',
+    'Normal': 'Normal'
 };
 
 // Random Turkish First Names - EXPORTED

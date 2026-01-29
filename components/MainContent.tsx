@@ -20,13 +20,14 @@ import TeamDetailView from '../views/TeamDetailView';
 import PlayerDetailView from '../views/PlayerDetailView'; 
 import MatchPreview from '../views/MatchPreview';
 import LockerRoomView from '../views/LockerRoomView';
-import MatchSimulation from '../views/MatchSimulation';
+import MatchSimulation from '../views/MatchSimulation/index'; // UPDATED IMPORT
 import PostMatchInterview from '../views/PostMatchInterview';
 import HealthCenterView from '../views/HealthCenterView';
 import ContractNegotiationView from '../views/ContractNegotiationView'; 
 import TransferOfferNegotiationView from '../views/TransferOfferNegotiationView';
 import LeagueCupView from '../views/LeagueCupView';
-import ClubObjectivesView from '../views/ClubObjectivesView'; // New View
+import ClubObjectivesView from '../views/ClubObjectivesView'; 
+import PreMatchTalkView from '../views/PreMatchTalkView'; // New Import
 
 // Layouts & Modals
 import Dashboard from '../layout/Dashboard';
@@ -36,8 +37,8 @@ import HallOfFameModal from '../modals/HallOfFameModal';
 import FixtureDetailPanel from './shared/FixtureDetailPanel';
 import ChampionCelebrationModal from '../modals/ChampionCelebrationModal'; 
 import SeasonSummaryModal from '../modals/SeasonSummaryModal';
-import BoardInteractionModal from '../modals/BoardInteractionModal'; // NEW
-import CustomAlert from './shared/CustomAlert'; // NEW
+import BoardInteractionModal from '../modals/BoardInteractionModal'; 
+import CustomAlert from './shared/CustomAlert'; 
 
 // Types definition for props
 interface MainContentProps {
@@ -57,11 +58,12 @@ interface MainContentProps {
     selectedFixtureInfo: Fixture | null;
     setSelectedFixtureInfo: React.Dispatch<React.SetStateAction<Fixture | null>>;
     gameOverReason: string | null;
-    boardInteraction: BoardInteraction | null; // NEW
-    setBoardInteraction: React.Dispatch<React.SetStateAction<BoardInteraction | null>>; // NEW
+    boardInteraction: BoardInteraction | null; 
+    setBoardInteraction: React.Dispatch<React.SetStateAction<BoardInteraction | null>>; 
     theme: 'dark' | 'light';
     toggleTheme: () => void;
     navigateTo: (view: string) => void;
+    resetTo: (view: string) => void;
     goBack: () => void;
     goForward: () => void;
     handleStart: (name: string, year: string, country: string) => void;
@@ -71,9 +73,9 @@ interface MainContentProps {
     handleNextWeek: () => void;
     handleTrain: (config: TrainingConfig) => void; 
     handleAssignIndividualTraining: (playerId: string, type: IndividualTrainingType) => void; 
-    handleAssignPositionTraining: (playerId: string, target: Position, weeks: number) => void; // NEW
+    handleAssignPositionTraining: (playerId: string, target: Position, weeks: number) => void; 
     handleMatchFinish: (hScore: number, aScore: number, events: MatchEvent[], stats: MatchStats, fixtureId?: string) => void;
-    handleFastSimulate: (fixtureId?: string) => void; // UPDATED TYPE
+    handleFastSimulate: (fixtureId?: string) => void; 
     handleShowTeamDetail: (teamId: string) => void;
     handleShowPlayerDetail: (player: Player) => void;
     handleBuyPlayer: (player: Player) => void;
@@ -91,19 +93,20 @@ interface MainContentProps {
     handleCancelTransfer: (playerId: string) => void; 
     handleUpdateSponsor: (type: 'main' | 'stadium' | 'sleeve', deal: SponsorDeal) => void;
     handleTakeEmergencyLoan: (amount: number) => void;
+    handleUpdateBudget: (newTransferBudget: number, newWageBudget: number) => void;
     handleAcceptOffer: (offer: IncomingOffer) => void;
     handleRejectOffer: (offer: IncomingOffer) => void;
     handleToggleTrainingDelegation: () => void;
-    handleBoardRequest: (type: string, isDebug?: boolean) => void; // NEW
-    handleToggleShortlist: (playerId: string) => void; // NEW PROP
+    handleBoardRequest: (type: string, isDebug?: boolean) => void; 
+    handleToggleShortlist: (playerId: string) => void; 
     negotiatingTransferPlayer: Player | null; 
     setNegotiatingTransferPlayer: React.Dispatch<React.SetStateAction<Player | null>>; 
     incomingTransfer: PendingTransfer | null; 
     setIncomingTransfer: React.Dispatch<React.SetStateAction<PendingTransfer | null>>;
-    transferViewState: TransferViewState | null; // NEW PROP
-    setTransferViewState: React.Dispatch<React.SetStateAction<TransferViewState | null>>; // NEW PROP
-    squadViewState: SquadViewState | null; // NEW PROP
-    setSquadViewState: React.Dispatch<React.SetStateAction<SquadViewState | null>>; // NEW PROP
+    transferViewState: TransferViewState | null; 
+    setTransferViewState: React.Dispatch<React.SetStateAction<TransferViewState | null>>; 
+    squadViewState: SquadViewState | null; 
+    setSquadViewState: React.Dispatch<React.SetStateAction<SquadViewState | null>>; 
     myTeam?: Team;
     injuredBadgeCount: number;
     isTransferWindowOpen: boolean;
@@ -132,6 +135,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
         theme,
         toggleTheme,
         navigateTo,
+        resetTo,
         goBack,
         goForward,
         handleStart,
@@ -141,7 +145,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
         handleNextWeek,
         handleTrain,
         handleAssignIndividualTraining,
-        handleAssignPositionTraining, // NEW
+        handleAssignPositionTraining, 
         handleMatchFinish,
         handleFastSimulate,
         handleShowTeamDetail,
@@ -165,7 +169,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
         handleRejectOffer,
         handleToggleTrainingDelegation,
         handleBoardRequest,
-        handleToggleShortlist, // Added
+        handleToggleShortlist, 
         negotiatingTransferPlayer,
         setNegotiatingTransferPlayer,
         incomingTransfer,
@@ -200,16 +204,12 @@ const MainContent: React.FC<MainContentProps> = (props) => {
     // NEW: State to track if the current negotiation is for a LOAN or TRANSFER
     const [negotiationOfferType, setNegotiationOfferType] = useState<'TRANSFER' | 'LOAN'>('TRANSFER');
 
-    // FIX: Lock the match ID when entering the match flow to prevent switching to the next match mid-process
-    const [playingFixtureId, setPlayingFixtureId] = useState<string | null>(null);
-
     // State to handle direct navigation to a specific competition (e.g. from player stats)
     const [targetCompetitionId, setTargetCompetitionId] = useState<string | null>(null);
 
-    // Reset locked match when returning to home to avoid stale state
+    // Reset target competition when returning to home
     useEffect(() => {
         if (currentView === 'home') {
-            setPlayingFixtureId(null);
             setTargetCompetitionId(null);
         }
     }, [currentView]);
@@ -254,6 +254,12 @@ const MainContent: React.FC<MainContentProps> = (props) => {
         navigateTo('contract_negotiation');
     };
 
+    // Define clearCooldown before it's used in handleFinishNegotiation
+    const clearCooldown = (p: Player, cw?: number) => {
+        if (!p.nextNegotiationWeek || !cw) return 4;
+        return Math.max(1, p.nextNegotiationWeek - cw);
+    }
+
     const handleFinishNegotiation = (success: boolean, newContract: any) => {
         if (success && newContract) {
             if (incomingTransfer && activeNegotiationPlayer && activeNegotiationPlayer.id === incomingTransfer.playerId) {
@@ -278,7 +284,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     activePromises: negotiatingPlayer.activePromises,
                     nextNegotiationWeek: nextWeek
                 });
-                alert(`Görüşmeler başarısız oldu. Oyuncu ${cooldownWeeks} hafta boyunca yeni tekliflere kapalı olacak.`);
+                alert(`Görüşmeler başarısız oldu. Oyuncu ${clearCooldown(negotiatingPlayer, gameState.currentWeek)} hafta daha beklemeniz gerekiyor.`);
                 setNegotiatingPlayer(null);
                 goBack();
             } else if (incomingTransfer) {
@@ -288,7 +294,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                 alert(`Anlaşma sağlanamadı. ${cooldownWeeks} hafta boyunca tekrar teklif yapılamaz.`);
                 
                 handleCancelTransfer(incomingTransfer.playerId);
-                navigateTo('home');
+                resetTo('home');
             }
         }
     };
@@ -447,8 +453,9 @@ const MainContent: React.FC<MainContentProps> = (props) => {
     
     // --- DETERMINE ACTIVE FIXTURE FOR PREVIEW AND SIMULATION ---
     const getActiveFixture = () => {
-        if (playingFixtureId) {
-            return gameState.fixtures.find(f => f.id === playingFixtureId);
+        if (gameState.activeFixtureId) {
+            const found = gameState.fixtures.find(f => f.id === gameState.activeFixtureId);
+            if (found && !found.played) return found;
         }
         const todayMatch = gameState.fixtures.find(f => 
             (f.homeTeamId === gameState.myTeamId || f.awayTeamId === gameState.myTeamId) && 
@@ -463,37 +470,45 @@ const MainContent: React.FC<MainContentProps> = (props) => {
     const matchPreviewHomeTeam = activeMatchFixture ? gameState.teams.find(t => t.id === activeMatchFixture.homeTeamId) : null;
     const matchPreviewAwayTeam = activeMatchFixture ? gameState.teams.find(t => t.id === activeMatchFixture.awayTeamId) : null;
 
+    // Handler for talk opponent lookup
+    const talkOpponent = activeMatchFixture ? gameState.teams.find(t => t.id === (activeMatchFixture.homeTeamId === gameState.myTeamId ? activeMatchFixture.awayTeamId : activeMatchFixture.homeTeamId)) : undefined;
+
     // Wrapped Handlers for Match Locking
     const handleMatchProceed = () => {
         if (activeMatchFixture) {
-            setPlayingFixtureId(activeMatchFixture.id); 
+            setGameState(prev => ({ ...prev, activeFixtureId: activeMatchFixture.id }));
             navigateTo('locker_room');
         }
     };
 
+    const handleGoToTalk = () => {
+        if (activeMatchFixture) {
+            setGameState(prev => ({ ...prev, activeFixtureId: activeMatchFixture.id }));
+            navigateTo('pre_match_talk');
+        }
+    };
+
     const handleMatchFinishWrapper = (hScore: number, aScore: number, events: MatchEvent[], stats: MatchStats, fixtureId?: string) => {
-        const targetId = fixtureId || playingFixtureId;
-        handleMatchFinish(hScore, aScore, events, stats, targetId || undefined);
-        setPlayingFixtureId(null); 
+        handleMatchFinish(hScore, aScore, events, stats, fixtureId);
     };
 
     const handleFastSimulateWrapper = () => {
-        if (playingFixtureId) {
-            handleFastSimulate(playingFixtureId);
-            setPlayingFixtureId(null);
-        } else {
-            handleFastSimulate();
-        }
+        handleFastSimulate(gameState.activeFixtureId || undefined);
     };
 
     return (
         <Dashboard 
             state={gameState} 
             onNavigate={(view) => {
-                if (view === 'competitions') {
-                    setTargetCompetitionId(null);
+                // EXPLOIT FIX: If user tries to go to match_preview but already initiated match flow, redirect to locker room
+                if (view === 'match_preview' && gameState.activeFixtureId) {
+                    navigateTo('locker_room');
+                } else {
+                    if (view === 'competitions') {
+                        setTargetCompetitionId(null);
+                    }
+                    navigateTo(view);
                 }
-                navigateTo(view);
             }} 
             onSave={handleSave} 
             onNewGame={handleNewGame}
@@ -612,7 +627,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     playTime={gameState.playTime}
                     onRetire={handleRetire}
                     onTerminateContract={handleTerminateContract}
-                    onUpdateManagerContract={handleManagerContractUpdate} // Passed here
+                    onUpdateManagerContract={handleManagerContractUpdate} 
                 />
             )}
             
@@ -627,7 +642,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     onFixtureClick={(f) => setSelectedFixtureForDetail(f)}
                     myTeam={myTeam}
                     onPlayerClick={handleShowPlayerDetail}
-                    initialCompetitionId={targetCompetitionId} // PASS PROP
+                    initialCompetitionId={targetCompetitionId} 
                 />
             )}
             
@@ -637,7 +652,6 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     onPlayerClick={handleShowPlayerDetail}
                     manager={gameState.manager!} 
                     currentWeek={gameState.currentWeek}
-                    // Persist state
                     savedState={squadViewState}
                     onSaveState={setSquadViewState}
                 />
@@ -650,7 +664,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     currentSeason="2025/26"
                     fixtures={gameState.fixtures}
                     currentWeek={gameState.currentWeek}
-                    teams={gameState.teams} // PASS TEAMS HERE
+                    teams={gameState.teams} 
                 />
             )}
 
@@ -684,7 +698,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     onTeamClick={handleShowTeamDetail}
                     onFixtureClick={(f) => setSelectedFixtureForDetail(f)}
                     onFixtureInfoClick={(f) => setSelectedFixtureInfo(f)}
-                    onCompetitionClick={handleCompetitionClick} // NEW PROP
+                    onCompetitionClick={handleCompetitionClick} 
                 />
             )}
             
@@ -701,10 +715,8 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     onAcceptOffer={handleAcceptOffer}
                     onRejectOffer={handleRejectOffer}
                     onNegotiateOffer={handleNegotiateOffer}
-                    // Persist state
                     savedState={transferViewState}
                     onSaveState={setTransferViewState}
-                    // MISSING PROPS ADDED HERE
                     allTeams={gameState.teams}
                     shortlist={gameState.shortlist}
                 />
@@ -732,7 +744,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     onUpdateMessages={(msgs) => setGameState(prev => ({ ...prev, messages: msgs }))}
                     onReply={handleMessageReply}
                     isTransferWindowOpen={isTransferWindowOpen}
-                    myTeamId={gameState.myTeamId!} // Add this line
+                    myTeamId={gameState.myTeamId!} 
                 />
             )}
 
@@ -744,6 +756,8 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     manager={gameState.manager!}
                     onGoToDevelopment={() => navigateTo('development')}
                     onToggleDelegation={handleToggleTrainingDelegation}
+                    lastReport={gameState.lastTrainingReport || []} 
+                    onPlayerClick={handleShowPlayerDetail} 
                 />
             )}
 
@@ -751,7 +765,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                 <DevelopmentCenterView 
                     players={myTeam.players}
                     onAssignTraining={handleAssignIndividualTraining}
-                    onAssignPositionTraining={handleAssignPositionTraining} // NEW
+                    onAssignPositionTraining={handleAssignPositionTraining} 
                 />
             )}
 
@@ -774,8 +788,8 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     yearsAtClub={gameState.yearsAtCurrentClub}
                     lastSeasonGoalAchieved={gameState.lastSeasonGoalAchieved}
                     consecutiveFfpYears={gameState.consecutiveFfpYears}
-                    onFixtureClick={(f) => setSelectedFixtureForDetail(f)} // ADDED
-                    onCompetitionClick={handleCompetitionClick} // ADDED
+                    onFixtureClick={(f) => setSelectedFixtureForDetail(f)} 
+                    onCompetitionClick={handleCompetitionClick} 
                 />
             )}
 
@@ -795,8 +809,8 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     yearsAtClub={gameState.yearsAtCurrentClub}
                     lastSeasonGoalAchieved={gameState.lastSeasonGoalAchieved}
                     consecutiveFfpYears={gameState.consecutiveFfpYears}
-                    onFixtureClick={(f) => setSelectedFixtureForDetail(f)} // ADDED
-                    onCompetitionClick={handleCompetitionClick} // ADDED
+                    onFixtureClick={(f) => setSelectedFixtureForDetail(f)} 
+                    onCompetitionClick={handleCompetitionClick} 
                 />
             )}
 
@@ -814,10 +828,10 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     onReleasePlayer={handleReleasePlayer} 
                     currentWeek={gameState.currentWeek} 
                     fixtures={gameState.fixtures}
-                    onCompetitionClick={handleCompetitionClick} // PASS HANDLER
-                    isTransferWindowOpen={isTransferWindowOpen} // PASS PROP
-                    shortlist={gameState.shortlist || []} // PASS SHORTLIST
-                    onToggleShortlist={handleToggleShortlist} // PASS TOGGLE
+                    onCompetitionClick={handleCompetitionClick} 
+                    isTransferWindowOpen={isTransferWindowOpen} 
+                    shortlist={gameState.shortlist || []} 
+                    onToggleShortlist={handleToggleShortlist} 
                 />
             )}
 
@@ -829,7 +843,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                         if(incomingTransfer) {
                             alert("Sözleşme görüşmesi iptal edildi. Transfer gerçekleşmedi.");
                             handleCancelTransfer(incomingTransfer.playerId); 
-                            navigateTo('home');
+                            resetTo('home');
                         } else {
                             goBack();
                         }
@@ -852,7 +866,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     onFinish={handleFinishTransferNegotiation}
                     mode={negotiationMode}
                     initialOfferAmount={initialSellOffer}
-                    initialOfferType={negotiationOfferType} // PASS PROP
+                    initialOfferType={negotiationOfferType} 
                 />
             )}
 
@@ -862,14 +876,36 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                         fixture={activeMatchFixture}
                         homeTeam={matchPreviewHomeTeam}
                         awayTeam={matchPreviewAwayTeam}
-                        onProceed={handleMatchProceed} // Lock Match ID here
+                        onProceed={handleMatchProceed} 
+                        onGoToTalk={handleGoToTalk} // Added Handler
+                    />
+                </div>
+            )}
+
+            {/* PRE-MATCH TALK VIEW ROUTE */}
+            {currentView === 'pre_match_talk' && myTeam && talkOpponent && (
+                <div className="h-full">
+                    <PreMatchTalkView 
+                        team={myTeam}
+                        opponent={talkOpponent}
+                        managerName={gameState.manager?.name || 'Menajer'}
+                        onComplete={(moraleChange) => {
+                            setGameState(prev => ({
+                                ...prev,
+                                teams: prev.teams.map(t => t.id === myTeam.id ? { 
+                                    ...t, 
+                                    players: t.players.map(p => ({ ...p, morale: Math.min(100, Math.max(0, p.morale + moraleChange)) }))
+                                } : t)
+                            }));
+                        }}
+                        onProceedToLockerRoom={() => navigateTo('locker_room')}
                     />
                 </div>
             )}
 
             {currentView === 'locker_room' && myTeam && (
                 <div className="h-full bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
-                    <LockerRoomView 
+                    < LockerRoomView 
                         team={myTeam} 
                         setTeam={(updatedTeam) => {
                             setGameState(prev => ({
@@ -880,7 +916,6 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                         onStartMatch={() => navigateTo('match_live')}
                         onSimulateMatch={handleFastSimulateWrapper}
                         currentWeek={gameState.currentWeek}
-                        // Pass active fixture competition ID
                         nextMatchCompetitionId={activeMatchFixture?.competitionId}
                     />
                 </div>
@@ -896,7 +931,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                         allTeams={gameState.teams}
                         fixtures={gameState.fixtures}
                         managerTrust={gameState.manager?.trust.players || 50}
-                        fixtureId={playingFixtureId || activeMatchFixture.id} // Pass locked ID
+                        fixtureId={gameState.activeFixtureId || activeMatchFixture.id} 
                     />
                 </div>
             )}
@@ -911,7 +946,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     events={matchResultData.events}
                     onProceed={() => navigateTo('interview')}
                     onSkip={handleSkipInterview}
-                    competitionId={matchResultData.competitionId} // PASS PROP
+                    competitionId={matchResultData.competitionId} 
                 />
             )}
 

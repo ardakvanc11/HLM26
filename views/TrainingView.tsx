@@ -1,24 +1,22 @@
 
 import React, { useState, useEffect } from 'react';
 import { Team, TrainingConfig, TrainingType, TrainingIntensity, Player, ManagerProfile, TrainingReportItem } from '../types';
-import { Check, Swords, Shield, Dumbbell, Brain, Crosshair, Zap, Activity, Users, AlertTriangle, Calendar, Info, Play, ClipboardList, TrendingUp, Target, UserCheck, ToggleLeft, ToggleRight, Lock } from 'lucide-react';
+import { Check, Swords, Shield, Dumbbell, Brain, Crosshair, Zap, Activity, Users, AlertTriangle, Calendar, Info, Play, ClipboardList, TrendingUp, Target, UserCheck, ToggleLeft, ToggleRight, Lock, Trophy, Frown } from 'lucide-react';
 import PlayerFace from '../components/shared/PlayerFace';
-import { useGameState } from '../hooks/useGameState'; // Import for access to report
 
 interface TrainingViewProps {
     onTrain: (config: TrainingConfig) => void;
     performed: boolean;
     team: Team;
     manager: ManagerProfile;
-    onGoToDevelopment?: () => void; // New prop for navigation
-    onToggleDelegation?: () => void; // New toggle prop
+    onGoToDevelopment?: () => void;
+    onToggleDelegation?: () => void;
+    lastReport: TrainingReportItem[];
+    onPlayerClick?: (player: Player) => void; // Added prop
 }
 
-const TrainingView: React.FC<TrainingViewProps> = ({ onTrain, performed, team, manager, onGoToDevelopment, onToggleDelegation }) => {
-    // Access global state for report
-    const { gameState } = useGameState();
-    const lastReport = gameState.lastTrainingReport || [];
-
+const TrainingView: React.FC<TrainingViewProps> = ({ onTrain, performed, team, manager, onGoToDevelopment, onToggleDelegation, lastReport, onPlayerClick }) => {
+    
     // Initialize state with existing team config or defaults
     const [mainFocus, setMainFocus] = useState<TrainingType>((team.trainingConfig?.mainFocus as TrainingType) || TrainingType.TACTICAL);
     const [subFocus, setSubFocus] = useState<TrainingType>((team.trainingConfig?.subFocus as TrainingType) || TrainingType.PHYSICAL);
@@ -124,6 +122,17 @@ const TrainingView: React.FC<TrainingViewProps> = ({ onTrain, performed, team, m
             onToggleDelegation();
         }
     };
+
+    // Filter Logic for Report
+    const topPerformers = [...lastReport]
+        .sort((a, b) => (b.score || 0) - (a.score || 0))
+        .slice(0, 3);
+
+    // Filter logic: Score must be < 7 to appear in worst list
+    const worstPerformers = [...lastReport]
+        .filter(r => (r.score || 0) < 7)
+        .sort((a, b) => (a.score || 0) - (b.score || 0))
+        .slice(0, 3);
 
     return (
         <div className="h-full flex flex-col bg-slate-900 text-white overflow-hidden relative">
@@ -290,24 +299,92 @@ const TrainingView: React.FC<TrainingViewProps> = ({ onTrain, performed, team, m
                     </div>
 
                     {/* Last Training Report (Feedback) */}
-                    <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
-                        <h3 className="text-xs font-bold text-slate-400 uppercase mb-3 flex items-center gap-2">
-                            <ClipboardList size={14}/> Son Antrenman Raporu
+                    <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 flex flex-col h-[450px]">
+                        <h3 className="text-xs font-bold text-slate-400 uppercase mb-3 flex items-center gap-2 shrink-0 border-b border-slate-700 pb-2">
+                            <ClipboardList size={14}/> Antrenman Özeti
                         </h3>
-                        <div className="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar pr-1">
+                        
+                        <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4">
                             {lastReport.length === 0 ? (
                                 <div className="text-slate-500 text-xs italic text-center py-4">Henüz rapor yok.</div>
                             ) : (
-                                lastReport.map((item, idx) => (
-                                    <div key={idx} className={`p-2 rounded text-xs border-l-4 flex gap-2 ${
-                                        item.type === 'POSITIVE' ? 'bg-green-900/20 border-green-500 text-green-300' :
-                                        item.type === 'NEGATIVE' ? 'bg-red-900/20 border-red-500 text-red-300' :
-                                        'bg-slate-700/50 border-slate-500 text-slate-300'
-                                    }`}>
-                                        <div className="font-bold shrink-0">{item.playerName}:</div>
-                                        <div>{item.message}</div>
+                                <>
+                                    {/* BEST PERFORMERS */}
+                                    <div>
+                                        <h4 className="text-[10px] font-black text-green-400 uppercase mb-2 flex items-center gap-1">
+                                            <Trophy size={12} className="text-green-500"/> EN İYİ PERFORMANS
+                                        </h4>
+                                        <div className="space-y-2">
+                                            {topPerformers.map((item, idx) => {
+                                                const player = team.players.find(p => p.id === item.playerId);
+                                                return (
+                                                    <div 
+                                                        key={idx} 
+                                                        onClick={() => player && onPlayerClick && onPlayerClick(player)}
+                                                        className="p-2 rounded bg-green-900/20 border-l-2 border-green-500 flex items-center gap-3 cursor-pointer hover:bg-green-900/40 transition-colors group"
+                                                    >
+                                                        {player && (
+                                                            <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-600 bg-slate-200 shrink-0">
+                                                                <PlayerFace player={player} />
+                                                            </div>
+                                                        )}
+                                                        <div className="flex-1">
+                                                            <div className="flex justify-between items-center w-full mb-0.5">
+                                                                <div className="font-bold text-green-100 flex items-center gap-1 group-hover:text-white transition-colors">
+                                                                    {item.playerName}
+                                                                </div>
+                                                                {item.score && (
+                                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black font-mono bg-green-600 text-white">
+                                                                        {item.score.toFixed(1)}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
-                                ))
+
+                                    {/* WORST PERFORMERS (Only if score < 7) */}
+                                    {worstPerformers.length > 0 && (
+                                        <div className="pt-2 border-t border-slate-700/50">
+                                            <h4 className="text-[10px] font-black text-red-400 uppercase mb-2 flex items-center gap-1">
+                                                <Frown size={12} className="text-red-500"/> EN KÖTÜ (7.0 ALTI)
+                                            </h4>
+                                            <div className="space-y-2">
+                                                {worstPerformers.map((item, idx) => {
+                                                    const player = team.players.find(p => p.id === item.playerId);
+                                                    return (
+                                                        <div 
+                                                            key={idx} 
+                                                            onClick={() => player && onPlayerClick && onPlayerClick(player)}
+                                                            className="p-2 rounded bg-red-900/20 border-l-2 border-red-500 flex items-center gap-3 cursor-pointer hover:bg-red-900/40 transition-colors group"
+                                                        >
+                                                             {player && (
+                                                                <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-600 bg-slate-200 shrink-0">
+                                                                    <PlayerFace player={player} />
+                                                                </div>
+                                                            )}
+                                                            <div className="flex-1">
+                                                                <div className="flex justify-between items-center w-full mb-0.5">
+                                                                    <div className="font-bold text-red-100 flex items-center gap-1 group-hover:text-white transition-colors">
+                                                                        {item.playerName}
+                                                                    </div>
+                                                                    {item.score && (
+                                                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black font-mono bg-red-600 text-white">
+                                                                            {item.score.toFixed(1)}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
                     </div>

@@ -19,20 +19,16 @@ const LockerRoomView = ({ team, setTeam, onStartMatch, onSimulateMatch, currentW
         }
 
         // 2. Suspension Check (Updated for Competition Specifics)
-        let suspendedPlayers;
-        const compId = nextMatchCompetitionId || 'LEAGUE'; // Default fallback
+        // Default to 'LEAGUE' if undefined, as game engine stores league bans under this key
+        const compId = nextMatchCompetitionId || 'LEAGUE'; 
 
-        // If specific logic passed, check suspension map
-        if (nextMatchCompetitionId) {
-             suspendedPlayers = activeSquad.filter(p => p.suspensions && p.suspensions[nextMatchCompetitionId] && p.suspensions[nextMatchCompetitionId] > 0);
-        } else {
-             // Legacy check
-             suspendedPlayers = activeSquad.filter(p => p.suspendedUntilWeek && p.suspendedUntilWeek > currentWeek);
-        }
+        const suspendedPlayers = activeSquad.filter(p => 
+            p.suspensions && p.suspensions[compId] && p.suspensions[compId] > 0
+        );
         
         if (suspendedPlayers.length > 0) {
             const names = suspendedPlayers.map(p => p.name).join(', ');
-            alert(`Kadroda sıkıntılı oyuncu var!\n\nAşağıdaki oyuncular CEZALI (${compId}) ve maç kadrosunda (İlk 11 veya Yedek) bulunamaz:\n${names}\n\nLütfen bu oyuncuları 'Kadro Dışı' bölümüne taşıyın.`);
+            alert(`Kadroda sıkıntılı oyuncu var!\n\nAşağıdaki oyuncular CEZALI (${compId === 'LEAGUE' ? 'Lig' : compId}) ve maç kadrosunda (İlk 11 veya Yedek) bulunamaz:\n${names}\n\nLütfen bu oyuncuları 'Kadro Dışı' bölümüne taşıyın.`);
             return;
         }
 
@@ -41,6 +37,9 @@ const LockerRoomView = ({ team, setTeam, onStartMatch, onSimulateMatch, currentW
         if (isSimulate) onSimulateMatch();
         else onStartMatch();
     };
+
+    // Ensure we pass a valid string to TacticsView for visual indicators
+    const effectiveCompId = nextMatchCompetitionId || 'LEAGUE';
 
     return (
         <div className="h-full flex flex-col">
@@ -59,7 +58,7 @@ const LockerRoomView = ({ team, setTeam, onStartMatch, onSimulateMatch, currentW
                  </div>
             </div>
             <div className="flex-1 overflow-hidden p-4">
-                 <TacticsView team={team} setTeam={setTeam} currentWeek={currentWeek} matchCompetitionId={nextMatchCompetitionId} />
+                 <TacticsView team={team} setTeam={setTeam} currentWeek={currentWeek} matchCompetitionId={effectiveCompId} />
             </div>
         </div>
     );
