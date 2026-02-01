@@ -184,13 +184,18 @@ export const useGameState = () => {
         squadViewState: core.squadViewState,
         setSquadViewState: core.setSquadViewState,
 
+        // Match States
+        liveMatchPhase: core.liveMatchPhase,
+        setLiveMatchPhase: core.setLiveMatchPhase,
+        matchActionSignal: core.matchActionSignal,
+        setMatchActionSignal: core.setMatchActionSignal,
+
         myTeam,
         injuredBadgeCount: Math.max(0, injuredBadgeCount),
         isTransferWindowOpen: isTransferWindowOpen(core.gameState.currentDate),
 
         // Navigation
         navigateTo: nav.navigateTo,
-        // Add comment above the fix: Include resetTo from useNavigation to allow resetting view history
         resetTo: nav.resetTo,
         goBack: nav.goBack,
         goForward: nav.goForward,
@@ -228,7 +233,6 @@ export const useGameState = () => {
 
         handleTakeEmergencyLoan: finance.handleTakeEmergencyLoan,
         handleUpdateSponsor: finance.handleUpdateSponsor,
-        // Add comment above the fix: Include handleUpdateBudget from finance hook to fix missing prop error in App.tsx
         handleUpdateBudget: finance.handleUpdateBudget,
 
         handleBoardRequest, 

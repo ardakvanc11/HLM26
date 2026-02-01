@@ -1,5 +1,5 @@
 
-import { Team, Tempo, PressIntensity } from '../../types';
+import { Team, Tempo, PressIntensity, Player } from '../../types';
 
 export const GOAL_SOUND = '/voices/goalsound.wav';
 export const WHISTLE_SOUND = '/voices/whistle.wav';
@@ -81,4 +81,120 @@ export const applyFatigueToTeam = (team: Team, scoreDiff: number): Team => {
     });
     
     return { ...team, players: updatedPlayers };
+};
+
+// --- NEW: SHOUT EFFECT LOGIC ---
+export const calculateShoutEffect = (player: Player, scoreDiff: number, shoutType: string): number => {
+    // 1. Determine Personality Type
+    let type: 'YOUNG' | 'LEADER' | 'VETERAN' | 'MATURE' = 'MATURE';
+    
+    if (player.age <= 22) {
+        type = 'YOUNG';
+    } else if (player.age >= 29) {
+        // Leader check: High Leadership stat or designated captain (simplified here to stat/skill)
+        if (player.stats.leadership >= 15 || player.skill >= 85) {
+            type = 'LEADER';
+        } else {
+            type = 'VETERAN';
+        }
+    } else {
+        type = 'MATURE';
+    }
+
+    // 2. Determine Match Status
+    let status: 'BEHIND' | 'DRAW' | 'AHEAD' = 'DRAW';
+    if (scoreDiff < 0) status = 'BEHIND';
+    else if (scoreDiff > 0) status = 'AHEAD';
+
+    // 3. Matrix Lookup
+    // PRAISE = Aferin
+    // ENCOURAGE = Başarabilirsin
+    // CALM = Sakin Ol
+    // DEMAND = Daha İyisini Yap
+    
+    if (type === 'YOUNG') {
+        if (status === 'BEHIND') {
+            if (shoutType === 'PRAISE') return 3;
+            if (shoutType === 'ENCOURAGE') return 5;
+            if (shoutType === 'CALM') return 0;
+            if (shoutType === 'DEMAND') return -3;
+        }
+        if (status === 'DRAW') {
+            if (shoutType === 'PRAISE') return 5;
+            if (shoutType === 'ENCOURAGE') return 3;
+            if (shoutType === 'CALM') return -2;
+            if (shoutType === 'DEMAND') return -4;
+        }
+        if (status === 'AHEAD') {
+            if (shoutType === 'PRAISE') return 4;
+            if (shoutType === 'ENCOURAGE') return 0;
+            if (shoutType === 'CALM') return -2;
+            if (shoutType === 'DEMAND') return -4;
+        }
+    }
+
+    if (type === 'VETERAN') {
+        if (status === 'BEHIND') {
+            if (shoutType === 'PRAISE') return 0;
+            if (shoutType === 'ENCOURAGE') return 0;
+            if (shoutType === 'CALM') return 2;
+            if (shoutType === 'DEMAND') return 4;
+        }
+        if (status === 'DRAW') {
+            if (shoutType === 'PRAISE') return 3;
+            if (shoutType === 'ENCOURAGE') return 0;
+            if (shoutType === 'CALM') return 3;
+            if (shoutType === 'DEMAND') return 3;
+        }
+        if (status === 'AHEAD') {
+            if (shoutType === 'PRAISE') return 3;
+            if (shoutType === 'ENCOURAGE') return 0;
+            if (shoutType === 'CALM') return 3;
+            if (shoutType === 'DEMAND') return -3;
+        }
+    }
+
+    if (type === 'LEADER') {
+        if (status === 'BEHIND') {
+            if (shoutType === 'PRAISE') return 0;
+            if (shoutType === 'ENCOURAGE') return -3;
+            if (shoutType === 'CALM') return 3;
+            if (shoutType === 'DEMAND') return 5;
+        }
+        if (status === 'DRAW') {
+            if (shoutType === 'PRAISE') return 3;
+            if (shoutType === 'ENCOURAGE') return 0;
+            if (shoutType === 'CALM') return 3;
+            if (shoutType === 'DEMAND') return 5;
+        }
+        if (status === 'AHEAD') {
+            if (shoutType === 'PRAISE') return 3;
+            if (shoutType === 'ENCOURAGE') return 0;
+            if (shoutType === 'CALM') return 5;
+            if (shoutType === 'DEMAND') return 0;
+        }
+    }
+
+    if (type === 'MATURE') {
+        if (status === 'BEHIND') {
+            if (shoutType === 'PRAISE') return 3;
+            if (shoutType === 'ENCOURAGE') return 3;
+            if (shoutType === 'CALM') return 5;
+            if (shoutType === 'DEMAND') return 3;
+        }
+        if (status === 'DRAW') {
+            if (shoutType === 'PRAISE') return 3;
+            if (shoutType === 'ENCOURAGE') return 0;
+            if (shoutType === 'CALM') return 3;
+            if (shoutType === 'DEMAND') return 0;
+        }
+        if (status === 'AHEAD') {
+            if (shoutType === 'PRAISE') return 3;
+            if (shoutType === 'ENCOURAGE') return 0;
+            if (shoutType === 'CALM') return 5;
+            if (shoutType === 'DEMAND') return -3;
+        }
+    }
+
+    return 0; // Fallback
 };

@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { GameState, Player } from '../types';
 import { getFormattedDate, isSameDay } from '../utils/calendarAndFixtures';
-import { Home, Smartphone, Users, Briefcase, Activity, DollarSign, Trophy, Calendar, PieChart, Shield, Target, Dumbbell, TrendingUp, Sun, Moon, Save, RotateCcw, Menu, ChevronLeft, ChevronRight, X, PlayCircle, Search, User, AlertCircle } from 'lucide-react';
+import { Home, Smartphone, Users, Briefcase, Activity, DollarSign, Trophy, Calendar, PieChart, Shield, Target, Dumbbell, TrendingUp, Sun, Moon, Save, RotateCcw, Menu, ChevronLeft, ChevronRight, X, PlayCircle, Search, User, AlertCircle, Play, Pause, FastForward, Square, Lock } from 'lucide-react';
 
 const NavItem = ({ id, label, icon: Icon, badge, onClick, currentView, isMatchMode, isAlert }: any) => (
     <button 
@@ -39,7 +38,14 @@ const Dashboard = ({
     canForward,
     injuredCount,
     onTeamClick,
-    onPlayerClick
+    onPlayerClick,
+    isMatchPaused,
+    onToggleMatchPause,
+    isTacticsOpen,
+    onCloseTactics,
+    activeMatchPhase,
+    onMatchHeaderAction,
+    isMatchActionBlocked // NEW PROP: Blocks actions during forced events
 }: { 
     state: GameState, 
     onNavigate: (view: string) => void, 
@@ -56,7 +62,14 @@ const Dashboard = ({
     canForward: boolean,
     injuredCount?: number,
     onTeamClick: (id: string) => void,
-    onPlayerClick: (p: Player) => void
+    onPlayerClick: (p: Player) => void,
+    isMatchPaused?: boolean,
+    onToggleMatchPause?: () => void,
+    isTacticsOpen?: boolean,
+    onCloseTactics?: () => void,
+    activeMatchPhase?: string,
+    onMatchHeaderAction?: (action: string) => void,
+    isMatchActionBlocked?: boolean
 }) => {
     const myTeam = state.teams.find(t => t.id === state.myTeamId);
     const dateInfo = getFormattedDate(state.currentDate);
@@ -76,6 +89,7 @@ const Dashboard = ({
     
     // Hide sidebar for immersion during critical sequences
     const isFullScreenMode = ['match_live', 'contract_negotiation', 'transfer_negotiation', 'pre_match_talk', 'locker_room'].includes(currentView);
+    const isLiveMatch = currentView === 'match_live';
 
     // Calculate unread messages
     const unreadMessagesCount = state.messages.filter(m => !m.read).length;
@@ -130,6 +144,71 @@ const Dashboard = ({
         } else {
             onPlayerClick(data);
         }
+    };
+
+    // Determine Button State
+    const isPausedEffective = isMatchPaused || isTacticsOpen;
+    const handlePauseClick = () => {
+        if (isTacticsOpen && onCloseTactics) {
+            onCloseTactics();
+        } else if (onToggleMatchPause) {
+            onToggleMatchPause();
+        }
+    };
+
+    // Render Logic for Header Action Button (Match Live)
+    const renderMatchHeaderButton = () => {
+        // If match action is blocked (e.g. forced substitution), show disabled state
+        if (isMatchActionBlocked) {
+            return (
+                <button 
+                    disabled
+                    className="bg-slate-700 text-slate-400 px-3 py-2 md:px-4 md:py-2 rounded font-bold flex items-center shadow-none text-xs md:text-base cursor-not-allowed border border-slate-600 animate-pulse"
+                >
+                    <Lock size={16} className="mr-1 md:mr-2" />
+                    <span className="hidden sm:inline">AKSIYON GEREKLİ</span>
+                    <span className="sm:hidden">KİLİTLİ</span>
+                </button>
+            );
+        }
+
+        if (activeMatchPhase === 'HALFTIME') {
+            return (
+                <button 
+                    onClick={() => onMatchHeaderAction && onMatchHeaderAction('START_SECOND_HALF')}
+                    className="bg-green-600 hover:bg-green-500 text-white px-3 py-2 md:px-4 md:py-2 rounded font-bold flex items-center shadow-lg text-xs md:text-base transition-colors whitespace-nowrap animate-pulse"
+                >
+                    <FastForward size={16} className="mr-1 md:mr-2" />
+                    <span className="hidden sm:inline">2. YARIYA BAŞLA</span>
+                    <span className="sm:hidden">DEVAM</span>
+                </button>
+            );
+        }
+
+        if (activeMatchPhase === 'FULL_TIME') {
+            return (
+                 <button 
+                    onClick={() => onMatchHeaderAction && onMatchHeaderAction('FINISH_MATCH')}
+                    className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 md:px-4 md:py-2 rounded font-bold flex items-center shadow-lg text-xs md:text-base transition-colors whitespace-nowrap animate-bounce"
+                >
+                    <Square size={16} className="mr-1 md:mr-2 fill-current" />
+                    <span className="hidden sm:inline">MAÇI BİTİR</span>
+                    <span className="sm:hidden">BİTİR</span>
+                </button>
+            );
+        }
+
+        // Standard Pause/Resume
+        return (
+            <button 
+                onClick={handlePauseClick}
+                className={`${isPausedEffective ? 'bg-green-600 hover:bg-green-500' : 'bg-red-600 hover:bg-red-500'} text-white px-3 py-2 md:px-4 md:py-2 rounded font-bold flex items-center shadow-lg text-xs md:text-base transition-colors whitespace-nowrap`}
+            >
+                {isPausedEffective ? <Play size={16} className="mr-1 md:mr-2" /> : <Pause size={16} className="mr-1 md:mr-2" />}
+                <span className="hidden sm:inline">{isPausedEffective ? "DEVAM ET" : "DURDUR"}</span>
+                <span className="sm:hidden">{isPausedEffective ? "OYNAT" : "DUR"}</span>
+            </button>
+        );
     };
 
     return (
@@ -341,6 +420,9 @@ const Dashboard = ({
                              <button disabled className="bg-red-800 text-white px-3 py-2 md:px-4 md:py-2 rounded font-bold flex items-center cursor-not-allowed opacity-100 text-xs md:text-base transition-colors whitespace-nowrap">
                                 <span className="hidden sm:inline">KARİYER SONU</span><span className="sm:hidden">BİTTİ</span>
                             </button>
+                        ) : isLiveMatch ? (
+                            // LIVE MATCH CONTROLS (Updated Logic)
+                            renderMatchHeaderButton()
                         ) : isMatchMode ? (
                             <button disabled className="bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-400 px-3 py-2 md:px-4 md:py-2 rounded font-bold flex items-center cursor-not-allowed animate-pulse text-xs md:text-base transition-colors whitespace-nowrap">
                                 <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span> <span className="hidden sm:inline">MEŞGUL</span><span className="sm:hidden">MEŞGUL</span>

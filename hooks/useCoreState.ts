@@ -51,6 +51,10 @@ export const useCoreState = () => {
     const [transferViewState, setTransferViewState] = useState<TransferViewState | null>(null);
     const [squadViewState, setSquadViewState] = useState<SquadViewState | null>(null);
 
+    // Match UI States
+    const [liveMatchPhase, setLiveMatchPhase] = useState<string>('FIRST_HALF');
+    const [matchActionSignal, setMatchActionSignal] = useState<string | null>(null);
+
     // Theme State
     const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
@@ -88,6 +92,8 @@ export const useCoreState = () => {
         incomingTransfer, setIncomingTransfer,
         transferViewState, setTransferViewState,
         squadViewState, setSquadViewState,
-        theme, toggleTheme
+        theme, toggleTheme,
+        liveMatchPhase, setLiveMatchPhase,
+        matchActionSignal, setMatchActionSignal
     };
 };

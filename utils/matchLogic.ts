@@ -32,27 +32,22 @@ const getScorer = (team: Team, sentOff: Set<string | undefined>) => {
     const pool = getAvailablePlayers(team, sentOff);
     if (pool.length === 0) return { scorer: team.players[0], assist: team.players[0] };
 
-    // FIX: Explicitly exclude GK from scorer pool
     const outfielders = pool.filter(p => p.position !== Position.GK);
-    
-    // Safety check: If for some crazy reason only GK is left (e.g. 10 red cards), use pool
     const candidates = outfielders.length > 0 ? outfielders : pool;
 
     const fwds = candidates.filter(p => [Position.SNT, Position.SLK, Position.SGK].includes(p.position));
     const mids = candidates.filter(p => [Position.OS, Position.OOS].includes(p.position));
     const defs = candidates.filter(p => [Position.STP, Position.SLB, Position.SGB].includes(p.position));
     
-    // Weighted Pool: FWDs > MIDs > DEFs. GK is excluded.
     const scorerPool = [
-        ...fwds, ...fwds, ...fwds, ...fwds, // 4x weight for forwards
-        ...mids, ...mids, // 2x weight for mids
-        ...defs // 1x weight for defenders
+        ...fwds, ...fwds, ...fwds, ...fwds, 
+        ...mids, ...mids, 
+        ...defs 
     ];
     
     const finalScorerPool = scorerPool.length > 0 ? scorerPool : candidates;
     const scorer = finalScorerPool[Math.floor(Math.random() * finalScorerPool.length)];
     
-    // Assist Pool: GK CAN assist (long balls), so use original pool
     let assistPool = pool;
     let assist = assistPool[Math.floor(Math.random() * assistPool.length)];
     
@@ -63,33 +58,22 @@ const getScorer = (team: Team, sentOff: Set<string | undefined>) => {
     return { scorer, assist };
 };
 
-// --- NEW PENALTY LOGIC ---
-
 export const getPenaltyTaker = (team: Team, sentOffIds: Set<string | undefined>): Player => {
-    // Get players currently on the pitch (Indices 0-10)
-    // Filter out Red Carded players and players with active match-ending injuries
     const onPitch = team.players.slice(0, 11).filter(p => 
         !sentOffIds.has(p.id) && 
         (!p.injury || p.injury.daysRemaining <= 0)
     );
 
-    // Extreme fallback
     if (onPitch.length === 0) return team.players[0];
 
-    // 1. Check Designated Taker (User Selected in Tactics)
     if (team.setPieceTakers?.penalty) {
         const designated = onPitch.find(p => p.id === team.setPieceTakers?.penalty);
         if (designated) return designated;
     }
 
-    // 2. Fallback: Highest Penalty Attribute
-    // User logic: "2. en yüksek penaltıcı topun başına geçicek oda yoksa 3. 4. böyle gidecektir"
-    
-    // Filter out Goalkeeper for auto-selection unless they are the only option
     const outfielders = onPitch.filter(p => p.position !== Position.GK);
     const candidates = outfielders.length > 0 ? outfielders : onPitch;
 
-    // Sort by Penalty Stat (Primary), then Finishing, then Composure
     candidates.sort((a, b) => {
         if (b.stats.penalty !== a.stats.penalty) return b.stats.penalty - a.stats.penalty;
         if (b.stats.finishing !== a.stats.finishing) return b.stats.finishing - a.stats.finishing;
@@ -121,16 +105,56 @@ export const generateRandomPlayerRatings = (players: Player[], teamGoals: number
     return ratings;
 };
 
-export const generateMatchStats = (homePlayers: Player[], awayPlayers: Player[], hScore: number, aScore: number): MatchStats => {
-    const homeRatings = generateRandomPlayerRatings(homePlayers, hScore, aScore, hScore > aScore, hScore === aScore);
-    const awayRatings = generateRandomPlayerRatings(awayPlayers, aScore, hScore, aScore > hScore, hScore === aScore);
+/**
+ * Üretilen istatistikleri daha gerçekçi ve skora duyarlı hale getiren fonksiyon.
+ */
+export const generateMatchStats = (homeTeam: Team, awayTeam: Team, hScore: number, aScore: number): MatchStats => {
+    // Topla oynama hesaplama (Güç farkı + Rastgelelik)
+    const hStr = homeTeam.strength;
+    const aStr = awayTeam.strength;
+    const totalStr = hStr + aStr;
+    
+    let homePossession = Math.floor((hStr / totalStr) * 100);
+    // Rastgele dalgalanma (+/- 5)
+    homePossession += (Math.floor(Math.random() * 11) - 5);
+    // Skor etkisi (Önde olan takım topu rakibe bırakabilir)
+    if (hScore > aScore) homePossession -= (hScore - aScore) * 2;
+    if (aScore > hScore) homePossession += (aScore - hScore) * 2;
+    
+    homePossession = Math.max(30, Math.min(70, homePossession));
+    const awayPossession = 100 - homePossession;
+
+    // Şut Sayıları (Skora göre daha yüksek ve dinamik)
+    const homeShots = Math.floor(Math.random() * 8) + 10 + (hScore * 2);
+    const awayShots = Math.floor(Math.random() * 8) + 8 + (aScore * 2);
+    
+    const homeShotsOnTarget = hScore + Math.floor(Math.random() * 4) + Math.floor(homeShots * 0.1);
+    const awayShotsOnTarget = aScore + Math.floor(Math.random() * 3) + Math.floor(awayShots * 0.1);
+
+    const homeRatings = generateRandomPlayerRatings(homeTeam.players, hScore, aScore, hScore > aScore, hScore === aScore);
+    const awayRatings = generateRandomPlayerRatings(awayTeam.players, aScore, hScore, aScore > hScore, hScore === aScore);
     
     return {
-        homePossession: 50, awayPossession: 50, homeShots: hScore + 4, awayShots: aScore + 3,
-        homeShotsOnTarget: hScore + 2, awayShotsOnTarget: aScore + 1, homeCorners: 3, awayCorners: 2,
-        homeFouls: 10, awayFouls: 12, homeOffsides: 2, awayOffsides: 1,
-        homeYellowCards: 1, awayYellowCards: 2, homeRedCards: 0, awayRedCards: 0,
-        mvpPlayerId: '', mvpPlayerName: '', homeRatings, awayRatings
+        homePossession,
+        awayPossession,
+        homeShots,
+        awayShots,
+        homeShotsOnTarget: Math.min(homeShots, homeShotsOnTarget),
+        awayShotsOnTarget: Math.min(awayShots, awayShotsOnTarget),
+        homeCorners: Math.floor(homeShots / 3) + Math.floor(Math.random() * 3),
+        awayCorners: Math.floor(awayShots / 3) + Math.floor(Math.random() * 3),
+        homeFouls: 8 + Math.floor(Math.random() * 8),
+        awayFouls: 9 + Math.floor(Math.random() * 9),
+        homeOffsides: Math.floor(Math.random() * 4),
+        awayOffsides: Math.floor(Math.random() * 4),
+        homeYellowCards: Math.floor(Math.random() * 3),
+        awayYellowCards: Math.floor(Math.random() * 4),
+        homeRedCards: 0, 
+        awayRedCards: 0,
+        mvpPlayerId: '', 
+        mvpPlayerName: '', 
+        homeRatings, 
+        awayRatings
     };
 };
 
@@ -194,10 +218,9 @@ export const simulateMatchStep = (
     let P_INJURY = 0.0015;
     if (homeRisk || awayRisk) P_INJURY = 0.03;
 
-    // --- PROBABILITY CONFIGURATION (NADİR OLAYLAR AZALTILDI) ---
-    const P_PITCH_INVASION = 0.00005; // On binde 5
-    const P_FIGHT = 0.0001; // On binde 10
-    const P_ARGUMENT = 0.0001; // On binde 10
+    const P_PITCH_INVASION = 0.00005; 
+    const P_FIGHT = 0.0001; 
+    const P_ARGUMENT = 0.0001; 
 
     const isDerby = RIVALRIES.some(pair => (pair.includes(home.name) && pair.includes(away.name)));
 
@@ -243,8 +266,6 @@ export const simulateMatchStep = (
 
     if (homeTactics.warning && Math.random() < 0.05) return { minute, description: `Ev Sahibi: ${homeTactics.warning}`, type: 'INFO', teamName: home.name };
     if (awayTactics.warning && Math.random() < 0.05) return { minute, description: `Deplasman: ${awayTactics.warning}`, type: 'INFO', teamName: away.name };
-
-    // --- EVENT DETERMINATION ---
 
     if (eventRoll < T_PITCH_INVASION) {
         return {
@@ -406,7 +427,6 @@ export const simulateMatchStep = (
                 playerId: fouler.id
             };
         } else if (cardRoll < redChance + yellowChance) {
-            // Check for previous yellow card
             const hasYellow = existingEvents.some(e => e.type === 'CARD_YELLOW' && e.playerId === fouler.id);
             
             if (hasYellow) {
@@ -478,6 +498,7 @@ export const simulateBackgroundMatch = (home: Team, away: Team, isKnockout: bool
     let awayScore = 0;
     let events: MatchEvent[] = [];
     for (let m = 1; m <= 90; m++) {
+        // İstatistikleri simülasyon sırasında biriktirmiyoruz, sonunda topluca üretiyoruz (generateMatchStats ile)
         const fakeStats: MatchStats = { ...getEmptyMatchStats(), homePossession: 50, awayPossession: 50 };
         const event = simulateMatchStep(m, home, away, {h: homeScore, a: awayScore}, events, fakeStats);
         if (event) {
@@ -521,11 +542,13 @@ export const simulateBackgroundMatch = (home: Team, away: Team, isKnockout: bool
         }
         pkScore = { h: hPen, a: aPen };
     }
-    const stats = generateMatchStats(home.players, away.players, homeScore, awayScore);
+    // İstatistikleri dinamik olarak üret
+    const stats = generateMatchStats(home, away, homeScore, awayScore);
     stats.homeYellowCards = events.filter(e => e.type === 'CARD_YELLOW' && e.teamName === home.name).length;
     stats.awayYellowCards = events.filter(e => e.type === 'CARD_YELLOW' && e.teamName === away.name).length;
     stats.homeRedCards = events.filter(e => e.type === 'CARD_RED' && e.teamName === home.name).length;
     stats.awayRedCards = events.filter(e => e.type === 'CARD_RED' && e.teamName === away.name).length;
+    
     const ratings = calculateRatingsFromEvents(home, away, events, homeScore, awayScore);
     stats.homeRatings = ratings.homeRatings;
     stats.awayRatings = ratings.awayRatings;

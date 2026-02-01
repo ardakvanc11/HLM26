@@ -7,11 +7,19 @@ import PlayerFace from '../components/shared/PlayerFace';
 const MatchResultModal = ({ homeTeam, awayTeam, homeScore, awayScore, stats, events, onProceed, onSkip, competitionId }: {homeTeam: Team, awayTeam: Team, homeScore: number, awayScore: number, stats: MatchStats, events: MatchEvent[], onProceed: () => void, onSkip?: () => void, competitionId?: string }) => {
     const [statsTab, setStatsTab] = useState<'STATS' | 'RATINGS'>('STATS');
 
-    // Calculate Half Time Score
+    // Optimize xG Calculation (Modern data standards)
+    // Coeffs: Shot = 0.06, Shot on Target = 0.15, Penalty = 0.76, Goal Factor = 0.10 (to reflect conversion quality)
+    const calculateXG = (shots: number, onTarget: number, goals: number, pkCount: number) => {
+        const val = (shots * 0.06) + (onTarget * 0.15) + (pkCount * 0.76) + (goals * 0.10);
+        return Math.max(goals * 0.7, val).toFixed(2); // Minimum xG floor based on goals
+    };
+
+    const hXG = calculateXG(stats.homeShots, stats.homeShotsOnTarget, homeScore, stats.pkHome || 0);
+    const aXG = calculateXG(stats.awayShots, stats.awayShotsOnTarget, awayScore, stats.pkAway || 0);
+
     const halfTimeHomeScore = events.filter(e => e.type === 'GOAL' && e.teamName === homeTeam.name && e.minute <= 45).length;
     const halfTimeAwayScore = events.filter(e => e.type === 'GOAL' && e.teamName === awayTeam.name && e.minute <= 45).length;
 
-    // Filter out purely informational events to keep the timeline clean
     const timelineEvents = events.filter(e => 
         e.type === 'GOAL' || 
         e.type === 'CARD_YELLOW' || 
@@ -19,16 +27,15 @@ const MatchResultModal = ({ homeTeam, awayTeam, homeScore, awayScore, stats, eve
         e.type === 'INJURY' || 
         e.type === 'SUBSTITUTION' ||
         e.type === 'VAR' || 
-        e.type === 'MISS' // Optional: Show missed penalties or huge chances
+        e.type === 'MISS'
     ).sort((a,b) => a.minute - b.minute);
 
     const getEventIcon = (type: MatchEvent['type'], desc: string) => {
-        // Special icon for penalty shootout goals
         if (type === 'GOAL' && desc.includes('Penaltı Atışları')) return <Target size={16} className="text-green-500 fill-green-500"/>;
         if (type === 'MISS' && desc.includes('Penaltı Atışları')) return <Target size={16} className="text-red-500 fill-red-500"/>;
 
         switch(type) {
-            case 'GOAL': return <Disc size={16} className="text-white fill-white"/>; // Ball representation
+            case 'GOAL': return <Disc size={16} className="text-white fill-white"/>;
             case 'CARD_YELLOW': return <div className="w-3 h-4 bg-yellow-500 rounded-sm border border-yellow-600 shadow-sm"></div>;
             case 'CARD_RED': return <div className="w-3 h-4 bg-red-600 rounded-sm border border-red-700 shadow-sm"></div>;
             case 'INJURY': return <Syringe size={16} className="text-red-400"/>;
@@ -39,11 +46,9 @@ const MatchResultModal = ({ homeTeam, awayTeam, homeScore, awayScore, stats, eve
         }
     };
 
-    // Helper to find player name from ID if scorer name is missing (e.g. for Cards/Injuries)
     const getPlayerName = (event: MatchEvent) => {
         if (event.scorer) return event.scorer;
         if (event.description.includes('Penaltı Atışları')) {
-            // Extract Name for shootout: "Penaltı Atışları: [NAME] (Team) ..."
             const match = event.description.match(/Penaltı Atışları: (.*?) \(/);
             if (match) return match[1];
         }
@@ -70,16 +75,13 @@ const MatchResultModal = ({ homeTeam, awayTeam, homeScore, awayScore, stats, eve
             </div>
             <div className="space-y-1">
                 {ratings.sort((a:any, b:any) => b.rating - a.rating).map((p:any, i:number) => {
-                    // Calculate goals and assists from events directly to ensure accuracy (exclude shootout)
                     const goalCount = events.filter(e => e.type === 'GOAL' && e.scorer === p.name && e.minute <= 120).length;
                     const assistCount = events.filter(e => e.type === 'GOAL' && e.assist === p.name && e.minute <= 120).length;
-                    
                     const playerObj = team.players.find(pl => pl.id === p.playerId);
 
                     return (
                         <div key={i} className="flex justify-between items-center text-sm p-1.5 hover:bg-slate-700/50 rounded transition">
                              <div className="flex items-center gap-2">
-                                 {/* Small Face Preview */}
                                  {playerObj && (
                                      <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-600 bg-slate-800 shrink-0 hidden sm:block">
                                          <PlayerFace player={playerObj} />
@@ -103,16 +105,14 @@ const MatchResultModal = ({ homeTeam, awayTeam, homeScore, awayScore, stats, eve
         </div>
     );
 
-    // FIXED: Knockout Rule check
     const isKnockout = ['CUP', 'SUPER_CUP', 'PLAYOFF', 'PLAYOFF_FINAL'].includes(competitionId || '') || (competitionId === 'EUROPE' && (stats.pkHome !== undefined));
 
     return (
         <div 
-            className="fixed inset-0 bg-black/95 z-[100] flex flex-col items-center justify-center p-4 overflow-y-auto cursor-pointer"
-            onClick={onSkip} // Backdrop click skips interview
+            className="fixed inset-0 bg-slate-900/60 z-[100] flex flex-col items-center justify-center p-4 overflow-y-auto cursor-pointer backdrop-blur-md"
+            onClick={onSkip}
             title="Kapatmak için tıklayın (-3 Medya Güveni)"
         >
-             {/* Close Button Top Right */}
              {onSkip && (
                  <button 
                     onClick={(e) => {
@@ -128,7 +128,7 @@ const MatchResultModal = ({ homeTeam, awayTeam, homeScore, awayScore, stats, eve
 
              <div 
                 className="text-center mb-6 animate-in zoom-in duration-500 w-full max-w-4xl mt-10 cursor-default"
-                onClick={(e) => e.stopPropagation()} // Stop propagation to prevent closing when clicking content
+                onClick={(e) => e.stopPropagation()}
              >
                  <div className="text-6xl font-mono font-bold text-white mb-4 bg-slate-900 px-8 py-4 rounded-xl border border-slate-700 shadow-2xl flex items-center justify-center gap-8 relative">
                      <div className="flex flex-col items-center">
@@ -152,13 +152,11 @@ const MatchResultModal = ({ homeTeam, awayTeam, homeScore, awayScore, stats, eve
                  
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full text-left">
                      
-                     {/* LEFT COLUMN: MATCH FLOW TIMELINE */}
                      <div className="bg-slate-800 p-0 rounded-xl border border-slate-700 h-96 flex flex-col overflow-hidden">
                         <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest p-4 border-b border-slate-700 text-center bg-slate-800/50 backdrop-blur-sm z-10">
                             Maç Akışı
                         </h3>
                         <div className="flex-1 overflow-y-auto relative px-4 py-4 custom-scrollbar">
-                             {/* Vertical Spine - Full Height */}
                              <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-700 -translate-x-1/2"></div>
                              
                              {timelineEvents.length === 0 && (
@@ -173,7 +171,6 @@ const MatchResultModal = ({ homeTeam, awayTeam, homeScore, awayScore, stats, eve
                                  
                                  return (
                                      <div key={i} className="flex items-center justify-between mb-2 relative w-full group hover:bg-white/5 rounded-lg transition-colors py-1">
-                                         {/* Left Side (Home) */}
                                          <div className="flex-1 pr-6 flex justify-end">
                                              {isHome ? (
                                                  <div className="flex flex-col items-end text-right">
@@ -194,12 +191,10 @@ const MatchResultModal = ({ homeTeam, awayTeam, homeScore, awayScore, stats, eve
                                              ) : <div className="w-full h-1"></div>}
                                          </div>
 
-                                         {/* Center (Minute) */}
                                          <div className="w-8 h-8 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center text-xs font-bold text-slate-300 z-10 shrink-0 shadow-lg group-hover:border-slate-400 group-hover:text-white transition-colors">
                                              {isShootout ? 'P' : e.minute + "'"}
                                          </div>
 
-                                         {/* Right Side (Away) */}
                                          <div className="flex-1 pl-6 flex justify-start">
                                              {!isHome ? (
                                                  <div className="flex flex-col items-start text-left">
@@ -225,7 +220,6 @@ const MatchResultModal = ({ homeTeam, awayTeam, homeScore, awayScore, stats, eve
                         </div>
                      </div>
 
-                     {/* RIGHT COLUMN: MATCH STATS OR PLAYER RATINGS */}
                      <div className="bg-slate-800 rounded-xl border border-slate-700 h-96 flex flex-col overflow-hidden">
                         <div className="flex border-b border-slate-700 shrink-0">
                              <button 
@@ -242,10 +236,9 @@ const MatchResultModal = ({ homeTeam, awayTeam, homeScore, awayScore, stats, eve
                              </button>
                         </div>
                         
-                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar hide-scrollbar">
                             {statsTab === 'STATS' ? (
                                 <div className="space-y-5 text-sm">
-                                     {/* Possession */}
                                      <div>
                                         <div className="flex justify-between items-center mb-1">
                                             <span className={`font-bold ${stats.homePossession > stats.awayPossession ? 'text-white' : 'text-slate-400'}`}>%{stats.homePossession}</span>
@@ -258,35 +251,30 @@ const MatchResultModal = ({ homeTeam, awayTeam, homeScore, awayScore, stats, eve
                                         </div>
                                     </div>
 
-                                     {/* Shots */}
                                      <div className="flex justify-between items-center py-1 border-b border-slate-700/50 last:border-0">
                                         <span className={`font-bold ${stats.homeShots > stats.awayShots ? 'text-green-400' : 'text-slate-300'}`}>{stats.homeShots}</span>
                                         <span className="text-slate-500 uppercase text-xs">Şut</span>
                                         <span className={`font-bold ${stats.awayShots > stats.homeShots ? 'text-green-400' : 'text-slate-300'}`}>{stats.awayShots}</span>
                                     </div>
 
-                                    {/* Shots on Target */}
                                     <div className="flex justify-between items-center py-1 border-b border-slate-700/50 last:border-0">
                                         <span className={`font-bold ${stats.homeShotsOnTarget > stats.awayShotsOnTarget ? 'text-green-400' : 'text-slate-300'}`}>{stats.homeShotsOnTarget}</span>
                                         <span className="text-slate-500 uppercase text-xs">İsabetli Şut</span>
                                         <span className={`font-bold ${stats.awayShotsOnTarget > stats.homeShotsOnTarget ? 'text-green-400' : 'text-slate-300'}`}>{stats.awayShotsOnTarget}</span>
                                     </div>
 
-                                     {/* Corners */}
                                      <div className="flex justify-between items-center py-1 border-b border-slate-700/50 last:border-0">
-                                        <span className="font-bold text-slate-300">{stats.homeCorners}</span>
-                                        <span className="text-slate-500 uppercase text-xs">Korner</span>
-                                        <span className="font-bold text-slate-300">{stats.awayCorners}</span>
+                                        <span className={`font-bold ${parseFloat(hXG) > parseFloat(aXG) ? 'text-green-400' : 'text-slate-300'}`}>{hXG}</span>
+                                        <span className="text-slate-500 uppercase text-xs">Gol Beklentisi (xG)</span>
+                                        <span className={`font-bold ${parseFloat(aXG) > parseFloat(hXG) ? 'text-green-400' : 'text-slate-300'}`}>{aXG}</span>
                                     </div>
 
-                                     {/* Fouls */}
                                      <div className="flex justify-between items-center py-1 border-b border-slate-700/50 last:border-0">
                                         <span className="font-bold text-slate-300">{stats.homeFouls}</span>
                                         <span className="text-slate-500 uppercase text-xs">Faul</span>
                                         <span className="font-bold text-slate-300">{stats.awayFouls}</span>
                                     </div>
 
-                                    {/* Cards */}
                                      <div className="flex justify-between items-center py-1">
                                         <div className="flex items-center gap-2">
                                             <div className="w-3 h-4 bg-yellow-500 rounded-sm"></div>
@@ -315,7 +303,6 @@ const MatchResultModal = ({ homeTeam, awayTeam, homeScore, awayScore, stats, eve
                  </div>
              </div>
              
-             {/* Only Proceed Button - Skip is now via Backdrop/X */}
              <div className="flex justify-center mb-8 shadow-xl z-50 animate-in fade-in slide-in-from-bottom-2">
                  <button 
                     onClick={(e) => {

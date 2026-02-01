@@ -1,11 +1,12 @@
 
 import React from 'react';
 import { Player } from '../../types';
-import { Smile, Heart, UserCheck, MessageCircle, ChevronRight, ArrowRightLeft, RefreshCw } from 'lucide-react';
+import { Smile, Heart, UserCheck, MessageCircle, ChevronRight, ArrowRightLeft, RefreshCw, X } from 'lucide-react';
 
 interface PlayerContextMenuProps {
     player: Player;
-    bench: Player[];
+    isSubstitute: boolean;
+    substitutionCandidates: Player[]; // "Bench" players or "Starters" based on context
     position: { x: number, y: number };
     onClose: () => void;
     onSubstitute: (inPlayer: Player) => void;
@@ -16,7 +17,8 @@ interface PlayerContextMenuProps {
 
 const PlayerContextMenu: React.FC<PlayerContextMenuProps> = ({ 
     player, 
-    bench, 
+    isSubstitute,
+    substitutionCandidates, 
     position, 
     onClose, 
     onSubstitute, 
@@ -43,81 +45,88 @@ const PlayerContextMenu: React.FC<PlayerContextMenuProps> = ({
             <div className="fixed inset-0 z-40" onClick={onClose}></div>
             <div 
                 className="absolute z-50 bg-[#1e232e] border border-slate-600 rounded-lg shadow-2xl w-64 text-sm text-slate-200 overflow-visible animate-in fade-in zoom-in-95 duration-200"
-                style={{ left: Math.min(window.innerWidth - 270, Math.max(10, position.x - 100)), bottom: 100 }} // Fixed bottom offset from bar
+                style={{ left: Math.min(window.innerWidth - 270, Math.max(10, position.x - 100)), bottom: isSubstitute ? 200 : 100 }} // Higher offset if coming from bottom bar
             >
                 {/* Header */}
-                <div className="p-3 border-b border-slate-700 bg-slate-900/50 rounded-t-lg">
-                    <div className="font-bold text-white text-base">{player.name}</div>
-                    <div className="flex justify-between mt-2 text-xs">
-                        <div className="flex items-center gap-1.5">
-                            <Smile size={14} className={moraleColor}/>
-                            <span>{moraleText} <span className="opacity-70 font-mono">(%{Math.floor(player.morale)})</span></span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                            <Heart size={14} className={condColor}/>
-                            <span>{condText} <span className="opacity-70 font-mono">(%{Math.floor(cond)})</span></span>
+                <div className="p-3 border-b border-slate-700 bg-slate-900/50 rounded-t-lg flex justify-between items-start">
+                    <div>
+                        <div className="font-bold text-white text-base">{player.name}</div>
+                        <div className="flex justify-between mt-2 text-xs gap-3">
+                            <div className="flex items-center gap-1.5">
+                                <Smile size={14} className={moraleColor}/>
+                                <span>{moraleText} <span className="opacity-70 font-mono">(%{Math.floor(player.morale)})</span></span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <Heart size={14} className={condColor}/>
+                                <span>{condText} <span className="opacity-70 font-mono">(%{Math.floor(cond)})</span></span>
+                            </div>
                         </div>
                     </div>
+                    <button onClick={onClose} className="text-slate-500 hover:text-white"><X size={16}/></button>
                 </div>
 
                 {/* Menu Items */}
                 <div className="py-1">
-                    {/* Instructions */}
-                    <button onClick={onInstruction} className="w-full text-left px-4 py-2.5 hover:bg-slate-700 flex items-center justify-between group">
-                        <div className="flex items-center gap-3">
-                            <UserCheck size={16} className="text-slate-400"/>
-                            <span>Oyuncu Talimatları</span>
-                        </div>
-                        {/* Placeholder for now */}
-                    </button>
+                    {/* Instructions & Shouts - ONLY IF NOT SUBSTITUTE */}
+                    {!isSubstitute && (
+                        <>
+                            <button onClick={onInstruction} className="w-full text-left px-4 py-2.5 hover:bg-slate-700 flex items-center justify-between group">
+                                <div className="flex items-center gap-3">
+                                    <UserCheck size={16} className="text-slate-400"/>
+                                    <span>Oyuncu Talimatları</span>
+                                </div>
+                            </button>
 
-                    {/* Shouts Submenu */}
-                    <div className="relative group/item">
-                        <button className="w-full text-left px-4 py-2.5 hover:bg-slate-700 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <MessageCircle size={16} className="text-blue-400"/>
-                                <span>Oyunculara Seslen</span>
+                            <div className="relative group/item">
+                                <button className="w-full text-left px-4 py-2.5 hover:bg-slate-700 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <MessageCircle size={16} className="text-blue-400"/>
+                                        <span>Oyunculara Seslen</span>
+                                    </div>
+                                    <ChevronRight size={14} className="text-slate-500"/>
+                                </button>
+                                
+                                <div className="absolute left-full bottom-0 ml-1 w-48 bg-[#1e232e] border border-slate-600 rounded-lg shadow-xl hidden group-hover/item:block before:content-[''] before:absolute before:-left-2 before:top-0 before:w-4 before:h-full">
+                                    <button onClick={() => onShout('PRAISE')} className="w-full text-left px-4 py-2 hover:bg-slate-700 text-green-400 font-bold border-b border-slate-700/50">Aferin!</button>
+                                    <button onClick={() => onShout('ENCOURAGE')} className="w-full text-left px-4 py-2 hover:bg-slate-700 text-blue-400 font-bold border-b border-slate-700/50">Başarabilirsin</button>
+                                    <button onClick={() => onShout('CALM')} className="w-full text-left px-4 py-2 hover:bg-slate-700 text-yellow-500 font-bold border-b border-slate-700/50">Sakin Ol</button>
+                                    <button onClick={() => onShout('DEMAND')} className="w-full text-left px-4 py-2 hover:bg-slate-700 text-red-500 font-bold">Daha İyisini Yap!</button>
+                                </div>
                             </div>
-                            <ChevronRight size={14} className="text-slate-500"/>
-                        </button>
-                        
-                        {/* Submenu Dropdown */}
-                        <div className="absolute left-full bottom-0 ml-1 w-48 bg-[#1e232e] border border-slate-600 rounded-lg shadow-xl hidden group-hover/item:block">
-                            <button onClick={() => onShout('PRAISE')} className="w-full text-left px-4 py-2 hover:bg-slate-700 text-green-400 font-bold border-b border-slate-700/50">Aferin!</button>
-                            <button onClick={() => onShout('ENCOURAGE')} className="w-full text-left px-4 py-2 hover:bg-slate-700 text-blue-400 font-bold border-b border-slate-700/50">Başarabilirsiniz</button>
-                            <button onClick={() => onShout('CALM')} className="w-full text-left px-4 py-2 hover:bg-slate-700 text-yellow-500 font-bold border-b border-slate-700/50">Sakin Olun</button>
-                            <button onClick={() => onShout('DEMAND')} className="w-full text-left px-4 py-2 hover:bg-slate-700 text-red-500 font-bold">Daha İyisini Yap!</button>
-                        </div>
-                    </div>
+                        </>
+                    )}
 
-                    {/* Substitution Submenu */}
+                    {/* Substitution Submenu (Different Context based on isSubstitute) */}
                     <div className="relative group/item">
                         <button className="w-full text-left px-4 py-2.5 hover:bg-slate-700 flex items-center justify-between border-t border-slate-700/50">
                             <div className="flex items-center gap-3">
                                 <ArrowRightLeft size={16} className="text-red-400"/>
-                                <span>Oyuncu Değişikliği</span>
+                                <span>{isSubstitute ? 'Oyuna Gir (Kimin Yerine?)' : 'Oyuncu Değişikliği'}</span>
                             </div>
                             <ChevronRight size={14} className="text-slate-500"/>
                         </button>
 
-                        {/* Bench List */}
-                        <div className="absolute left-full bottom-0 ml-1 w-56 bg-[#1e232e] border border-slate-600 rounded-lg shadow-xl hidden group-hover/item:block max-h-64 overflow-y-auto custom-scrollbar">
-                            <div className="px-3 py-2 text-[10px] uppercase font-bold text-slate-500 bg-slate-900/50 border-b border-slate-700">Yedekler ({5 - subsLeft} hak kullanıldı)</div>
-                            {subsLeft > 0 ? (
-                                bench.map(sub => (
+                        {/* List with Bridge Fix - Scroll removed as requested */}
+                        <div className="absolute left-full bottom-0 ml-1 w-64 bg-[#1e232e] border border-slate-600 rounded-lg shadow-2xl hidden group-hover/item:block z-50 before:content-[''] before:absolute before:-left-2 before:top-0 before:w-4 before:h-full">
+                            <div className="px-3 py-2 text-[10px] uppercase font-bold text-slate-500 bg-slate-900/50 border-b border-slate-700 rounded-t-lg sticky top-0 z-10">
+                                {isSubstitute ? "Sahadaki Oyuncular (İlk 11)" : `Yedekler (${5 - subsLeft} hak kullanıldı)`}
+                            </div>
+                            
+                            {(isSubstitute || subsLeft > 0) ? (
+                                substitutionCandidates.map(target => (
                                     <button 
-                                        key={sub.id} 
-                                        onClick={() => onSubstitute(sub)}
-                                        className="w-full text-left px-3 py-2 hover:bg-slate-700 flex items-center gap-2 border-b border-slate-700/50 last:border-0"
+                                        key={target.id} 
+                                        onClick={() => onSubstitute(target)}
+                                        className="w-full text-left px-3 py-2 hover:bg-slate-700 flex items-center gap-2 border-b border-slate-700/50 last:border-0 last:rounded-b-lg group/sub"
                                     >
-                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white bg-slate-600`}>
-                                            {sub.position}
+                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white bg-slate-600 shrink-0`}>
+                                            {target.position}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="text-xs font-bold truncate">{sub.name}</div>
-                                            <div className="text-[10px] text-slate-400">Güç: {sub.skill} • Knd: %{Math.round(sub.condition || 100)}</div>
+                                            <div className="text-xs font-bold truncate group-hover/sub:text-yellow-400 transition-colors">{target.name}</div>
+                                            <div className="text-[10px] text-slate-400">Güç: {target.skill} • Knd: %{Math.round(target.condition || 100)}</div>
                                         </div>
-                                        <RefreshCw size={12} className="text-green-500"/>
+                                        <RefreshCw size={12} className="text-green-500 shrink-0 opacity-0 group-hover/sub:opacity-100 transition-opacity"/>
                                     </button>
                                 ))
                             ) : (
@@ -132,4 +141,3 @@ const PlayerContextMenu: React.FC<PlayerContextMenuProps> = ({
 };
 
 export default PlayerContextMenu;
-    

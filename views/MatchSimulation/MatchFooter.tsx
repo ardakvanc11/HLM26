@@ -1,12 +1,12 @@
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Team, Mentality, Player } from '../../types';
-import { Settings, Megaphone, Mic, Users, RefreshCw } from 'lucide-react';
+import { Settings, Megaphone, Mic, Users, RefreshCw, Shield, Swords, Anchor, Zap, ChevronUp } from 'lucide-react';
 import PlayerMatchCard from './PlayerMatchCard';
 
 interface MatchFooterProps {
     myTeamCurrent: Team;
-    handleQuickMentalityChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+    handleQuickMentalityChange: (e: React.ChangeEvent<HTMLSelectElement> | any) => void;
     managerDiscipline: string;
     setIsTacticsOpen: (v: boolean) => void;
     isOwnGoal: boolean;
@@ -21,6 +21,118 @@ interface MatchFooterProps {
     handlePlayerClick: (e: React.MouseEvent, p: Player) => void;
     getPlayerRating: (p: Player) => number;
 }
+
+// --- MENTALITY DATA & CONFIGURATION ---
+const MENTALITY_INFO: Record<Mentality, { label: string, desc: string, color: string, icon: any }> = {
+    [Mentality.VERY_DEFENSIVE]: {
+        label: "Aşırı Savunma Ağırlıklı",
+        desc: "Takım tamamen kendi yarı sahasına çekilir. Öncelik kesinlikle gol yememektir. Oyuncular risk almaz, topu uzaklaştırır ve zaman geçirmeye oynar. Skoru korumak için son dakikalarda idealdir.",
+        color: "text-blue-500",
+        icon: Shield
+    },
+    [Mentality.DEFENSIVE]: {
+        label: "Savunma Ağırlıklı",
+        desc: "Kontrollü ve temkinli bir oyun. Bekler ileri çıkmaz, orta saha savunmaya yakın oynar. Rakibi karşılayıp hata yapmalarını bekleriz. Zorlu deplasmanlar için uygundur.",
+        color: "text-cyan-400",
+        icon: Shield
+    },
+    [Mentality.STANDARD]: {
+        label: "Dengeli",
+        desc: "Dengeli oyun anlayışı, diğer oyun anlayışlarına göre belki de en önemli olanıdır. Menajer, bu oyun anlayışı ile maça başlayarak, karşılaşmanın gidişatına ve oyuncularının performansına bakarak taktiksel planını daha detaylı şekillendirebilir.",
+        color: "text-yellow-500",
+        icon: Anchor
+    },
+    [Mentality.ATTACKING]: {
+        label: "Hücum Ağırlıklı",
+        desc: "Rakip yarı alanda baskı kurmayı hedefleriz. Bekler bindirme yapar, pas temposu artar. Gol ararken savunmada az da olsa boşluklar verebiliriz.",
+        color: "text-orange-500",
+        icon: Swords
+    },
+    [Mentality.VERY_ATTACKING]: {
+        label: "Aşırı Hücum Ağırlıklı",
+        desc: "Tüm hatlarla saldır! Savunma güvenliği ikinci plandadır. Stoperler bile ileri çıkar. Gol atmak zorundaysak veya kaybedecek bir şeyimiz kalmadıysa kullanılır.",
+        color: "text-red-600",
+        icon: Zap
+    }
+};
+
+const MentalitySelector = ({ value, onChange, disabled }: { value: Mentality, onChange: (val: Mentality) => void, disabled: boolean }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [hovered, setHovered] = useState<Mentality | null>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    // Close on click outside
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const activeInfo = MENTALITY_INFO[hovered || value];
+    const currentInfo = MENTALITY_INFO[value];
+
+    return (
+        <div className="relative w-[307px] min-w-[307px]" ref={menuRef}>
+            {/* Trigger Button */}
+            <button
+                onClick={() => !disabled && setIsOpen(!isOpen)}
+                disabled={disabled}
+                className={`w-full h-14 bg-[#16181d] border ${isOpen ? 'border-yellow-500' : 'border-slate-600'} rounded p-2 flex items-center justify-between transition-colors hover:bg-[#1f2229] ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+                <div className="flex flex-col items-start">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase">Oyun Anlayışı</span>
+                    <div className={`flex items-center gap-2 text-sm font-bold ${currentInfo.color}`}>
+                        <currentInfo.icon size={16} />
+                        {currentInfo.label}
+                    </div>
+                </div>
+                <ChevronUp size={16} className={`text-slate-500 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {/* Popup Menu */}
+            {isOpen && (
+                <div className="absolute bottom-full left-0 mb-2 w-[500px] bg-[#1b1e26]/95 backdrop-blur-md border border-slate-600 rounded-lg shadow-2xl flex overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2">
+                    {/* List */}
+                    <div className="w-1/2 border-r border-slate-700 p-1 flex flex-col gap-0.5">
+                        {Object.values(Mentality).map((m) => {
+                            const info = MENTALITY_INFO[m];
+                            const isSelected = value === m;
+                            return (
+                                <button
+                                    key={m}
+                                    onClick={() => { onChange(m); setIsOpen(false); }}
+                                    onMouseEnter={() => setHovered(m)}
+                                    onMouseLeave={() => setHovered(null)}
+                                    className={`flex items-center gap-2 px-3 py-3 rounded text-xs font-bold text-left transition-all
+                                        ${isSelected ? 'bg-slate-700 text-white shadow-inner' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}
+                                    `}
+                                >
+                                    <info.icon size={14} className={isSelected ? info.color : 'text-slate-500'} />
+                                    {info.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    
+                    {/* Description Panel */}
+                    <div className="w-1/2 p-4 flex flex-col justify-center bg-black/20">
+                        <div className={`flex items-center gap-2 mb-2 text-sm font-black uppercase ${activeInfo.color}`}>
+                            <activeInfo.icon size={18} />
+                            {activeInfo.label}
+                        </div>
+                        <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                            {activeInfo.desc}
+                        </p>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 const MatchFooter: React.FC<MatchFooterProps> = ({
     myTeamCurrent,
@@ -45,19 +157,13 @@ const MatchFooter: React.FC<MatchFooterProps> = ({
             <div className="w-1/3 md:w-1/4 lg:w-1/3 border-r border-slate-700 p-3 flex flex-col gap-2 bg-[#21242c]">
                 
                 {/* Mentality + Speed Row */}
-                <div className="flex gap-2 h-14">
-                    {/* Mentality Selector */}
-                    <div className="bg-[#16181d] rounded border border-slate-600 p-1 flex flex-col w-[307px] min-w-[307px]">
-                        <label className="text-[9px] text-slate-500 font-bold uppercase pl-1 truncate">Oyun Anlayışı</label>
-                        <select 
-                            value={myTeamCurrent.mentality} 
-                            onChange={handleQuickMentalityChange}
-                            disabled={managerDiscipline === 'RED'}
-                            className="bg-transparent text-white text-xs font-bold outline-none cursor-pointer w-full h-full"
-                        >
-                            {Object.values(Mentality).map(m => <option key={m} value={m}>{m}</option>)}
-                        </select>
-                    </div>
+                <div className="flex gap-2 h-14 relative">
+                    {/* Custom Mentality Selector */}
+                    <MentalitySelector 
+                        value={myTeamCurrent.mentality}
+                        onChange={(val) => handleQuickMentalityChange({ target: { value: val } } as any)}
+                        disabled={managerDiscipline === 'RED'}
+                    />
 
                     {/* Speed Controls */}
                     <div className="bg-[#16181d] rounded border border-slate-600 p-1 flex flex-1 items-center gap-3 px-3">

@@ -14,9 +14,10 @@ const PlayerMatchCard: React.FC<PlayerMatchCardProps> = ({ player, rating, onCli
     const cond = player.condition !== undefined ? player.condition : 100;
     const morale = player.morale;
     
+    // Updated Logic per request: <75% Orange, <50% Red
     let heartColor = 'text-green-500';
-    if (cond < 70) heartColor = 'text-yellow-500';
-    if (cond < 40) heartColor = 'text-red-500';
+    if (cond < 75) heartColor = 'text-orange-500';
+    if (cond < 50) heartColor = 'text-red-500';
 
     let moraleIcon = <Smile size={14} className="text-green-500"/>;
     if (morale < 70) moraleIcon = <Meh size={14} className="text-yellow-500"/>;

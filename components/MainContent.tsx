@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { GameState, Team, Player, Fixture, MatchEvent, MatchStats, PendingTransfer, SponsorDeal, IncomingOffer, TrainingConfig, IndividualTrainingType, BoardInteraction, Position, TransferViewState, SquadViewState } from '../types';
 import { FileWarning, LogOut, Trophy, Building2, BarChart3, ArrowRightLeft, Wallet, Clock, TrendingUp, TrendingDown, Crown } from 'lucide-react';
@@ -107,6 +106,10 @@ interface MainContentProps {
     setTransferViewState: React.Dispatch<React.SetStateAction<TransferViewState | null>>; 
     squadViewState: SquadViewState | null; 
     setSquadViewState: React.Dispatch<React.SetStateAction<SquadViewState | null>>; 
+    liveMatchPhase: string;
+    setLiveMatchPhase: React.Dispatch<React.SetStateAction<string>>;
+    matchActionSignal: string | null;
+    setMatchActionSignal: React.Dispatch<React.SetStateAction<string | null>>;
     myTeam?: Team;
     injuredBadgeCount: number;
     isTransferWindowOpen: boolean;
@@ -178,6 +181,10 @@ const MainContent: React.FC<MainContentProps> = (props) => {
         setTransferViewState,
         squadViewState,
         setSquadViewState,
+        liveMatchPhase,
+        setLiveMatchPhase,
+        matchActionSignal,
+        setMatchActionSignal,
         myTeam,
         injuredBadgeCount,
         isTransferWindowOpen
@@ -207,10 +214,23 @@ const MainContent: React.FC<MainContentProps> = (props) => {
     // State to handle direct navigation to a specific competition (e.g. from player stats)
     const [targetCompetitionId, setTargetCompetitionId] = useState<string | null>(null);
 
+    // --- PAUSE STATE ---
+    const [isMatchPaused, setIsMatchPaused] = useState(false);
+
+    // --- TACTICS MENU STATE (Lifted from MatchSimulation) ---
+    const [isTacticsOpen, setIsTacticsOpen] = useState(false);
+
+    // --- ACTION BLOCK STATE (Bug Fix) ---
+    // If true, header buttons (continue/finish) are disabled because an action (like forced sub) is required inside match view
+    const [isMatchActionBlocked, setIsMatchActionBlocked] = useState(false);
+
     // Reset target competition when returning to home
     useEffect(() => {
         if (currentView === 'home') {
             setTargetCompetitionId(null);
+            setIsMatchPaused(false); // Reset pause state on home
+            setIsTacticsOpen(false); // Reset tactics state
+            setIsMatchActionBlocked(false); // Reset blocking state
         }
     }, [currentView]);
 
@@ -466,30 +486,33 @@ const MainContent: React.FC<MainContentProps> = (props) => {
         return gameState.fixtures.find(f => (f.homeTeamId === gameState.myTeamId || f.awayTeamId === gameState.myTeamId) && !f.played);
     }
 
-    const activeMatchFixture = getActiveFixture();
-    const matchPreviewHomeTeam = activeMatchFixture ? gameState.teams.find(t => t.id === activeMatchFixture.homeTeamId) : null;
-    const matchPreviewAwayTeam = activeMatchFixture ? gameState.teams.find(t => t.id === activeMatchFixture.awayTeamId) : null;
+    const activeFixture = getActiveFixture();
+    const matchPreviewHomeTeam = activeFixture ? gameState.teams.find(t => t.id === activeFixture.homeTeamId) : null;
+    const matchPreviewAwayTeam = activeFixture ? gameState.teams.find(t => t.id === activeFixture.awayTeamId) : null;
 
     // Handler for talk opponent lookup
-    const talkOpponent = activeMatchFixture ? gameState.teams.find(t => t.id === (activeMatchFixture.homeTeamId === gameState.myTeamId ? activeMatchFixture.awayTeamId : activeMatchFixture.homeTeamId)) : undefined;
+    const talkOpponent = activeFixture ? gameState.teams.find(t => t.id === (activeFixture.homeTeamId === gameState.myTeamId ? activeFixture.awayTeamId : activeFixture.homeTeamId)) : undefined;
 
     // Wrapped Handlers for Match Locking
     const handleMatchProceed = () => {
-        if (activeMatchFixture) {
-            setGameState(prev => ({ ...prev, activeFixtureId: activeMatchFixture.id }));
+        if (activeFixture) {
+            setGameState(prev => ({ ...prev, activeFixtureId: activeFixture.id }));
             navigateTo('locker_room');
         }
     };
 
     const handleGoToTalk = () => {
-        if (activeMatchFixture) {
-            setGameState(prev => ({ ...prev, activeFixtureId: activeMatchFixture.id }));
+        if (activeFixture) {
+            setGameState(prev => ({ ...prev, activeFixtureId: activeFixture.id }));
             navigateTo('pre_match_talk');
         }
     };
 
     const handleMatchFinishWrapper = (hScore: number, aScore: number, events: MatchEvent[], stats: MatchStats, fixtureId?: string) => {
         handleMatchFinish(hScore, aScore, events, stats, fixtureId);
+        setIsMatchPaused(false); // Reset pause state
+        setIsTacticsOpen(false); // Reset tactics state
+        setIsMatchActionBlocked(false); // Reset blocking state
     };
 
     const handleFastSimulateWrapper = () => {
@@ -523,6 +546,17 @@ const MainContent: React.FC<MainContentProps> = (props) => {
             injuredCount={injuredBadgeCount}
             onTeamClick={handleShowTeamDetail}
             onPlayerClick={handleShowPlayerDetail}
+            // NEW PROPS FOR PAUSE
+            isMatchPaused={isMatchPaused}
+            onToggleMatchPause={() => setIsMatchPaused(prev => !prev)}
+            // NEW PROPS FOR TACTICS MENU RESUME
+            isTacticsOpen={isTacticsOpen}
+            onCloseTactics={() => setIsTacticsOpen(false)}
+            // MATCH HEADER ACTIONS
+            activeMatchPhase={liveMatchPhase}
+            onMatchHeaderAction={(action) => setMatchActionSignal(action)}
+            // ACTION BLOCK
+            isMatchActionBlocked={isMatchActionBlocked}
         >
             {/* GLOBAL UI ALERT COMPONENT */}
             {gameState.uiAlert && (
@@ -870,10 +904,10 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                 />
             )}
 
-            {currentView === 'match_preview' && myTeam && activeMatchFixture && matchPreviewHomeTeam && matchPreviewAwayTeam && (
+            {currentView === 'match_preview' && myTeam && activeFixture && matchPreviewHomeTeam && matchPreviewAwayTeam && (
                 <div className="h-full bg-slate-50 dark:bg-slate-900 overflow-y-auto p-4 transition-colors duration-300">
                     <MatchPreview 
-                        fixture={activeMatchFixture}
+                        fixture={activeFixture}
                         homeTeam={matchPreviewHomeTeam}
                         awayTeam={matchPreviewAwayTeam}
                         onProceed={handleMatchProceed} 
@@ -916,12 +950,12 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                         onStartMatch={() => navigateTo('match_live')}
                         onSimulateMatch={handleFastSimulateWrapper}
                         currentWeek={gameState.currentWeek}
-                        nextMatchCompetitionId={activeMatchFixture?.competitionId}
+                        nextMatchCompetitionId={activeFixture?.competitionId}
                     />
                 </div>
             )}
 
-            {currentView === 'match_live' && myTeam && activeMatchFixture && matchPreviewHomeTeam && matchPreviewAwayTeam && (
+            {currentView === 'match_live' && myTeam && activeFixture && matchPreviewHomeTeam && matchPreviewAwayTeam && (
                 <div className="h-full w-full bg-black">
                     <MatchSimulation 
                         homeTeam={matchPreviewHomeTeam}
@@ -931,7 +965,14 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                         allTeams={gameState.teams}
                         fixtures={gameState.fixtures}
                         managerTrust={gameState.manager?.trust.players || 50}
-                        fixtureId={gameState.activeFixtureId || activeMatchFixture.id} 
+                        fixtureId={gameState.activeFixtureId || activeFixture.id}
+                        isPaused={isMatchPaused} // PASS PAUSE STATE
+                        isTacticsOpen={isTacticsOpen} // PASS TACTICS STATE
+                        setIsTacticsOpen={setIsTacticsOpen} // PASS SETTER
+                        onPhaseChange={setLiveMatchPhase} // Report Phase
+                        matchActionSignal={matchActionSignal} // Pass Action Signal
+                        onActionSignalHandled={() => setMatchActionSignal(null)} // Reset Signal
+                        onMatchBlockingStateChange={setIsMatchActionBlocked} // Pass Blocking Setter (Fix for forced sub bug)
                     />
                 </div>
             )}
