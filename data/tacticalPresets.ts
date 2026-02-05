@@ -110,5 +110,36 @@ export const TACTICAL_PRESETS: Record<GameSystem, Partial<Team>> = {
         defensiveTransition: DefensiveTransition.REGROUP,
         tackling: Tackling.AGGRESSIVE, // Park bus but hit hard
         preventCrosses: PreventCrosses.STOP_CROSS
+    },
+    [GameSystem.CUSTOM]: {
+        gameSystem: GameSystem.CUSTOM,
+        formation: '4-4-2',
+        mentality: Mentality.STANDARD,
+        passing: PassingStyle.STANDARD,
+        tempo: Tempo.STANDARD,
+        width: Width.STANDARD,
+        attackingTransition: AttackingTransition.STANDARD,
+        creative: CreativeFreedom.STANDARD,
+        setPiecePlay: SetPiecePlay.RECYCLE,
+        playStrategy: PlayStrategy.STANDARD,
+        goalKickType: GoalKickType.SHORT,
+        gkDistributionTarget: GKDistributionTarget.CBS,
+        supportRuns: SupportRuns.BALANCED,
+        dribbling: Dribbling.STANDARD,
+        focusArea: FocusArea.STANDARD,
+        passTarget: PassTarget.STANDARD,
+        patience: Patience.STANDARD,
+        longShots: LongShots.STANDARD,
+        crossing: CrossingType.STANDARD,
+        gkDistSpeed: GKDistributionSpeed.STANDARD,
+        pressingLine: PressingLine.MID,
+        defLine: DefensiveLine.STANDARD,
+        defLineMobility: DefLineMobility.BALANCED,
+        pressIntensity: PressIntensity.STANDARD,
+        defensiveTransition: DefensiveTransition.STANDARD,
+        tackling: Tackling.STANDARD,
+        preventCrosses: PreventCrosses.STANDARD,
+        pressFocus: PressingFocus.BALANCED,
+        timeWasting: TimeWasting.SOMETIMES
     }
 };

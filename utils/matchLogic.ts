@@ -99,7 +99,22 @@ export const generateRandomPlayerRatings = (players: Player[], teamGoals: number
         let result: 'WIN' | 'DRAW' | 'LOSS' = 'LOSS';
         if (isWinner) result = 'WIN';
         else if (isDraw) result = 'DRAW';
-        const rating = calculateRating(p.position, p.skill, 0, 0, 0, 0, goalsConceded, result, 90, 0);
+        const rating = calculateRating({
+            position: p.position,
+            skill: p.skill,
+            goals: 0,
+            assists: 0,
+            saves: 0,
+            goalsConceded: goalsConceded,
+            cleanSheet: goalsConceded === 0,
+            yellowCards: 0,
+            redCards: 0,
+            ownGoals: 0,
+            penaltiesCaused: 0,
+            penaltiesMissed: 0,
+            matchResult: result,
+            minutesPlayed: 90
+        });
         return { playerId: p.id, name: p.name, position: p.position, rating, goals: 0, assists: 0 };
     });
     return ratings;
@@ -211,6 +226,29 @@ export const simulateMatchStep = (
     currentStats?: MatchStats
 ): MatchEvent | null => {
     
+    // --- AGGRAVATION CHECK (Injured players staying on pitch) ---
+    // Rule: If player is injured (occurredAtMinute exists) and stays for >= 40 mins, 
+    // there is a 45% chance PER MINUTE to trigger a severe injury event.
+    for (const team of [home, away]) {
+       const activePlayers = team.players.slice(0, 11);
+       for (const p of activePlayers) {
+           if (p.injury && p.injury.occurredAtMinute !== undefined) {
+               const duration = minute - p.injury.occurredAtMinute;
+               if (duration >= 40) {
+                   if (Math.random() < 0.45) {
+                       return {
+                           minute,
+                           type: 'INJURY',
+                           playerId: p.id,
+                           description: `SAKATLIĞI NÜKSETTİ! ${p.name} sakat sakat oynamanın bedelini ağır ödüyor.`,
+                           teamName: team.name
+                       };
+                   }
+               }
+           }
+       }
+    }
+
     const eventRoll = Math.random();
     const getTeamInjuryRisk = (t: Team) => t.players.slice(0, 11).some(p => (p.condition || 100) < 60);
     const homeRisk = getTeamInjuryRisk(home);
@@ -406,6 +444,13 @@ export const simulateMatchStep = (
         const victim = getPlayer(victimTeam, getSentOffPlayers(existingEvents));
         let redChance = 0.02;
         let yellowChance = 0.15;
+        
+        // --- SARI KARTLI OYUNCU İÇİN İHTİMAL DÜŞÜRME (YENİ) ---
+        const hasYellow = existingEvents.some(e => e.type === 'CARD_YELLOW' && e.playerId === fouler.id);
+        if (hasYellow) {
+            yellowChance *= 0.7; // 30% oranında azalır
+        }
+
         if (foulingTeam.tackling === Tackling.AGGRESSIVE) {
             redChance = 0.03;
             yellowChance = 0.25; 
@@ -427,7 +472,6 @@ export const simulateMatchStep = (
                 playerId: fouler.id
             };
         } else if (cardRoll < redChance + yellowChance) {
-            const hasYellow = existingEvents.some(e => e.type === 'CARD_YELLOW' && e.playerId === fouler.id);
             
             if (hasYellow) {
                  return {
@@ -548,6 +592,14 @@ export const simulateBackgroundMatch = (home: Team, away: Team, isKnockout: bool
     stats.awayYellowCards = events.filter(e => e.type === 'CARD_YELLOW' && e.teamName === away.name).length;
     stats.homeRedCards = events.filter(e => e.type === 'CARD_RED' && e.teamName === home.name).length;
     stats.awayRedCards = events.filter(e => e.type === 'CARD_RED' && e.teamName === away.name).length;
+    
+    // --- İKİNCİ SARI KARTLARI İSTATİSTİĞE EKLEME ---
+    // İkinci sarı karttan kırmızı görenler, sarı kart istatistiğine de eklenmelidir.
+    const secondYellowsHome = events.filter(e => e.type === 'CARD_RED' && e.teamName === home.name && e.description.toLowerCase().includes('ikinci sarı')).length;
+    const secondYellowsAway = events.filter(e => e.type === 'CARD_RED' && e.teamName === away.name && e.description.toLowerCase().includes('ikinci sarı')).length;
+
+    stats.homeYellowCards += secondYellowsHome;
+    stats.awayYellowCards += secondYellowsAway;
     
     const ratings = calculateRatingsFromEvents(home, away, events, homeScore, awayScore);
     stats.homeRatings = ratings.homeRatings;

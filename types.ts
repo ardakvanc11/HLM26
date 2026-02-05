@@ -1,3 +1,5 @@
+
+
 export enum Position {
     GK = 'GK',
     SLB = 'SLB',
@@ -13,7 +15,9 @@ export enum Position {
 export enum Mentality {
     VERY_DEFENSIVE = 'Very Defensive',
     DEFENSIVE = 'Defensive',
+    CAUTIOUS = 'Cautious',
     STANDARD = 'Standard',
+    POSITIVE = 'Positive',
     ATTACKING = 'Attacking',
     VERY_ATTACKING = 'Very Attacking'
 }
@@ -57,7 +61,7 @@ export enum TimeWasting { RARELY = 'RARELY', SOMETIMES = 'SOMETIMES', ALWAYS = '
 export enum TacticStyle { BALANCED = 'BALANCED', POSSESSION = 'POSSESSION' }
 export enum AttackStyle { MIXED = 'MIXED' }
 export enum PressingStyle { BALANCED = 'BALANCED', HIGH_PRESS = 'HIGH_PRESS' }
-export enum GameSystem { POSSESSION = 'POSSESSION', GEGENPRESS = 'GEGENPRESS', TIKI_TAKA = 'TIKI_TAKA', VERTICAL_TIKI_TAKA = 'VERTICAL_TIKI_TAKA', WING_PLAY = 'WING_PLAY', LONG_BALL = 'LONG_BALL', HARAMBALL = 'HARAMBALL' }
+export enum GameSystem { POSSESSION = 'POSSESSION', GEGENPRESS = 'GEGENPRESS', TIKI_TAKA = 'TIKI_TAKA', VERTICAL_TIKI_TAKA = 'VERTICAL_TIKI_TAKA', WING_PLAY = 'WING_PLAY', LONG_BALL = 'LONG_BALL', HARAMBALL = 'HARAMBALL', CUSTOM = 'CUSTOM' }
 
 export interface PlayerStats {
     finishing: number;
@@ -146,6 +150,7 @@ export interface Player {
         type: string;
         daysRemaining: number;
         description: string;
+        occurredAtMinute?: number;
     };
     injuryHistory?: {
         type: string;
@@ -156,6 +161,7 @@ export interface Player {
     personality?: PlayerPersonality;
     activeTraining?: string;
     activeTrainingWeeks?: number;
+    individualTrainingCooldownUntil?: number; // YENİ: Antrenman soğuma süresi (bitiş haftası)
     positionTrainingTarget?: Position;
     positionTrainingRequired?: number;
     positionTrainingProgress?: number;
@@ -170,6 +176,14 @@ export interface Player {
     squadStatus?: string;
     activePromises?: string[];
     nextNegotiationWeek?: number;
+    
+    // NEW: Loan Tracking
+    loanInfo?: {
+        originalTeamId: string;
+        returnDate: string; // ISO String
+        loanFee: number;
+        wageContribution: number;
+    };
 }
 
 export interface SponsorDeal {
@@ -228,7 +242,7 @@ export interface FinancialRecords {
 export interface TransferRecord {
     date: string;
     playerName: string;
-    type: 'BOUGHT' | 'SOLD' | 'LOAN_IN' | 'LOAN_OUT';
+    type: 'BOUGHT' | 'SOLD' | 'LOAN_IN' | 'LOAN_OUT' | 'LOAN_RETURN';
     counterparty: string;
     price: string;
 }
@@ -254,6 +268,10 @@ export interface Team {
     logo?: string;
     jersey?: string;
     players: Player[];
+    
+    // NEW: Track players loaned OUT to non-playable teams (Foreign/Free)
+    loanedOutPlayers?: Player[];
+    
     championships: number;
     domesticCups: number;
     superCups: number;

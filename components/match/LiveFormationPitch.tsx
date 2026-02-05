@@ -92,6 +92,72 @@ const FORMATIONS: Record<string, { left: string, bottom: string }[]> = {
         { left: '65%', bottom: '42%' },  // RCM
         { left: '38%', bottom: '75%' },  // LST
         { left: '62%', bottom: '75%' }   // RST
+    ],
+    // NEW FORMATIONS
+    '3-2-4-1': [
+        { left: '50%', bottom: '5%' },   // GK
+        { left: '25%', bottom: '18%' },  // LCB
+        { left: '50%', bottom: '16%' },  // CB
+        { left: '75%', bottom: '18%' },  // RCB
+        { left: '35%', bottom: '35%' },  // LDM
+        { left: '65%', bottom: '35%' },  // RDM
+        { left: '10%', bottom: '55%' },  // LM
+        { left: '35%', bottom: '60%' },  // LAM
+        { left: '65%', bottom: '60%' },  // RAM
+        { left: '90%', bottom: '55%' },  // RM
+        { left: '50%', bottom: '78%' }   // ST
+    ],
+    '4-2-2-2': [
+        { left: '50%', bottom: '5%' },   // GK
+        { left: '15%', bottom: '18%' },  // LB
+        { left: '38%', bottom: '18%' },  // LCB
+        { left: '62%', bottom: '18%' },  // RCB
+        { left: '85%', bottom: '18%' },  // RB
+        { left: '35%', bottom: '35%' },  // LDM
+        { left: '65%', bottom: '35%' },  // RDM
+        { left: '25%', bottom: '55%' },  // LAM
+        { left: '75%', bottom: '55%' },  // RAM
+        { left: '35%', bottom: '75%' },  // LST
+        { left: '65%', bottom: '75%' }   // RST
+    ],
+    '4-2-4': [
+        { left: '50%', bottom: '5%' },   // GK
+        { left: '15%', bottom: '18%' },  // LB
+        { left: '38%', bottom: '18%' },  // LCB
+        { left: '62%', bottom: '18%' },  // RCB
+        { left: '85%', bottom: '18%' },  // RB
+        { left: '35%', bottom: '35%' },  // LCM
+        { left: '65%', bottom: '35%' },  // RCM
+        { left: '10%', bottom: '60%' },  // LW
+        { left: '90%', bottom: '60%' },  // RW
+        { left: '35%', bottom: '75%' },  // LST
+        { left: '65%', bottom: '75%' }   // RST
+    ],
+    '4-3-2-1': [
+        { left: '50%', bottom: '5%' },   // GK
+        { left: '15%', bottom: '18%' },  // LB
+        { left: '38%', bottom: '18%' },  // LCB
+        { left: '62%', bottom: '18%' },  // RCB
+        { left: '85%', bottom: '18%' },  // RB
+        { left: '30%', bottom: '35%' },  // LCM
+        { left: '50%', bottom: '32%' },  // CM
+        { left: '70%', bottom: '35%' },  // RCM
+        { left: '35%', bottom: '55%' },  // LAM
+        { left: '65%', bottom: '55%' },  // RAM
+        { left: '50%', bottom: '75%' }   // ST
+    ],
+    '3-4-3': [
+        { left: '50%', bottom: '5%' },   // GK
+        { left: '25%', bottom: '18%' },  // LCB
+        { left: '50%', bottom: '16%' },  // CB
+        { left: '75%', bottom: '18%' },  // RCB
+        { left: '10%', bottom: '45%' },  // LM
+        { left: '35%', bottom: '40%' },  // LCM
+        { left: '65%', bottom: '40%' },  // RCM
+        { left: '90%', bottom: '45%' },  // RM
+        { left: '20%', bottom: '65%' },  // LW
+        { left: '50%', bottom: '75%' },  // ST
+        { left: '80%', bottom: '65%' }   // RW
     ]
 };
 
@@ -117,6 +183,7 @@ const LiveFormationPitch: React.FC<LiveFormationPitchProps> = ({ team, getPlayer
                 const yellow = events.some(e => e.type === 'CARD_YELLOW' && e.playerId === p.id);
                 const red = events.some(e => (e.type === 'CARD_RED' || e.type === 'FIGHT' || e.type === 'ARGUMENT') && e.playerId === p.id);
                 const injured = p.injury && p.injury.daysRemaining > 0;
+                const isMinor = injured && p.injury!.daysRemaining < 10;
 
                 const ratingColor = rating >= 8.0 ? 'bg-green-600' : rating >= 7.0 ? 'bg-green-500' : rating >= 6.0 ? 'bg-yellow-600' : 'bg-red-600';
 
@@ -138,7 +205,11 @@ const LiveFormationPitch: React.FC<LiveFormationPitchProps> = ({ team, getPlayer
                             <div className="relative">
                                 <div className="w-10 h-10 md:w-12 md:h-12 rounded-full overflow-hidden border border-slate-500 bg-slate-400 shadow-lg">
                                     <PlayerFace player={p} />
-                                    {injured && <div className="absolute inset-0 bg-red-500/40 flex items-center justify-center"><AlertCircle size={16} className="text-white drop-shadow-md" /></div>}
+                                    {injured && (
+                                        <div className={`absolute inset-0 flex items-center justify-center ${isMinor ? 'bg-orange-500/40' : 'bg-red-500/40'}`}>
+                                            <AlertCircle size={16} className="text-white drop-shadow-md" />
+                                        </div>
+                                    )}
                                 </div>
                                 
                                 <div className={`absolute -bottom-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full ${ratingColor} text-[8px] font-black text-white shadow-md border border-black/20 z-20`}>

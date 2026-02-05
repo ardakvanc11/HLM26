@@ -55,22 +55,12 @@ export const generateTransferMarket = (count: number, dateStr: string): Player[]
         let marketValue = (player.value * (0.8 + Math.random() * 0.4)) * priceMultiplier;
         player.value = Number(marketValue.toFixed(1));
 
-        // --- NEW: LISTING LOGIC ---
         if (!isFreeAgent) {
-            player.transferListed = true; // Default: Listed for transfer
-            
-            // Loan Listing Logic
-            // Based on Age and Hidden Loan Willingness
+            player.transferListed = true; 
             const willingness = player.loanWillingness || 50;
-            let loanChance = 0.1; // Base chance
-
-            // Young players are more likely to be loan listed
+            let loanChance = 0.1;
             if (player.age <= 22) loanChance += 0.4;
-            
-            // High willingness increases chance
             if (willingness > 70) loanChance += 0.3;
-            
-            // Low skill players in market might be loan listed more often
             if (player.skill < 70) loanChance += 0.1;
 
             if (Math.random() < loanChance) {
@@ -85,38 +75,178 @@ export const generateTransferMarket = (count: number, dateStr: string): Player[]
 
 // --- SOPHISTICATED TRAINING LOGIC CONSTANTS ---
 
-// Thresholds for stat improvement (Progress Points needed to gain +1)
-// Scale: 1-20
 const getImprovementThreshold = (currentValue: number): number => {
-    if (currentValue < 5) return 80;   // Very easy
-    if (currentValue < 10) return 150; // Easy
-    if (currentValue < 14) return 300; // Medium
-    if (currentValue < 16) return 600; // Hard
-    if (currentValue < 18) return 1200; // Very Hard
-    if (currentValue < 19) return 2500; // Extreme
-    return 99999; // 20 is Cap
+    if (currentValue < 5) return 80;
+    if (currentValue < 10) return 150;
+    if (currentValue < 14) return 300;
+    if (currentValue < 16) return 600;
+    if (currentValue < 18) return 1200;
+    if (currentValue < 19) return 2500;
+    return 99999;
 };
 
-// Age Multipliers for Growth
 const getAgeGrowthFactor = (age: number): number => {
-    if (age <= 20) return 1.2; // 120%
-    if (age <= 24) return 1.0; // 100%
-    if (age <= 27) return 0.8; // 80%
-    if (age <= 30) return 0.3; // 30%
-    return 0;                  // 0% (Decline phase usually handles this)
+    if (age <= 20) return 1.2;
+    if (age <= 24) return 1.0;
+    if (age <= 27) return 0.8;
+    if (age <= 30) return 0.3;
+    return 0;
 };
 
-// Potential Acceleration Factor
 const getPotentialFactor = (current: number, potential: number): number => {
     const gap = potential - current;
-    if (gap > 10) return 1.5; // High potential pulls up fast
+    if (gap > 10) return 1.5;
     if (gap > 5) return 1.2;
     if (gap > 2) return 1.0;
-    if (gap > 0) return 0.5; // Slow crawl near ceiling
-    return 0; // Capped
+    if (gap > 0) return 0.5;
+    return 0;
 };
 
-export const applyTraining = (team: Team, config: TrainingConfig): { updatedTeam: Team, report: TrainingReportItem[] } => {
+// --- NEW FUNCTION: Processes Daily Individual Training Progress ---
+// This runs every day via gameStateLogic, ensuring progress happens and completes properly.
+export const processDailyIndividualTraining = (player: Player, currentWeek: number): { updatedPlayer: Player, reportItem?: TrainingReportItem } => {
+    let p = { ...player };
+    let reportItem: TrainingReportItem | undefined;
+    
+    // Reset visual indicators daily
+    p.recentAttributeChanges = {};
+
+    if (!p.activeTraining) return { updatedPlayer: p };
+
+    const program = INDIVIDUAL_PROGRAMS.find(prog => prog.id === p.activeTraining);
+    if (!program) return { updatedPlayer: p };
+
+    // 1. Increment Progress
+    p.activeTrainingWeeks = (p.activeTrainingWeeks || 0) + 1;
+
+    // 2. Calculate Daily Stat Gain (Background Progress)
+    // Even without "Team Training", players do individual drills.
+    const ageFactor = getAgeGrowthFactor(p.age);
+    const potFactor = getPotentialFactor(p.skill, p.potential);
+    const baseDailyGain = 0.8; // Constant daily gain
+    
+    let synergy = 1.0;
+    if (program.target.includes('ALL') || program.target.includes(p.position)) {
+        synergy = 1.2;
+    }
+
+    if (!p.stats) p.stats = {} as any;
+    if (!p.statProgress) p.statProgress = {};
+
+    // Apply gains and set Visual Arrows
+    program.stats.forEach(statKey => {
+        // @ts-ignore
+        const currentVal = p.stats[statKey] || 10;
+        if (currentVal >= 20) return;
+
+        const dailyGain = baseDailyGain * ageFactor * potFactor * synergy;
+        
+        // @ts-ignore
+        p.statProgress[statKey] = (p.statProgress[statKey] || 0) + dailyGain;
+        
+        // VISUAL MARKER: Show they are working on it
+        p.recentAttributeChanges![statKey] = 'PARTIAL_UP';
+    });
+
+    // 3. Check for Program Completion
+    let cycleWeeks = 10;
+    if (p.personality === PlayerPersonality.HARDWORKING || p.personality === PlayerPersonality.AMBITIOUS) cycleWeeks = 8;
+    else if (p.personality === PlayerPersonality.PROFESSIONAL) cycleWeeks = 9;
+    else if (p.personality === PlayerPersonality.LAZY) cycleWeeks = 12;
+
+    const totalDaysNeeded = cycleWeeks * 7; // Convert weeks to days
+
+    // Update Feedback String
+    const pct = Math.min(100, (p.activeTrainingWeeks / totalDaysNeeded) * 100);
+    p.developmentFeedback = `${program.label}: %${Math.floor(pct)} (${cycleWeeks} Hf)`;
+
+    // COMPLETION CHECK
+    if (p.activeTrainingWeeks >= totalDaysNeeded) {
+        
+        // --- ROLL FOR RESULTS ---
+        const shuffledStats = [...program.stats].sort(() => 0.5 - Math.random());
+        let anyLevelUp = false;
+        let anySignificantProgress = false;
+
+        shuffledStats.forEach(statKey => {
+            // @ts-ignore
+            const currentVal = p.stats[statKey] || 10;
+            const threshold = getImprovementThreshold(currentVal);
+            // @ts-ignore
+            const currentProg = p.statProgress[statKey] || 0;
+
+            let levelUpChance = 0;
+            if (currentVal <= 16) levelUpChance = 0.80;
+            else if (currentVal <= 18) levelUpChance = 0.45;
+            else if (currentVal === 19) levelUpChance = 0.10;
+            else levelUpChance = 0;
+
+            // Reduce chance if potential is capped
+            if (p.skill >= p.potential) levelUpChance *= 0.2;
+
+            const isLevelUp = Math.random() < levelUpChance;
+
+            if (currentVal < 20 && isLevelUp) {
+                // LEVEL UP
+                // @ts-ignore
+                p.stats[statKey] = currentVal + 1;
+                // @ts-ignore
+                p.statProgress[statKey] = 0;
+                
+                p.recentAttributeChanges![statKey] = 'UP'; // Level Up Indicator
+                anyLevelUp = true;
+            } else {
+                // Guarantee progress boost if no level up
+                const targetPct = 0.75; // Push to 75% of bar
+                const targetPoints = threshold * targetPct;
+                if (currentProg < targetPoints) {
+                    // @ts-ignore
+                    p.statProgress[statKey] = targetPoints;
+                    anySignificantProgress = true;
+                }
+            }
+        });
+
+        // Generate Report
+        let msg = "";
+        let type: 'POSITIVE' | 'NEGATIVE' = 'POSITIVE';
+
+        if (anyLevelUp) {
+            msg = `${program.label} programı başarıyla tamamlandı. Özelliklerde SEVİYE ARTIŞI sağlandı!`;
+            p.morale = Math.min(100, p.morale + 10);
+        } else if (anySignificantProgress) {
+            msg = `${program.label} programı bitti. Oyuncu özelliklerini geliştirdi ancak seviye atlayamadı.`;
+            p.morale = Math.min(100, p.morale + 5);
+        } else {
+            msg = `${program.label} programı tamamlandı.`;
+        }
+
+        reportItem = {
+            playerId: p.id,
+            playerName: p.name,
+            message: msg,
+            type: type,
+            score: 8.0
+        };
+
+        // RESET & STOP
+        p.activeTraining = undefined;
+        p.activeTrainingWeeks = 0;
+        p.developmentFeedback = undefined;
+        p.individualTrainingCooldownUntil = currentWeek + 3; // 3 Weeks Cooldown
+    }
+
+    // Recalculate OVR if stats changed
+    if (p.recentAttributeChanges && Object.keys(p.recentAttributeChanges).length > 0) {
+        const newSkill = calculatePlayerOverallFromStats(p);
+        p.skill = Math.min(p.potential, newSkill);
+        p.value = calculateMarketValue(p.position, p.skill, p.age);
+    }
+
+    return { updatedPlayer: p, reportItem };
+};
+
+export const applyTraining = (team: Team, config: TrainingConfig, currentWeek: number): { updatedTeam: Team, report: TrainingReportItem[] } => {
     // 1. Determine Intensity Base Factors
     let baseProgress = 0.5; // Base points per day
     let fatigueMalus = 0;
@@ -136,64 +266,32 @@ export const applyTraining = (team: Team, config: TrainingConfig): { updatedTeam
             break;
     }
 
-    // Coach Quality Simulation (Derived from Rep)
     const coachQualityFactor = (team.reputation * 10) + 50; 
-    const coachBonus = coachQualityFactor / 100; // 0.6 to 1.0 range
+    const coachBonus = coachQualityFactor / 100; 
 
     const report: TrainingReportItem[] = [];
     const performances: {id: string, name: string, score: number}[] = [];
 
     const updatedPlayers = team.players.map(p => {
-        // Init Stats & Progress Pool
         let stats = { ...p.stats };
-        let statProgress = { ...(p.statProgress || {}) }; // Ensure object exists
+        let statProgress = { ...(p.statProgress || {}) };
         let skill = Math.floor(p.skill);
-        let morale = Math.floor(p.morale);
         let condition = p.condition !== undefined ? p.condition : stats.stamina;
-        let trainingWeeks = p.activeTrainingWeeks || 0;
         
-        // RESET recent changes for this turn
-        let recentChanges: Record<string, 'UP' | 'DOWN' | 'PARTIAL_UP'> = {};
+        // Preserve existing recentChanges from processDailyIndividualTraining if any
+        let recentChanges = { ...p.recentAttributeChanges };
 
-        // --- CALCULATION OF TRAINING SCORE (UPDATED LOGIC) ---
-        // New Rule: Base is generally high (7.0+). Drops significantly only if Morale < 50 or Condition < 60.
-
-        // 1. Base Score: 7.0 to 9.5 (Random variance)
+        // --- CALCULATION OF TRAINING SCORE ---
         let baseScore = 7.0 + (Math.random() * 2.5);
-        let penalties = 0;
-        let bonuses = 0;
+        if (p.morale < 50) baseScore -= (1.5 + Math.random() * 1.5);
+        else if (p.morale >= 90) baseScore += 0.3;
 
-        // 2. Morale Factor
-        if (morale < 50) {
-            // Major Penalty: Drops score to ~5.0 - 6.0 range
-            penalties += (1.5 + Math.random() * 1.5);
-        } else if (morale >= 90) {
-            // Happy player bonus
-            bonuses += 0.3;
-        }
+        if (condition < 60) baseScore -= (1.0 + Math.random() * 1.0);
+        else if (condition >= 90) baseScore += 0.2;
 
-        // 3. Condition Factor
-        if (condition < 60) {
-            // Fatigue Penalty: Drops score significantly
-            penalties += (1.0 + Math.random() * 1.0);
-        } else if (condition >= 90) {
-             bonuses += 0.2;
-        }
-
-        let trainingScore = baseScore - penalties + bonuses;
-        
-        // Intensity Modifier (Hardworking likes High, Lazy hates High)
-        if (config.intensity === TrainingIntensity.HIGH) {
-            if (p.personality === PlayerPersonality.HARDWORKING || p.personality === PlayerPersonality.AMBITIOUS) trainingScore += 0.5;
-            if (p.personality === PlayerPersonality.LAZY) trainingScore -= 1.0;
-        }
-
-        // Clamp to 1.0 - 10.0
-        trainingScore = Math.max(1.0, Math.min(10.0, Number(trainingScore.toFixed(1))));
+        let trainingScore = Math.max(1.0, Math.min(10.0, Number(baseScore.toFixed(1))));
         performances.push({ id: p.id, name: p.name, score: trainingScore });
 
-
-        // --- 1. CORE FACTORS ---
         const ageFactor = getAgeGrowthFactor(p.age);
         const potFactor = getPotentialFactor(skill, p.potential);
         const personalityMod = (p.personality === PlayerPersonality.HARDWORKING || p.personality === PlayerPersonality.AMBITIOUS) 
@@ -202,40 +300,31 @@ export const applyTraining = (team: Team, config: TrainingConfig): { updatedTeam
 
         const canGrow = p.age < 31 && skill < p.potential && potFactor > 0;
 
-        // Apply Fatigue
         condition = Math.max(0, condition - (fatigueMalus * (1 + Math.random() * 0.2)));
 
-        // Helper to add progress points
         const addProgress = (statName: keyof typeof stats, amount: number) => {
             if (!canGrow) return;
-            
             // @ts-ignore
             const currentVal = stats[statName] || 10;
-            if (currentVal >= 20) return; // Hard Cap
+            if (currentVal >= 20) return;
 
-            // Calculate final daily gain
-            // Formula: Base * Age * Potential * Coach * Personality * SessionScoreMultiplier
-            const scoreMultiplier = trainingScore / 6.0; // Normalized around 6.0
+            const scoreMultiplier = trainingScore / 6.0;
             const dailyGain = amount * ageFactor * potFactor * coachBonus * personalityMod * scoreMultiplier;
             
-            // Accumulate
             // @ts-ignore
             const currentProgress = statProgress[statName] || 0;
             const newProgress = currentProgress + dailyGain;
-            
-            // Check Threshold
             const threshold = getImprovementThreshold(currentVal);
             
             if (newProgress >= threshold) {
-                // LEVEL UP!
+                // LEVEL UP
                 // @ts-ignore
                 stats[statName] = currentVal + 1;
                 // @ts-ignore
-                statProgress[statName] = 0; // Reset pool
+                statProgress[statName] = 0;
                 
-                recentChanges[statName as string] = 'UP'; // VISUAL MARKER
+                recentChanges[statName as string] = 'UP'; 
 
-                // Add to Report (Major Event)
                 report.push({
                     playerId: p.id,
                     playerName: p.name,
@@ -243,128 +332,35 @@ export const applyTraining = (team: Team, config: TrainingConfig): { updatedTeam
                     type: 'POSITIVE',
                     score: trainingScore
                 });
-                
-                // NO OVR JUMP HERE. Overall is recalculated at the end based on stats.
-
             } else {
-                // Just update progress
                 // @ts-ignore
                 statProgress[statName] = newProgress;
             }
         };
 
-        // --- 2. INDIVIDUAL TRAINING (PRIMARY GROWTH) ---
-        if (p.activeTraining) {
-            trainingWeeks++; // Increment counter (days in simulation actually, but treated as units)
-            
-            const program = INDIVIDUAL_PROGRAMS.find(prog => prog.id === p.activeTraining);
-            if (program) {
-                let synergy = 1.0;
-                if (program.target.includes('ALL') || program.target.includes(p.position)) {
-                    synergy = 1.2;
-                }
-
-                // Apply to specific stats
-                program.stats.forEach(statKey => {
-                    // Individual training gets focused base progress
-                    const indivGain = baseProgress * 4.0 * synergy; // Boosted base
-                    // @ts-ignore
-                    addProgress(statKey, indivGain);
-                });
-            }
-
-            // --- 3. PROGRAM COMPLETION (The "Hidden Bonus") ---
-            // Calculate duration based on personality
-            let cycleWeeks = 10; // Default (Normal)
-            if (p.personality === PlayerPersonality.HARDWORKING || p.personality === PlayerPersonality.AMBITIOUS) {
-                cycleWeeks = 8;
-            } else if (p.personality === PlayerPersonality.PROFESSIONAL) {
-                cycleWeeks = 9;
-            } else if (p.personality === PlayerPersonality.LAZY) {
-                cycleWeeks = 12;
-            }
-
-            // Convert to daily ticks (assuming 1 week = 7 ticks in game flow)
-            const cycleDuration = cycleWeeks * 7;
-
-            // Check if trainingWeeks hits multiple of cycleDuration
-            if (trainingWeeks > 0 && trainingWeeks % cycleDuration === 0 && program) {
-                // Program Cycle Completed!
-                report.push({
-                    playerId: p.id,
-                    playerName: p.name,
-                    message: `${cycleWeeks} haftalık ${program?.label} programını tamamladı. Sahada kendini daha iyi hissediyor.`,
-                    type: 'POSITIVE',
-                    score: trainingScore
-                });
-                
-                // Mark associated stats as PARTIAL_UP (visual feedback: work was done)
-                // Only if they didn't just Level Up (UP takes precedence)
-                program.stats.forEach(s => {
-                    if (recentChanges[s] !== 'UP') {
-                        recentChanges[s] = 'PARTIAL_UP';
-                    }
-                });
-
-                // "Feeling of Improvement" = Hidden Bonus
-                // Boost Morale, Condition, or maybe a tiny hidden OVR nudge if very close
-                morale = Math.min(100, morale + 10);
-                
-                // Small chance for a "Breakthrough" (extra stats)
-                if (Math.random() < 0.2) {
-                     // Force a small progress dump into a random mental stat
-                     addProgress('determination', 50);
-                }
-            }
-
-            // Update Feedback String for UI
-            const cycleProgress = (trainingWeeks % cycleDuration) / cycleDuration * 100;
-            p.developmentFeedback = `${program?.label}: %${Math.floor(cycleProgress)} (${cycleWeeks} Hf)`;
-        } else {
-            p.developmentFeedback = undefined;
-        }
-
-        // --- 4. TEAM TRAINING (General Maintenance) ---
-        // EFFECTIVENESS NERFED TO 0.05 (10% of previous base)
+        // --- TEAM TRAINING (General Maintenance) ---
         const activeFocuses = [config.mainFocus, config.subFocus];
         
         activeFocuses.forEach((type, index) => {
-            // Main focus 100%, Sub 50% effectiveness
-            // Team training is now much slower than individual (0.05 vs 4.0 ratio)
-            const effectiveness = (index === 0 ? 1.0 : 0.5) * 0.05; // 5% Effectiveness
+            const effectiveness = (index === 0 ? 1.0 : 0.5) * 0.15; // Increased effectiveness slightly
             
             const applyTeamStat = (key: string) => {
                 // @ts-ignore
                 addProgress(key, baseProgress * effectiveness);
             };
 
-            // Helper to pick one random stat to simulate slight randomization in daily drills
-            const pickRandom = (stats: string[]) => {
-                const selected = stats[Math.floor(Math.random() * stats.length)];
+            const pickRandom = (statsArr: string[]) => {
+                const selected = statsArr[Math.floor(Math.random() * statsArr.length)];
                 applyTeamStat(selected);
             };
 
-            // Map categories to stats
             switch (type) {
-                case TrainingType.ATTACK:
-                    pickRandom(['finishing', 'offTheBall', 'firstTouch']);
-                    break;
-                case TrainingType.DEFENSE:
-                    pickRandom(['marking', 'tackling', 'positioning']);
-                    break;
-                case TrainingType.PHYSICAL:
-                    pickRandom(['stamina', 'pace', 'strength']);
-                    if (index === 0) condition -= 2; // Extra fatigue
-                    break;
-                case TrainingType.TACTICAL:
-                    pickRandom(['teamwork', 'decisions', 'anticipation']);
-                    break;
-                case TrainingType.MATCH_PREP:
-                    pickRandom(['concentration', 'composure']);
-                    break;
-                case TrainingType.SET_PIECES: // NEW
-                    pickRandom(['freeKick', 'corners', 'penalty', 'heading']);
-                    break;
+                case TrainingType.ATTACK: pickRandom(['finishing', 'offTheBall', 'firstTouch']); break;
+                case TrainingType.DEFENSE: pickRandom(['marking', 'tackling', 'positioning']); break;
+                case TrainingType.PHYSICAL: pickRandom(['stamina', 'pace', 'strength']); if (index === 0) condition -= 2; break;
+                case TrainingType.TACTICAL: pickRandom(['teamwork', 'decisions', 'anticipation']); break;
+                case TrainingType.MATCH_PREP: pickRandom(['concentration', 'composure']); break;
+                case TrainingType.SET_PIECES: pickRandom(['freeKick', 'corners', 'penalty', 'heading']); break;
             }
         });
 
@@ -373,32 +369,24 @@ export const applyTraining = (team: Team, config: TrainingConfig): { updatedTeam
         // @ts-ignore
         stats.defending = Math.floor(((stats.marking || 10) + (stats.tackling || 10)) / 2);
         
-        // --- 5. RECALCULATE OVERALL SKILL ---
-        // Skill strictly derived from stats now.
         const newTempPlayer = { ...p, stats };
         skill = calculatePlayerOverallFromStats(newTempPlayer);
-        // Ensure potential cap
         skill = Math.min(p.potential, skill);
 
         return { 
             ...p, 
             stats, 
-            statProgress, // Save the hidden progress
+            statProgress,
             skill, 
-            morale, 
             condition, 
-            activeTrainingWeeks: trainingWeeks,
-            recentAttributeChanges: recentChanges // Save visual flags
+            recentAttributeChanges: recentChanges
         };
     });
 
     // --- GENERATE PERFORMANCE REPORTS ---
-    // Sort by score descending
     performances.sort((a, b) => b.score - a.score);
 
-    // 1. Top Performers (Top 5 guaranteed)
     performances.slice(0, 5).forEach(p => {
-        // Prevent duplicates if they already have a level-up entry
         if (!report.some(r => r.playerId === p.id)) {
             report.push({
                 playerId: p.id,
@@ -410,7 +398,6 @@ export const applyTraining = (team: Team, config: TrainingConfig): { updatedTeam
         }
     });
 
-    // 2. Worst Performers (Bottom 3 guaranteed)
     performances.slice(-3).reverse().forEach(p => {
          if (!report.some(r => r.playerId === p.id)) {
              report.push({
@@ -422,25 +409,6 @@ export const applyTraining = (team: Team, config: TrainingConfig): { updatedTeam
             });
         }
     });
-
-    // 3. Add random middle players to make the list fuller (max 3 more)
-    // Only if total report is short
-    if (report.length < 8 && performances.length > 10) {
-        const middle = performances.slice(5, -3);
-        const randomPicks = middle.sort(() => 0.5 - Math.random()).slice(0, 3);
-        
-        randomPicks.forEach(p => {
-             if (!report.some(r => r.playerId === p.id)) {
-                 report.push({
-                    playerId: p.id,
-                    playerName: p.name,
-                    message: `Standart bir antrenman geçirdi. (Puan: ${p.score})`,
-                    type: 'POSITIVE', // Neutral but using positive style
-                    score: p.score
-                });
-            }
-        });
-    }
 
     const newTeam = { ...team, players: updatedPlayers, trainingConfig: config }; 
     newTeam.strength = Math.floor(calculateTeamStrength(newTeam));

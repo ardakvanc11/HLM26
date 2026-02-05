@@ -16,7 +16,9 @@ import {
     generateAiOffersForUser, 
     getAssistantTrainingConfig, 
     applyTraining,
-    optimizeAiSquad // IMPORTED
+    optimizeAiSquad,
+    processDailyIndividualTraining,
+    processLoanReturns // IMPORTED
 } from './gameEngine';
 import { isSameDay, addDays, isTransferWindowOpen, generateFixtures, generateSuperCupFixtures, generateCupRoundFixtures, generateEuropeanKnockoutFixtures } from './calendarAndFixtures';
 import { getWeightedInjury } from './matchLogic';
@@ -31,18 +33,19 @@ export const processNextDayLogic = (
     const nextDate = addDays(currentState.currentDate, 1);
     const nextDateObj = new Date(nextDate);
 
+    // --- 1. LOAN RETURN LOGIC (RUNS BEFORE EVERYTHING) ---
+    // This ensures players return on June 30th (or whatever date) BEFORE they are archived/reset for the new season.
+    const { updatedTeams: teamsAfterLoans, returnNews: loanReturnNews } = processLoanReturns(currentState.teams, nextDate, currentState.currentWeek);
+
     // --- YENİ SEZON (1 TEMMUZ) ---
     if (nextDateObj.getDate() === 1 && nextDateObj.getMonth() === 6) { 
-        // ... (Existing New Season Logic - Keep as is) ...
-        // Note: For brevity in this diff, assuming the original New Season block is here.
-        // It handles League Relegation/Promotion. We should ensure European qualification is handled here too eventually,
-        // but for now, we focus on in-season progression.
-        
-        const myTeam = currentState.teams.find(t => t.id === currentState.myTeamId);
+        // Use teamsAfterLoans instead of currentState.teams to ensure returned players are present
+        const teamsToProcess = teamsAfterLoans;
+        const myTeam = teamsToProcess.find(t => t.id === currentState.myTeamId);
         let summary: SeasonSummary | null = null;
         let lastSeasonGoalAchieved = false;
         
-        const superLeagueTeams = currentState.teams.filter(t => t.leagueId === 'LEAGUE' || !t.leagueId);
+        const superLeagueTeams = teamsToProcess.filter(t => t.leagueId === 'LEAGUE' || !t.leagueId);
         const sortedSL = [...superLeagueTeams].sort((a, b) => {
             if (b.stats.points !== a.stats.points) return b.stats.points - a.stats.points;
             return (b.stats.gf - b.stats.ga) - (a.stats.gf - a.stats.ga);
@@ -50,7 +53,7 @@ export const processNextDayLogic = (
         
         const relegatedTeams = sortedSL.slice(sortedSL.length - 3); 
 
-        const league1Teams = currentState.teams.filter(t => t.leagueId === 'LEAGUE_1');
+        const league1Teams = teamsToProcess.filter(t => t.leagueId === 'LEAGUE_1');
         const sortedL1 = [...league1Teams].sort((a, b) => {
             if (b.stats.points !== a.stats.points) return b.stats.points - a.stats.points;
             return (b.stats.gf - b.stats.ga) - (a.stats.gf - a.stats.ga);
@@ -67,12 +70,12 @@ export const processNextDayLogic = (
                 : (playoffFinal.awayScore > playoffFinal.homeScore ? playoffFinal.awayTeamId 
                 : (playoffFinal.pkHome! > playoffFinal.pkAway! ? playoffFinal.homeTeamId : playoffFinal.awayTeamId));
             
-            playoffWinner = currentState.teams.find(t => t.id === winnerId) || null;
+            playoffWinner = teamsToProcess.find(t => t.id === winnerId) || null;
         } else {
             playoffWinner = sortedL1[2];
         }
 
-        const teamsToUpdate = [...currentState.teams];
+        const teamsToUpdate = [...teamsToProcess];
         
         relegatedTeams.forEach(rt => {
             const idx = teamsToUpdate.findIndex(t => t.id === rt.id);
@@ -101,9 +104,9 @@ export const processNextDayLogic = (
         const qualifiedTeams = [sortedSL[0], sortedSL[1], sortedSL[2], sortedSL[3]];
 
         if (myTeam) {
-            summary = archiveSeason(myTeam, currentState.teams, nextDateObj.getFullYear());
+            summary = archiveSeason(myTeam, teamsToProcess, nextDateObj.getFullYear());
             const userLeague = myTeam.leagueId || 'LEAGUE';
-            const relevantTeams = currentState.teams.filter(t => (t.leagueId || 'LEAGUE') === userLeague);
+            const relevantTeams = teamsToProcess.filter(t => (t.leagueId || 'LEAGUE') === userLeague);
             const sorted = [...relevantTeams].sort((a, b) => {
                 if (b.stats.points !== a.stats.points) return b.stats.points - a.stats.points;
                 return (b.stats.gf - b.stats.ga) - (a.stats.gf - a.stats.ga);
@@ -115,6 +118,7 @@ export const processNextDayLogic = (
             else if (exp === 'Ligde Kalmak' && rank <= 15) lastSeasonGoalAchieved = true;
         }
 
+        // Reset Stats and Age Players
         let resetTeams = resetForNewSeason(teamsToUpdate);
         
         const slTeams = resetTeams.filter(t => t.leagueId === 'LEAGUE' || !t.leagueId);
@@ -126,9 +130,6 @@ export const processNextDayLogic = (
         const reFoundQualified = qualifiedTeams.map(qt => resetTeams.find(rt => rt.id === qt.id)!);
         const fixturesSuperCup = generateSuperCupFixtures(reFoundQualified, nextDateObj.getFullYear(), false);
 
-        // NOTE: EUROPEAN FIXTURES ARE NOT REGENERATED HERE AUTOMATICALLY FOR NEXT SEASON YET
-        // Ideally we would qualify teams here and generate, but keeping scope tight.
-        // Assuming user plays 1 season mostly or simulation handles basic next steps.
         const newFixtures = [...fixturesSL, ...fixturesL1, ...fixturesSuperCup];
 
         let newFfpYears = currentState.consecutiveFfpYears;
@@ -149,34 +150,34 @@ export const processNextDayLogic = (
             lastSeasonSummary: summary,
             seasonChampion: null,
             incomingOffers: [],
+            // Preserve news including loan returns
+            news: [...loanReturnNews, ...currentState.news], 
             yearsAtCurrentClub: currentState.yearsAtCurrentClub + 1,
             consecutiveFfpYears: newFfpYears,
             lastSeasonGoalAchieved: lastSeasonGoalAchieved
         };
     }
 
-    let updatedTeams = [...currentState.teams];
+    let updatedTeams = [...teamsAfterLoans]; // Continue with teams processed for loans
     let updatedFixtures = [...currentState.fixtures];
     let updatedManager = currentState.manager ? { ...currentState.manager } : null;
     
-    // GÜNCELLEME: Raporu her gün başında sıfırla. Böylece manuel antrenman yapılana kadar boş kalır.
+    // Raporu her gün başında sıfırla
     let lastTrainingReport: any[] = []; 
-    
     let newWeek = currentState.currentWeek;
+    
+    // Merge existing loan returns news into daily news cycle
+    const dailyNewsBuffer = [...loanReturnNews];
 
     // --- AI KADRO OPTİMİZASYONU (SAKATLIK/CEZA YÖNETİMİ) ---
-    // Her gün AI takımlarının kadrosunu kontrol et ve sakat/cezalı oyuncuları ilk 11'den çıkar
     updatedTeams = updatedTeams.map(t => {
-        // Kullanıcının takımını atla (kendi yönetiyor)
         if (t.id === currentState.myTeamId) return t; 
-        
-        // AI takımı için kadro düzenlemesi yap
         return optimizeAiSquad(t, currentState.currentWeek);
     });
 
-    // --- TURKISH CUP FIXTURE GENERATION ---
-    const month = nextDateObj.getMonth();
+    // --- CUP & EUROPE FIXTURE GENERATION BLOCKS ---
     const day = nextDateObj.getDate();
+    const month = nextDateObj.getMonth();
     const year = nextDateObj.getFullYear();
     const currentSeasonStartYear = month > 6 ? year : year - 1;
 
@@ -221,40 +222,31 @@ export const processNextDayLogic = (
         }
     }
 
-    // --- EUROPEAN LEAGUE PROGRESSION LOGIC ---
-    
-    // 1. League Phase End -> Playoff Generation (After Week 208, Jan 28)
-    // Trigger on Jan 30
-    if (month === 0 && day === 30) { // Jan 30
+    // EUROPEAN LEAGUE PROGRESSION
+    if (month === 0 && day === 30) { 
         const r8 = updatedFixtures.filter(f => f.competitionId === 'EUROPE' && f.week === 208);
         const hasR8 = r8.length > 0;
         const allPlayed = r8.every(f => f.played);
         const hasPlayoffs = updatedFixtures.some(f => f.competitionId === 'EUROPE' && f.week === 209);
         
         if (hasR8 && allPlayed && !hasPlayoffs) {
-            // Need League Table for Europe
-            // 1. Identify all teams that participated in Europe
             const euroFixtures = updatedFixtures.filter(f => f.competitionId === 'EUROPE' && f.week <= 208);
             const teamIds = new Set<string>();
             euroFixtures.forEach(f => { teamIds.add(f.homeTeamId); teamIds.add(f.awayTeamId); });
             
             const euroTeams = updatedTeams.filter(t => teamIds.has(t.id)).map(t => {
-                 // Calculate stats for table
                  let pts=0, gf=0, ga=0, ag=0;
                  euroFixtures.filter(f => f.homeTeamId === t.id || f.awayTeamId === t.id).forEach(f => {
                      if(!f.played) return;
                      const isHome = f.homeTeamId === t.id;
                      const myS = isHome ? f.homeScore! : f.awayScore!;
                      const opS = isHome ? f.awayScore! : f.homeScore!;
-                     gf += myS; ga += opS;
-                     if (!isHome) ag += myS;
-                     if(myS > opS) pts+=3;
-                     else if(myS===opS) pts+=1;
+                     gf += myS; ga += opS; if (!isHome) ag += myS;
+                     if(myS > opS) pts+=3; else if(myS===opS) pts+=1;
                  });
                  return { ...t, euroStats: { pts, gf, ga, ag } };
             });
 
-            // Sort: Points, GD, GF, Away Goals
             euroTeams.sort((a, b) => {
                 if (b.euroStats.pts !== a.euroStats.pts) return b.euroStats.pts - a.euroStats.pts;
                 if ((b.euroStats.gf - b.euroStats.ga) !== (a.euroStats.gf - a.euroStats.ga)) return (b.euroStats.gf - b.euroStats.ga) - (a.euroStats.gf - a.euroStats.ga);
@@ -262,26 +254,21 @@ export const processNextDayLogic = (
                 return b.euroStats.ag - a.euroStats.ag;
             });
 
-            // Pass the sorted list to generator
             const playoffs = generateEuropeanKnockoutFixtures(updatedTeams, updatedFixtures, 'PLAYOFF', year, euroTeams);
             updatedFixtures.push(...playoffs);
         }
     }
 
-    // 2. Playoff End -> R16 Generation (After Playoff 2nd Leg on Feb 26)
-    // Trigger on Feb 28
-    if (month === 1 && day === 28) { // Feb 28
+    if (month === 1 && day === 28) {
         const po2 = updatedFixtures.filter(f => f.competitionId === 'EUROPE' && f.week === 210);
         const hasPO = po2.length > 0;
         const allPlayed = po2.every(f => f.played);
         const hasR16 = updatedFixtures.some(f => f.competitionId === 'EUROPE' && f.week === 211);
         
         if (hasPO && allPlayed && !hasR16) {
-            // Need the sorted table again to find Top 8 (Could be cached but recalculating is safer stateless)
             const euroFixtures = updatedFixtures.filter(f => f.competitionId === 'EUROPE' && f.week <= 208);
             const teamIds = new Set<string>();
             euroFixtures.forEach(f => { teamIds.add(f.homeTeamId); teamIds.add(f.awayTeamId); });
-            
             const euroTeams = updatedTeams.filter(t => teamIds.has(t.id)).map(t => {
                  let pts=0, gf=0, ga=0, ag=0;
                  euroFixtures.filter(f => f.homeTeamId === t.id || f.awayTeamId === t.id).forEach(f => {
@@ -300,15 +287,12 @@ export const processNextDayLogic = (
                 if (b.euroStats.gf !== a.euroStats.gf) return b.euroStats.gf - a.euroStats.gf;
                 return b.euroStats.ag - a.euroStats.ag;
             });
-
             const r16Matches = generateEuropeanKnockoutFixtures(updatedTeams, updatedFixtures, 'R16', year, euroTeams);
             updatedFixtures.push(...r16Matches);
         }
     }
 
-    // 3. R16 End -> QF (After R16 2nd Leg on Mar 11)
-    // Trigger on Mar 14
-    if (month === 2 && day === 14) { // Mar 14
+    if (month === 2 && day === 14) { 
         const r16_2 = updatedFixtures.filter(f => f.competitionId === 'EUROPE' && f.week === 212);
         if (r16_2.length > 0 && r16_2.every(f => f.played) && !updatedFixtures.some(f => f.competitionId === 'EUROPE' && f.week === 213)) {
             const qfMatches = generateEuropeanKnockoutFixtures(updatedTeams, updatedFixtures, 'QF', year);
@@ -316,9 +300,7 @@ export const processNextDayLogic = (
         }
     }
 
-    // 4. QF End -> SF (After QF 2nd Leg on Apr 8)
-    // Trigger on Apr 11
-    if (month === 3 && day === 11) { // Apr 11
+    if (month === 3 && day === 11) {
         const qf2 = updatedFixtures.filter(f => f.competitionId === 'EUROPE' && f.week === 214);
         if (qf2.length > 0 && qf2.every(f => f.played) && !updatedFixtures.some(f => f.competitionId === 'EUROPE' && f.week === 215)) {
             const sfMatches = generateEuropeanKnockoutFixtures(updatedTeams, updatedFixtures, 'SF', year);
@@ -326,9 +308,7 @@ export const processNextDayLogic = (
         }
     }
 
-    // 5. SF End -> Final (After SF 2nd Leg on May 6)
-    // Trigger on May 9
-    if (month === 4 && day === 9) { // May 9
+    if (month === 4 && day === 9) {
         const sf2 = updatedFixtures.filter(f => f.competitionId === 'EUROPE' && f.week === 216);
         if (sf2.length > 0 && sf2.every(f => f.played) && !updatedFixtures.some(f => f.competitionId === 'EUROPE' && f.week === 217)) {
             const finalMatch = generateEuropeanKnockoutFixtures(updatedTeams, updatedFixtures, 'FINAL', year);
@@ -336,12 +316,8 @@ export const processNextDayLogic = (
         }
     }
 
-
-    // --- PLAY-OFF FIXTURE GENERATION (DOMESTIC 1. LIG) ---
-    // Lig maçları (Hafta 34) bittiğinde devreye girer
     const leagueFixtures = updatedFixtures.filter(f => (f.competitionId === 'LEAGUE_1') && f.week === 34);
     const allLeague1Played = leagueFixtures.length > 0 && leagueFixtures.every(f => f.played);
-    
     const hasPlayoffSemis = updatedFixtures.some(f => f.competitionId === 'PLAYOFF');
     
     if (newWeek === 34 && allLeague1Played && !hasPlayoffSemis) {
@@ -357,34 +333,13 @@ export const processNextDayLogic = (
         const t6 = sortedL1[5];
 
         if (t3 && t4 && t5 && t6) {
-            const dateSemi = new Date(currentDateObj.getFullYear(), 4, 15); // May 15
-            const semi1: Fixture = {
-                id: generateId(),
-                week: 35,
-                date: dateSemi.toISOString(),
-                homeTeamId: t3.id,
-                awayTeamId: t5.id,
-                played: false,
-                homeScore: null,
-                awayScore: null,
-                competitionId: 'PLAYOFF'
-            };
-            const semi2: Fixture = {
-                id: generateId(),
-                week: 35,
-                date: dateSemi.toISOString(),
-                homeTeamId: t4.id,
-                awayTeamId: t6.id,
-                played: false,
-                homeScore: null,
-                awayScore: null,
-                competitionId: 'PLAYOFF'
-            };
+            const dateSemi = new Date(currentDateObj.getFullYear(), 4, 15);
+            const semi1: Fixture = { id: generateId(), week: 35, date: dateSemi.toISOString(), homeTeamId: t3.id, awayTeamId: t5.id, played: false, homeScore: null, awayScore: null, competitionId: 'PLAYOFF' };
+            const semi2: Fixture = { id: generateId(), week: 35, date: dateSemi.toISOString(), homeTeamId: t4.id, awayTeamId: t6.id, played: false, homeScore: null, awayScore: null, competitionId: 'PLAYOFF' };
             updatedFixtures.push(semi1, semi2);
         }
     }
 
-    // Play-off Finali (1. Lig)
     const playoffSemis = updatedFixtures.filter(f => f.competitionId === 'PLAYOFF');
     const allSemisPlayed = playoffSemis.length === 2 && playoffSemis.every(f => f.played);
     const hasPlayoffFinal = updatedFixtures.some(f => f.competitionId === 'PLAYOFF_FINAL');
@@ -395,32 +350,18 @@ export const processNextDayLogic = (
             if (f.awayScore! > f.homeScore!) return f.awayTeamId;
             return f.pkHome! > f.pkAway! ? f.homeTeamId : f.awayTeamId;
         });
-
         const w1 = updatedTeams.find(t => t.id === winners[0]);
         const w2 = updatedTeams.find(t => t.id === winners[1]);
-
         if (w1 && w2) {
-            const dateFinal = new Date(currentDateObj.getFullYear(), 4, 22); // May 22
-            const finalMatch: Fixture = {
-                id: generateId(),
-                week: 36,
-                date: dateFinal.toISOString(),
-                homeTeamId: w1.id,
-                awayTeamId: w2.id,
-                played: false,
-                homeScore: null,
-                awayScore: null,
-                competitionId: 'PLAYOFF_FINAL'
-            };
+            const dateFinal = new Date(currentDateObj.getFullYear(), 4, 22);
+            const finalMatch: Fixture = { id: generateId(), week: 36, date: dateFinal.toISOString(), homeTeamId: w1.id, awayTeamId: w2.id, played: false, homeScore: null, awayScore: null, competitionId: 'PLAYOFF_FINAL' };
             updatedFixtures.push(finalMatch);
         }
     }
 
-    // --- SUPER CUP FINAL GENERATION (JAN 7) ---
     if (nextDateObj.getMonth() === 0 && nextDateObj.getDate() === 7) {
         const semis = updatedFixtures.filter(f => f.competitionId === 'SUPER_CUP' && f.played);
         if (semis.length >= 2) {
-            // ... (Same logic as existing for Super Cup)
             const winners: Team[] = [];
             semis.forEach(match => {
                 if (match.homeScore !== null && match.awayScore !== null) {
@@ -457,9 +398,6 @@ export const processNextDayLogic = (
         }
     }
 
-    // ... (Board Trust, Transfers, News logic remains same)
-    
-    // --- BOARD TRUST UPDATES (DAILY) ---
     if (currentState.myTeamId && updatedManager) {
         const myTeam = updatedTeams.find(t => t.id === currentState.myTeamId);
         if (myTeam) {
@@ -494,8 +432,6 @@ export const processNextDayLogic = (
         currentState.transferList
     );
     
-    // FİLTRELEME: Sadece kullanıcının ligindeki takımların transfer haberlerini göster
-    // Avrupa ligi (çakma takımlar) hariç tutulur.
     let userLeagueId = 'LEAGUE';
     if (currentState.myTeamId) {
         const uTeam = updatedTeams.find(t => t.id === currentState.myTeamId);
@@ -506,19 +442,14 @@ export const processNextDayLogic = (
         const teamName = n.title.split('|')[0];
         const t = updatedTeams.find(x => x.name === teamName);
         if (!t) return false;
-        
-        // ÖNEMLİ: Çakma takımları (Avrupa Ligi) ve farklı ligleri ele
         if (t.leagueId === 'EUROPE_LEAGUE') return false;
-        
         return (t.leagueId || 'LEAGUE') === userLeagueId;
     });
 
     updatedTeams = teamsAfterTransfers;
     let newTransferList = transferListAfterTransfers;
 
-    // --- REFILL TRANSFER LIST IF LOW ---
     if (isTransferWindowOpen(nextDate) && newTransferList.length < 30) {
-        // Generate a small batch to ensure supply
         newTransferList = [...newTransferList, ...generateTransferMarket(20, nextDate)];
     }
 
@@ -572,11 +503,6 @@ export const processNextDayLogic = (
         }
     }
 
-    // --- FIX: SIMULATE AI MATCHES FOR TODAY AND TOMORROW (CATCH UP) ---
-    // User pressed Next Day. We must process any unplayed matches scheduled for TODAY (currentDate)
-    // AND then potentially handle logic for tomorrow if needed (usually just setting up).
-    // The previous logic only looked at `nextDate`, skipping matches on `currentDate` that AI hasn't played yet.
-    
     const matchesToSimulate = updatedFixtures.filter(f => 
         (isSameDay(f.date, currentState.currentDate) || isSameDay(f.date, nextDate)) && 
         !f.played &&
@@ -652,7 +578,6 @@ export const processNextDayLogic = (
          const playedFixtures = updatedFixtures.filter(f => f.played && (f.homeTeamId === team.id || f.awayTeamId === team.id));
          let played=0, won=0, drawn=0, lost=0, gf=0, ga=0, points=0;
          playedFixtures.forEach(f => {
-             // Only count LEAGUE games for league table
              if (f.competitionId !== 'LEAGUE' && f.competitionId !== 'LEAGUE_1' && f.competitionId) return;
 
              played++;
@@ -674,77 +599,89 @@ export const processNextDayLogic = (
 
         if (isMyTeam && updatedManager && t.isTrainingDelegated) {
             const aiConfig = getAssistantTrainingConfig(t, updatedManager);
-            const { updatedTeam, report } = applyTraining(t, aiConfig);
+            const { updatedTeam, report } = applyTraining(t, aiConfig, currentState.currentWeek);
             const recalculated = recalculateTeamStrength(updatedTeam);
             currentTeam = recalculated;
             lastTrainingReport = report;
             didTrain = true;
         }
 
-        return {
-            ...currentTeam,
-            players: currentTeam.players.map(p => {
-                let newP = { ...p };
-                if (newP.injury) {
+        // --- GÜNLÜK OYUNCU GELİŞİMİ & BİREYSEL ANTRENMAN ---
+        const updatedPlayerList = currentTeam.players.map(p => {
+            let newP = { ...p };
+            
+            // Sakatlık iyileşme süreci
+            if (newP.injury) {
+                newP.condition = 0;
+                newP.injury.daysRemaining -= 1;
+                if (newP.injury.daysRemaining <= 0) {
+                    const history = newP.injuryHistory || [];
+                    const lastRecord = history[history.length - 1];
+                    newP.lastInjuryDurationDays = lastRecord ? lastRecord.durationDays : 14;
+                    newP.injury = undefined;
+                }
+            }
+            
+            // Yeni sakatlık riski (antrenman)
+            if (!newP.injury) {
+                const totalDailyRisk = 0.001 + ((newP.injurySusceptibility || 0) * 0.00005);
+                if (Math.random() < totalDailyRisk) { 
+                    const injuryType = getWeightedInjury();
+                    const durationDays = Math.floor(Math.random() * (injuryType.maxDays - injuryType.minDays + 1)) + injuryType.minDays;
+                    newP.injury = { type: injuryType.type, daysRemaining: durationDays, description: "Antrenmanda talihsiz bir sakatlık yaşadı." };
                     newP.condition = 0;
-                    newP.injury.daysRemaining -= 1;
-                    if (newP.injury.daysRemaining <= 0) {
-                        const history = newP.injuryHistory || [];
-                        const lastRecord = history[history.length - 1];
-                        newP.lastInjuryDurationDays = lastRecord ? lastRecord.durationDays : 14;
-                        newP.injury = undefined;
-                    }
+                    if (!newP.injuryHistory) newP.injuryHistory = [];
+                    newP.injuryHistory.push({ type: injuryType.type, week: currentState.currentWeek, durationDays: durationDays });
                 }
-                
-                if (!newP.injury) {
-                    const totalDailyRisk = 0.001 + ((newP.injurySusceptibility || 0) * 0.00005);
-                    if (Math.random() < totalDailyRisk) { 
-                        const injuryType = getWeightedInjury();
-                        const durationDays = Math.floor(Math.random() * (injuryType.maxDays - injuryType.minDays + 1)) + injuryType.minDays;
-                        newP.injury = { type: injuryType.type, daysRemaining: durationDays, description: "Antrenmanda talihsiz bir sakatlık yaşadı." };
-                        newP.condition = 0;
-                        if (!newP.injuryHistory) newP.injuryHistory = [];
-                        newP.injuryHistory.push({ type: injuryType.type, week: currentState.currentWeek, durationDays: durationDays });
-                    }
+            }
+            
+            // Kondisyon yenilenmesi
+            if (!newP.injury) {
+                const baseRecovery = 10 + (newP.stats.stamina * 0.5);
+                let durationMultiplier = 1.0;
+                const lastDur = newP.lastInjuryDurationDays || 0;
+                if (lastDur > 0) {
+                    if (lastDur <= 10) durationMultiplier = 1.35;
+                    else if (lastDur >= 56) durationMultiplier = 0.45;
+                    else if (lastDur >= 28) durationMultiplier = 0.7;
                 }
-                
-                if (!newP.injury) {
-                    const baseRecovery = 10 + (newP.stats.stamina * 0.5);
-                    let durationMultiplier = 1.0;
-                    const lastDur = newP.lastInjuryDurationDays || 0;
-                    if (lastDur > 0) {
-                        if (lastDur <= 10) durationMultiplier = 1.35;
-                        else if (lastDur >= 56) durationMultiplier = 0.45;
-                        else if (lastDur >= 28) durationMultiplier = 0.7;
-                    }
-                    if (didTrain) durationMultiplier *= 0.5; 
-                    else durationMultiplier *= 1.2; 
-                    newP.condition = Math.min(100, (newP.condition || 0) + baseRecovery * durationMultiplier);
-                }
+                if (didTrain) durationMultiplier *= 0.5; 
+                else durationMultiplier *= 1.2; 
+                newP.condition = Math.min(100, (newP.condition || 0) + baseRecovery * durationMultiplier);
+            }
 
-                newP = simulatePlayerDevelopmentAndAging(newP, didTrain);
+            // Normal Gelişim
+            newP = simulatePlayerDevelopmentAndAging(newP, didTrain);
+            
+            // --- NEW: Process Daily Individual Training (User Team Only usually, but logic allows all) ---
+            if (isMyTeam && newP.activeTraining) {
+                 const { updatedPlayer, reportItem } = processDailyIndividualTraining(newP, currentState.currentWeek);
+                 newP = updatedPlayer;
+                 if (reportItem) lastTrainingReport.push(reportItem);
+            }
 
-                if (isMyTeam && newP.positionTrainingTarget) {
-                    const baseProgress = 1/7;
-                    const tickProgress = didTrain ? baseProgress : baseProgress * 0.5;
-                    newP.positionTrainingProgress = Number(((newP.positionTrainingProgress || 0) + tickProgress).toFixed(3));
-                    if (newP.positionTrainingProgress >= (newP.positionTrainingRequired || 12)) {
-                        const oldPos = newP.position;
-                        const newPos = newP.positionTrainingTarget;
-                        if (newP.secondaryPosition === newPos) { newP.position = newPos; newP.secondaryPosition = oldPos; } else { newP.secondaryPosition = newPos; }
-                        lastTrainingReport.push({ playerId: newP.id, playerName: newP.name, message: `YENİ MEVKİ! Artık ${newPos} mevkisinde de görev alabilir.`, type: 'POSITIVE' });
-                        newP.positionTrainingTarget = undefined; newP.positionTrainingProgress = undefined; newP.positionTrainingRequired = undefined;
-                    }
+            // Mevki Antrenmanı (Sadece Kullanıcı Takımı)
+            if (isMyTeam && newP.positionTrainingTarget) {
+                const baseProgress = 1/7;
+                const tickProgress = didTrain ? baseProgress : baseProgress * 0.5;
+                newP.positionTrainingProgress = Number(((newP.positionTrainingProgress || 0) + tickProgress).toFixed(3));
+                if (newP.positionTrainingProgress >= (newP.positionTrainingRequired || 12)) {
+                    const oldPos = newP.position;
+                    const newPos = newP.positionTrainingTarget;
+                    if (newP.secondaryPosition === newPos) { newP.position = newPos; newP.secondaryPosition = oldPos; } else { newP.secondaryPosition = newPos; }
+                    lastTrainingReport.push({ playerId: newP.id, playerName: newP.name, message: `YENİ MEVKİ! Artık ${newPos} mevkisinde de görev alabilir.`, type: 'POSITIVE' });
+                    newP.positionTrainingTarget = undefined; newP.positionTrainingProgress = undefined; newP.positionTrainingRequired = undefined;
                 }
+            }
 
-                return newP;
-            })
-        };
+            return newP;
+        });
+
+        return { ...currentTeam, players: updatedPlayerList };
     });
 
     const dailyNews = generateWeeklyNews(currentState.currentWeek, updatedFixtures, updatedTeams, currentState.myTeamId);
     
-    // Add market players to transfer list occasionally (existing logic)
     if (isTransferWindowOpen(nextDate)) {
         if (newTransferList.length > 5 && Math.random() > 0.7) newTransferList.shift(); 
         if (Math.random() > 0.6) newTransferList = [...newTransferList, ...generateTransferMarket(1, nextDate)];
@@ -769,7 +706,6 @@ export const processNextDayLogic = (
     if (allPlayed) {
         if (newWeek === 34) {
             updatedTeams = applySeasonEndReputationUpdates(updatedTeams);
-            
             const slTeams = updatedTeams.filter(t => t.leagueId === 'LEAGUE' || !t.leagueId);
             const finalStandings = [...slTeams].sort((a, b) => {
                 if (b.stats.points !== a.stats.points) return b.stats.points - a.stats.points;
@@ -826,7 +762,7 @@ export const processNextDayLogic = (
         return null;
     }
 
-    const filteredNews = [...withdrawnNews, ...filteredTransferNews, ...dailyNews, ...currentState.news].slice(0, 30);
+    const filteredNews = [...dailyNewsBuffer, ...withdrawnNews, ...filteredTransferNews, ...dailyNews, ...currentState.news].slice(0, 30);
 
     return {
         currentDate: nextDate,

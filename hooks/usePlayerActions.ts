@@ -1,6 +1,5 @@
 
 
-
 import React from 'react';
 import { GameState, Player, IncomingOffer, PendingTransfer, TrainingConfig, IndividualTrainingType, Position, Team } from '../types';
 import { calculateTransferStrengthImpact, recalculateTeamStrength, calculateMonthlyNetFlow, applyTraining, calculateTransferRevenueRetention } from '../utils/gameEngine';
@@ -18,7 +17,7 @@ export const usePlayerActions = (
         const myTeam = gameState.teams.find(t => t.id === gameState.myTeamId)!;
         
         // Use updated applyTraining which returns { updatedTeam, report }
-        const { updatedTeam: trainedTeam, report } = applyTraining(myTeam, config);
+        const { updatedTeam: trainedTeam, report } = applyTraining(myTeam, config, gameState.currentWeek);
         
         const recalculatedTeam = recalculateTeamStrength(trainedTeam);
         setGameState(prev => ({
@@ -203,90 +202,8 @@ export const usePlayerActions = (
     };
 
     const handleSellPlayer = (player: Player) => {
-        if (!gameState.myTeamId) return;
-        const myTeam = gameState.teams.find(t => t.id === gameState.myTeamId)!;
-        
-        // --- KADRO DERİNLİĞİ KONTROLÜ (MİNİMUM 22 OYUNCU) ---
-        if (myTeam.players.length <= 22) { 
-            setGameState(prev => ({
-                ...prev,
-                uiAlert: {
-                    title: "Yönetim Engeli: Kadro Yetersizliği",
-                    message: "Yönetim Kurulu, kadro derinliğinin kritik seviyeye (22 oyuncu) düştüğünü tespit etti. Takımın rekabetçiliğini korumak adına, yeni bir transfer yapılmadan mevcut oyuncuların satılmasına izin verilmiyor.",
-                    type: "error"
-                }
-            }));
-            return; 
-        }
-        
-        const monthlyNet = calculateMonthlyNetFlow(myTeam, gameState.fixtures, gameState.currentDate, gameState.manager!);
-        
-        // --- NEW: CALCULATE RETENTION PERCENTAGE ---
-        const retentionPct = calculateTransferRevenueRetention(myTeam, monthlyNet, gameState.lastSeasonGoalAchieved);
-        const retentionRate = retentionPct / 100;
-        
-        const budgetAddition = player.value * retentionRate;
-        const retainedAmount = player.value - budgetAddition;
-        
-        // YENİ MANTIK: Kalan parayı ikiye böl (Borç ve Kulüp Kasası)
-        const debtRepayment = retainedAmount / 2;
-        const clubCash = retainedAmount / 2;
-
-        const financials = { ...myTeam.financialRecords };
-        financials.income.transfers += player.value;
-        
-        let updatedTeam: Team = { 
-            ...myTeam, 
-            budget: myTeam.budget + budgetAddition,
-            // Mevcut borçtan düş, borç 0'ın altına inmesin
-            initialDebt: Math.max(0, (myTeam.initialDebt || 0) - debtRepayment),
-            players: myTeam.players.filter(p => p.id !== player.id), 
-            financialRecords: financials 
-        };
-        
-        const impact = calculateTransferStrengthImpact(myTeam.strength, player.skill, false);
-        const newVisibleStrength = Math.min(100, Math.max(0, myTeam.strength + impact));
-        updatedTeam.strength = Number(newVisibleStrength.toFixed(1));
-        updatedTeam = recalculateTeamStrength(updatedTeam);
-        
-        const updatedManager = { ...gameState.manager! };
-        updatedManager.stats.moneyEarned += player.value;
-        updatedManager.stats.transferIncomeThisMonth += player.value;
-        updatedManager.stats.playersSold++;
-        
-        const dateObj = new Date(gameState.currentDate);
-        const record: any = {
-            date: `${dateObj.getDate()} ${dateObj.getMonth() === 6 ? 'Tem' : dateObj.getMonth() === 7 ? 'Ağu' : 'Eyl'}`,
-            playerName: player.name,
-            type: 'SOLD',
-            counterparty: 'Yurt Dışı',
-            price: `${player.value} M€`
-        };
-        updatedTeam.transferHistory = [...(updatedTeam.transferHistory || []), record];
-
-        const sortedPlayers = [...myTeam.players].sort((a, b) => b.skill - a.skill);
-        const rank = sortedPlayers.findIndex(p => p.id === player.id);
-        const isStarPlayer = rank < 3; 
-        let riotNews: any[] = [];
-        if (isStarPlayer) {
-            updatedManager.trust.fans = Math.max(0, updatedManager.trust.fans - 3);
-            updatedManager.trust.board = Math.max(0, updatedManager.trust.board - 5);
-            riotNews = generateStarSoldRiotTweets(gameState.currentWeek, myTeam, player.name);
-        }
-        setGameState(prev => ({ ...prev, teams: prev.teams.map(t => t.id === myTeam.id ? updatedTeam : t), manager: updatedManager, news: [...riotNews, ...prev.news] }));
-        
-        let msg = `${player.name} satıldı! Bonservis: ${player.value} M€\n\n`;
-        msg += `Transfer Bütçesine Aktarılan: ${budgetAddition.toFixed(1)} M€ (%${retentionPct})\n`;
-        
-        if (retainedAmount > 0) {
-            msg += `\nYönetim Kesintisi Dağılımı:\n`;
-            msg += `- Borç Ödemesi: ${debtRepayment.toFixed(1)} M€\n`;
-            msg += `- Kulüp Kasası: ${clubCash.toFixed(1)} M€`;
-        }
-        
-        if (isStarPlayer) msg += `\n\nTARAFTAR TEPKİLİ! Takımın yıldızı satıldığı için güven seviyeniz düştü (-3).`;
-        
-        alert(msg);
+        // Just triggers the Sell Negotiation flow, no direct logic here.
+        // It relies on handleAcceptOffer to finalize
     };
 
     const handleAcceptOffer = (offer: IncomingOffer) => {
@@ -350,11 +267,9 @@ export const usePlayerActions = (
             const dateObj = new Date(gameState.currentDate);
 
             if (isLoan && offer.loanDetails) {
-                // LOAN LOGIC
-                // For loans, we assume the monthly fee is paid upfront for the loan duration (simplified)
+                // LOAN LOGIC (USER -> AI)
                 const totalLoanFee = offer.loanDetails.monthlyFee * 10; 
                 
-                // Retention logic also applies to loan fees (income)
                 const monthlyNet = calculateMonthlyNetFlow(myTeam, gameState.fixtures, gameState.currentDate, gameState.manager!);
                 const retentionPct = calculateTransferRevenueRetention(myTeam, monthlyNet, gameState.lastSeasonGoalAchieved);
                 const retentionRate = retentionPct / 100;
@@ -366,11 +281,74 @@ export const usePlayerActions = (
 
                 financials.income.transfers += totalLoanFee;
 
+                // --- NEW: CALCULATE RETURN DATE ---
+                let returnDate = new Date(gameState.currentDate);
+                const durationStr = offer.loanDetails.duration || "Sezon Sonu";
+
+                if(durationStr === 'Sezon Sonu') {
+                    const currentYear = returnDate.getFullYear();
+                    // Always target June 30th of the current season end year
+                    // If current date is > June, season end is Next Year June. 
+                    // Else Current Year June.
+                    // Simplified: Game starts July, season ends June next year.
+                    const targetMonth = 5; // June (0-indexed)
+                    const targetDay = 30;
+                    
+                    let targetYear = currentYear;
+                    if (returnDate.getMonth() > 5) {
+                        targetYear = currentYear + 1;
+                    }
+                    
+                    returnDate = new Date(targetYear, targetMonth, targetDay);
+                    
+                } else if (durationStr.includes('Ay')) { 
+                     // e.g. "6 Ay", "12 Ay"
+                     const months = parseInt(durationStr);
+                     if (!isNaN(months)) {
+                         returnDate.setMonth(returnDate.getMonth() + months);
+                     }
+                } else {
+                    // Default fallback
+                    returnDate.setMonth(returnDate.getMonth() + 10);
+                }
+
+                // Add Loan Info to Player
+                const playerWithLoan = {
+                    ...player,
+                    loanInfo: {
+                        originalTeamId: myTeam.id,
+                        returnDate: returnDate.toISOString(),
+                        loanFee: offer.loanDetails.monthlyFee,
+                        wageContribution: offer.loanDetails.wageContribution
+                    }
+                };
+
+                // Determine Target Team
+                const targetTeam = gameState.teams.find(t => t.name === offer.fromTeamName);
+                
+                let updatedTeams = [...gameState.teams];
+
+                if (targetTeam) {
+                    // Move player to target team
+                    updatedTeams = updatedTeams.map(t => {
+                        if (t.id === targetTeam.id) {
+                            return { ...t, players: [...t.players, playerWithLoan] };
+                        }
+                        return t;
+                    });
+                } else {
+                    // Move to "loanedOutPlayers" list (Foreign)
+                    updatedTeam = {
+                        ...updatedTeam,
+                        loanedOutPlayers: [...(updatedTeam.loanedOutPlayers || []), playerWithLoan]
+                    };
+                }
+
                 updatedTeam = { 
-                    ...myTeam, 
-                    budget: myTeam.budget + budgetAddition,
-                    initialDebt: Math.max(0, (myTeam.initialDebt || 0) - debtRepayment),
-                    players: myTeam.players.filter(p => p.id !== player.id), // Remove player temporarily (simulated loan out)
+                    ...updatedTeam, 
+                    budget: updatedTeam.budget + budgetAddition,
+                    initialDebt: Math.max(0, (updatedTeam.initialDebt || 0) - debtRepayment),
+                    players: updatedTeam.players.filter(p => p.id !== player.id), // Remove from active squad
                     financialRecords: financials 
                 };
 
@@ -383,6 +361,9 @@ export const usePlayerActions = (
                 };
                 updatedTeam.transferHistory = [...(updatedTeam.transferHistory || []), record];
 
+                // Apply update to myTeam in the list
+                updatedTeams = updatedTeams.map(t => t.id === myTeam.id ? updatedTeam : t);
+
                 msg = `${player.name}, ${offer.fromTeamName} takımına kiralandı!\n\nToplam Kiralama Geliri: ${totalLoanFee.toFixed(2)} M€\n`;
                 msg += `Transfer Bütçesine: ${budgetAddition.toFixed(1)} M€\n`;
                 if (retainedAmount > 0) {
@@ -390,18 +371,30 @@ export const usePlayerActions = (
                      msg += `Kulüp Kasası: ${clubCash.toFixed(1)} M€`;
                 }
 
+                // Manager Stats Update
+                const updatedManager = { ...gameState.manager! };
+                updatedManager.stats.moneyEarned += (offer.loanDetails.monthlyFee * 10);
+                
+                setGameState(prev => {
+                    const remainingOffers = prev.incomingOffers.filter(o => o.id !== offer.id);
+                    return { 
+                        ...prev, 
+                        teams: updatedTeams, 
+                        manager: updatedManager,
+                        incomingOffers: remainingOffers 
+                    };
+                });
+
             } else {
                 // TRANSFER LOGIC (Existing)
                 const monthlyNet = calculateMonthlyNetFlow(myTeam, gameState.fixtures, gameState.currentDate, gameState.manager!);
                 
-                // --- NEW: CALCULATE RETENTION PERCENTAGE ---
                 const retentionPct = calculateTransferRevenueRetention(myTeam, monthlyNet, gameState.lastSeasonGoalAchieved);
                 const retentionRate = retentionPct / 100;
 
                 budgetAddition = offer.amount * retentionRate;
                 retainedAmount = offer.amount - budgetAddition;
                 
-                // YENİ MANTIK: Kalan parayı böl
                 debtRepayment = retainedAmount / 2;
                 clubCash = retainedAmount / 2;
 
@@ -432,33 +425,29 @@ export const usePlayerActions = (
                      msg += `- Borç Ödemesi: ${debtRepayment.toFixed(1)} M€\n`;
                      msg += `- Kulüp Kasası: ${clubCash.toFixed(1)} M€`;
                 }
-            }
+                
+                // Recalculate Strength
+                const impact = calculateTransferStrengthImpact(myTeam.strength, player.skill, false);
+                const newVisibleStrength = Math.min(100, Math.max(0, myTeam.strength + impact));
+                updatedTeam.strength = Number(newVisibleStrength.toFixed(1));
+                updatedTeam = recalculateTeamStrength(updatedTeam);
+                
+                // Manager Stats Update
+                const updatedManager = { ...gameState.manager! };
+                updatedManager.stats.moneyEarned += offer.amount;
+                updatedManager.stats.transferIncomeThisMonth += offer.amount;
+                updatedManager.stats.playersSold++;
 
-            // Recalculate Strength
-            const impact = calculateTransferStrengthImpact(myTeam.strength, player.skill, false);
-            const newVisibleStrength = Math.min(100, Math.max(0, myTeam.strength + impact));
-            updatedTeam.strength = Number(newVisibleStrength.toFixed(1));
-            updatedTeam = recalculateTeamStrength(updatedTeam);
-            
-            // Manager Stats Update
-            const updatedManager = { ...gameState.manager! };
-            if (isLoan && offer.loanDetails) {
-                 updatedManager.stats.moneyEarned += (offer.loanDetails.monthlyFee * 10);
-            } else {
-                 updatedManager.stats.moneyEarned += offer.amount;
-                 updatedManager.stats.transferIncomeThisMonth += offer.amount;
-                 updatedManager.stats.playersSold++;
+                setGameState(prev => {
+                    const remainingOffers = prev.incomingOffers.filter(o => o.id !== offer.id);
+                    return { 
+                        ...prev, 
+                        teams: prev.teams.map(t => t.id === myTeam.id ? updatedTeam : t), 
+                        manager: updatedManager,
+                        incomingOffers: remainingOffers 
+                    };
+                });
             }
-
-            setGameState(prev => {
-                const remainingOffers = prev.incomingOffers.filter(o => o.id !== offer.id);
-                return { 
-                    ...prev, 
-                    teams: prev.teams.map(t => t.id === myTeam.id ? updatedTeam : t), 
-                    manager: updatedManager,
-                    incomingOffers: remainingOffers 
-                };
-            });
             
             alert(msg);
         }
@@ -511,6 +500,18 @@ export const usePlayerActions = (
         if (!gameState.myTeamId) return;
         const myTeam = gameState.teams.find(t => t.id === gameState.myTeamId)!;
         
+        // CHECK IF LOAN SIGNING (Implied by fee being very low or handled by a separate flag? 
+        // For now, assuming standard transfer flow.
+        // If we want loan in, `fee` usually 0 or loan fee.
+        // We'll rely on the sourceTeam logic. If we were loaning, `player` might already have markers.
+        // But standard `handleSignPlayer` is for permanent/bosman.
+        
+        // Actually, contract negotiation view doesn't pass "Loan" status. 
+        // We'll assume standard transfer for this block unless we add loan logic here.
+        // However, if we accepted an incoming LOAN offer to GET a player, it usually skips contract negotiation in simplified modes
+        // or uses a simplified one.
+        
+        // Let's standard transfer logic for now.
         const newBudget = myTeam.budget - fee;
         const oldTeam = gameState.teams.find(t => t.id === player.teamId);
         
@@ -522,7 +523,7 @@ export const usePlayerActions = (
             contractExpiry: 2025 + contract.years, 
             wage: contract.wage,
             activePromises: contract.promises,
-            clubName: undefined // Clear previous club name/status
+            clubName: undefined 
         };
         
         const financials = { ...myTeam.financialRecords };
@@ -554,6 +555,7 @@ export const usePlayerActions = (
         let updatedTeams = gameState.teams.map(t => t.id === myTeam.id ? updatedMyTeam : t);
 
         if (oldTeam) {
+            // Remove from old team
             let updatedOldTeam = { ...oldTeam, budget: oldTeam.budget + fee, players: oldTeam.players.filter(p => p.id !== player.id) };
             const sellImpact = calculateTransferStrengthImpact(oldTeam.strength, player.skill, false);
             const oldVisibleStrength = Math.min(100, Math.max(0, oldTeam.strength + sellImpact));

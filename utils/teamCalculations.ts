@@ -37,161 +37,324 @@ const getPokForPosition = (pos: Position): number => {
 
 // --- MEVKİ BAZLI STAT AĞIRLIKLARI (POSITION-BASED STAT WEIGHTS) ---
 // Maps Position -> { Attribute: Weight }
-// Based on the specific prompt requirements
 const STAT_WEIGHTS: Partial<Record<Position, Partial<Record<keyof PlayerStats, number>>>> = {
     [Position.GK]: {
-        positioning: 1.4, // Pozisyon Alma
-        agility: 1.4,     // Refleks (Mapped to Agility)
-        concentration: 1.3, // Konsantrasyon
-        composure: 1.2,   // Soğukkanlılık
-        leadership: 1.1,  // Liderlik
-        passing: 0.8,     // Pas
-        technique: 0.7,   // Teknik
-        pace: 0.6         // Hız
+        agility: 1.5,
+        concentration: 1.5,
+        positioning: 1.4,
+        composure: 1.4,
+        anticipation: 1.3,
+        decisions: 1.3,
+        bravery: 1.2,
+        acceleration: 1.0,
+        balance: 1.0,
+        physical: 0.9,
+        jumping: 0.8,
+        passing: 0.7,
+        firstTouch: 0.6,
+        technique: 0.6,
+        pace: 0.5,
+        stamina: 0.5,
+        teamwork: 0.4,
+        leadership: 0.4,
+        aggression: 0.3,
+        vision: 0.3,
+        penalty: 0.2,
+        freeKick: 0.2,
+        corners: 0.1,
+        longThrows: 0.1
     },
     [Position.STP]: {
-        marking: 1.4,     // Markaj
-        tackling: 1.3,    // Top Kapma
-        positioning: 1.3, // Pozisyon Alma
-        physical: 1.2,    // Güç
-        heading: 1.2,     // Kafa Vuruşu
-        concentration: 1.2, // Konsantrasyon
-        passing: 0.8,     // Pas
-        technique: 0.7,   // Teknik
-        pace: 0.8         // Hız
+        positioning: 1.5,
+        marking: 1.5,
+        tackling: 1.4,
+        heading: 1.4,
+        physical: 1.3,
+        concentration: 1.3,
+        decisions: 1.2,
+        anticipation: 1.2,
+        composure: 1.1,
+        jumping: 1.1,
+        aggression: 1.0,
+        pace: 0.9,
+        acceleration: 0.8,
+        stamina: 0.8,
+        passing: 0.7,
+        technique: 0.6,
+        firstTouch: 0.6,
+        balance: 0.6,
+        agility: 0.5,
+        teamwork: 0.5,
+        workRate: 0.5,
+        vision: 0.4,
+        longShots: 0.3,
+        finishing: 0.3,
+        dribbling: 0.3,
+        penalty: 0.2,
+        corners: 0.2,
+        freeKick: 0.2,
+        longThrows: 0.1
     },
     [Position.SLB]: {
-        stamina: 1.4,     // Dayanıklılık
-        pace: 1.3,        // Hız
-        agility: 1.2,     // Çeviklik
-        crossing: 1.2,    // Orta Yapma
-        marking: 1.1,     // Markaj
-        tackling: 1.1,    // Top Kapma
-        passing: 1.0,     // Pas
-        technique: 0.9    // Teknik
+        pace: 1.5,
+        stamina: 1.4,
+        acceleration: 1.4,
+        crossing: 1.3,
+        tackling: 1.3,
+        positioning: 1.2,
+        marking: 1.2,
+        agility: 1.1,
+        workRate: 1.1,
+        teamwork: 1.0,
+        passing: 1.0,
+        dribbling: 0.9,
+        firstTouch: 0.9,
+        technique: 0.9,
+        composure: 0.8,
+        anticipation: 0.8,
+        physical: 0.8,
+        balance: 0.7,
+        jumping: 0.7,
+        decisions: 0.7,
+        aggression: 0.7,
+        offTheBall: 0.6,
+        longShots: 0.5,
+        finishing: 0.4,
+        heading: 0.4,
+        vision: 0.3,
+        flair: 0.3,
+        penalty: 0.2,
+        corners: 0.2,
+        freeKick: 0.2,
+        longThrows: 0.1
     },
     [Position.SGB]: {
-        stamina: 1.4,     // Dayanıklılık
-        pace: 1.3,        // Hız
-        agility: 1.2,     // Çeviklik
-        crossing: 1.2,    // Orta Yapma
-        marking: 1.1,     // Markaj
-        tackling: 1.1,    // Top Kapma
-        passing: 1.0,     // Pas
-        technique: 0.9    // Teknik
+        pace: 1.5,
+        stamina: 1.4,
+        acceleration: 1.4,
+        crossing: 1.3,
+        tackling: 1.3,
+        positioning: 1.2,
+        marking: 1.2,
+        agility: 1.1,
+        workRate: 1.1,
+        teamwork: 1.0,
+        passing: 1.0,
+        dribbling: 0.9,
+        firstTouch: 0.9,
+        technique: 0.9,
+        composure: 0.8,
+        anticipation: 0.8,
+        physical: 0.8,
+        balance: 0.7,
+        jumping: 0.7,
+        decisions: 0.7,
+        aggression: 0.7,
+        offTheBall: 0.6,
+        longShots: 0.5,
+        finishing: 0.4,
+        heading: 0.4,
+        vision: 0.3,
+        flair: 0.3,
+        penalty: 0.2,
+        corners: 0.2,
+        freeKick: 0.2,
+        longThrows: 0.1
     },
-    // DM (Defansif Orta Saha - Using OS base but weighted for DM roles if generic OS)
     [Position.OS]: {
-        // For generic OS, we prioritize Passing/Vision but include defensive stats for DM logic
-        passing: 1.4,     
+        passing: 1.5,
+        stamina: 1.4,
+        decisions: 1.4,
         vision: 1.3,
-        decisions: 1.3,   // Karar Alma
-        technique: 1.2,
-        stamina: 1.1,
-        positioning: 1.1, // DM Critical
-        tackling: 1.0,    // DM Critical
-        physical: 1.0     // DM Critical
+        technique: 1.3,
+        positioning: 1.2,
+        tackling: 1.2,
+        workRate: 1.1,
+        teamwork: 1.1,
+        composure: 1.0,
+        anticipation: 1.0,
+        dribbling: 0.9,
+        firstTouch: 0.9,
+        aggression: 0.9,
+        physical: 0.9,
+        longShots: 0.8,
+        offTheBall: 0.8,
+        pace: 0.7,
+        acceleration: 0.7,
+        agility: 0.7,
+        balance: 0.7,
+        finishing: 0.5,
+        flair: 0.5,
+        heading: 0.4,
+        jumping: 0.4,
+        penalty: 0.2,
+        corners: 0.2,
+        freeKick: 0.2,
+        longThrows: 0.1
     },
     [Position.OOS]: {
-        vision: 1.4,      // Vizyon
-        technique: 1.3,   // Teknik
-        dribbling: 1.3,   // Dripling
-        decisions: 1.2,   // Karar Alma
-        composure: 1.1,   // Soğukkanlılık
-        longShots: 1.1,   // Uzaktan Şut
-        passing: 1.2      // Pas
+        technique: 1.5,
+        vision: 1.5,
+        passing: 1.4,
+        decisions: 1.4,
+        composure: 1.3,
+        offTheBall: 1.3,
+        dribbling: 1.2,
+        firstTouch: 1.2,
+        flair: 1.1,
+        finishing: 1.0,
+        longShots: 0.9,
+        positioning: 0.9,
+        anticipation: 0.9,
+        agility: 0.8,
+        balance: 0.8,
+        acceleration: 0.8,
+        stamina: 0.7,
+        workRate: 0.7,
+        teamwork: 0.7,
+        physical: 0.6,
+        pace: 0.6,
+        aggression: 0.5,
+        heading: 0.3,
+        jumping: 0.3,
+        tackling: 0.2,
+        marking: 0.2,
+        penalty: 0.2,
+        corners: 0.2,
+        freeKick: 0.2,
+        longThrows: 0.1
     },
     [Position.SLK]: {
-        pace: 1.4,        // Hız
-        dribbling: 1.4,   // Dripling
-        agility: 1.3,     // Çeviklik
-        crossing: 1.2,    // Orta Yapma
-        technique: 1.1,   // Teknik
-        decisions: 1.1,   // Karar Alma
-        finishing: 0.9    // Bitiricilik
+        pace: 1.5,
+        acceleration: 1.4,
+        dribbling: 1.4,
+        agility: 1.3,
+        crossing: 1.2,
+        offTheBall: 1.2,
+        technique: 1.1,
+        firstTouch: 1.0,
+        stamina: 0.9,
+        passing: 0.9,
+        vision: 0.8,
+        decisions: 0.8,
+        composure: 0.7,
+        finishing: 0.7,
+        balance: 0.7,
+        longShots: 0.6,
+        physical: 0.6,
+        flair: 0.6,
+        teamwork: 0.5,
+        workRate: 0.5,
+        jumping: 0.5,
+        aggression: 0.4,
+        positioning: 0.4,
+        corners: 0.3,
+        freeKick: 0.3,
+        tackling: 0.2,
+        marking: 0.2,
+        penalty: 0.2,
+        longThrows: 0.1
     },
     [Position.SGK]: {
-        pace: 1.4,        // Hız
-        dribbling: 1.4,   // Dripling
-        agility: 1.3,     // Çeviklik
-        crossing: 1.2,    // Orta Yapma
-        technique: 1.1,   // Teknik
-        decisions: 1.1,   // Karar Alma
-        finishing: 0.9    // Bitiricilik
+        pace: 1.5,
+        acceleration: 1.4,
+        dribbling: 1.4,
+        agility: 1.3,
+        crossing: 1.2,
+        offTheBall: 1.2,
+        technique: 1.1,
+        firstTouch: 1.0,
+        stamina: 0.9,
+        passing: 0.9,
+        vision: 0.8,
+        decisions: 0.8,
+        composure: 0.7,
+        finishing: 0.7,
+        balance: 0.7,
+        longShots: 0.6,
+        physical: 0.6,
+        flair: 0.6,
+        teamwork: 0.5,
+        workRate: 0.5,
+        jumping: 0.5,
+        aggression: 0.4,
+        positioning: 0.4,
+        corners: 0.3,
+        freeKick: 0.3,
+        tackling: 0.2,
+        marking: 0.2,
+        penalty: 0.2,
+        longThrows: 0.1
     },
     [Position.SNT]: {
-        finishing: 1.4,   // Bitiricilik
-        positioning: 1.3, // Pozisyon Alma
-        composure: 1.3,   // Soğukkanlılık
-        heading: 1.2,     // Kafa Vuruşu
-        physical: 1.1,    // Güç
-        technique: 1.0,   // Teknik
-        passing: 0.7      // Pas
+        finishing: 1.5,
+        offTheBall: 1.4,
+        positioning: 1.3,
+        composure: 1.3,
+        heading: 1.2,
+        pace: 1.0,
+        acceleration: 0.9,
+        physical: 0.9,
+        jumping: 0.8,
+        technique: 0.8,
+        dribbling: 0.7,
+        firstTouch: 0.7,
+        passing: 0.4,
+        vision: 0.3,
+        teamwork: 0.3,
+        aggression: 0.3,
+        stamina: 0.3,
+        balance: 0.3,
+        penalty: 0.2,
+        longShots: 0.3,
+        flair: 0.3
     }
 };
 
 /**
  * Calculates the Effective Skill of a player based on their position's stat weights.
- * This determines how good a player actually is in the match engine vs their raw OVR.
  */
 export const calculateEffectiveSkill = (player: Player): number => {
     const weights = STAT_WEIGHTS[player.position] || {};
     let totalScore = 0;
     let totalWeight = 0;
 
-    // Use raw skill as baseline if no weights found (fallback)
     if (Object.keys(weights).length === 0) return player.skill;
 
     for (const [statKey, weight] of Object.entries(weights)) {
         // @ts-ignore
-        let statValue = player.stats[statKey] || 10; // Default to 10 (avg) if missing
-        
-        // Convert 1-20 attribute to 1-100 scale for consistency with OVR
-        // (Stat * 5) converts 20 -> 100
+        let statValue = player.stats[statKey] || 10;
         totalScore += (statValue * 5) * weight;
         totalWeight += weight;
     }
 
     if (totalWeight === 0) return player.skill;
-
-    // Calculate weighted average (The "Perfomance Skill")
     const weightedAvg = totalScore / totalWeight;
-    
-    // Blend with original skill (OVR) to ensure general quality (Reputation/Mental intangible) is still respected 
-    // 80% Weighted Stats (Performance), 20% Raw Skill (Star Power)
     return (weightedAvg * 0.8) + (player.skill * 0.2);
 };
 
 /**
  * Calculates the RAW Overall Rating (Skill) purely from Attributes.
- * Used to update player OVR after training without relying on arbitrary increments.
  */
 export const calculatePlayerOverallFromStats = (player: Player): number => {
     const weights = STAT_WEIGHTS[player.position] || {};
     let totalScore = 0;
     let totalWeight = 0;
     
-    // If no weights (unmapped position), just return existing skill
     if (Object.keys(weights).length === 0) return player.skill;
 
     for (const [statKey, weight] of Object.entries(weights)) {
         // @ts-ignore
         let statValue = player.stats[statKey] || 10;
-        // Convert 1-20 attribute to 1-100 scale
         totalScore += (statValue * 5) * weight;
         totalWeight += weight;
     }
     
-    // Add baseline score for unweighted stats (general athleticism) to prevent drastic drops
-    // A player isn't just their key stats.
     const averageAllStats = Object.values(player.stats).reduce((a, b) => a + (typeof b === 'number' ? b : 0), 0) / 36;
     const baselineScore = averageAllStats * 5;
     
     if (totalWeight === 0) return Math.round(baselineScore);
-
     const weightedAvg = totalScore / totalWeight;
-    
-    // Mix: 70% Weighted Key Stats, 30% General Athleticism Baseline
     const finalRating = (weightedAvg * 0.7) + (baselineScore * 0.3);
 
     return Math.max(1, Math.min(99, Math.round(finalRating)));
@@ -199,17 +362,12 @@ export const calculatePlayerOverallFromStats = (player: Player): number => {
 
 /**
  * Calculates the RAW Weighted Team Strength (THG) based on squad roles.
- * UPDATED: Uses `calculateEffectiveSkill` instead of raw `skill`.
  */
 export const calculateRawTeamStrength = (players: Player[]): number => {
     if (players.length === 0) return 0;
 
-    // 1. Sort all players by EFFECTIVE skill (descending)
     const sorted = [...players].sort((a, b) => calculateEffectiveSkill(b) - calculateEffectiveSkill(a));
 
-    // 2. Identify Starters (Best fitting 4-4-2)
-    // We assume a standard structure for calculation stability:
-    // 1 GK, 1 SLB, 1 SGB, 2 STP, 1 SLK, 1 SGK, 2 OS, 2 SNT = 11 Starters
     const starters: Player[] = [];
     const pool = [...sorted];
 
@@ -219,7 +377,7 @@ export const calculateRawTeamStrength = (players: Player[]): number => {
             const idx = pool.findIndex(p => p.position === pos);
             if (idx !== -1) {
                 found.push(pool[idx]);
-                pool.splice(idx, 1); // Remove from pool
+                pool.splice(idx, 1);
             }
         }
         return found;
@@ -259,7 +417,7 @@ export const calculateRawTeamStrength = (players: Player[]): number => {
     const addToCalc = (p: Player, roleCoef: number) => {
         const pok = getPokForPosition(p.position);
         const weight = pok * roleCoef;
-        const effectiveSkill = calculateEffectiveSkill(p); // Use new weighted skill
+        const effectiveSkill = calculateEffectiveSkill(p);
         const contribution = effectiveSkill * weight;
         
         totalContribution += contribution;
@@ -271,7 +429,6 @@ export const calculateRawTeamStrength = (players: Player[]): number => {
     rotation.forEach(p => addToCalc(p, KRK.ROTATION));
 
     if (totalWeight === 0) return 0;
-
     const thg = totalContribution / totalWeight;
     return Math.round(thg * 10) / 10;
 };
@@ -299,18 +456,13 @@ export const calculateTransferStrengthImpact = (currentVisibleStrength: number, 
 export const recalculateTeamStrength = (team: Team): Team => {
     const newRawStrength = calculateRawTeamStrength(team.players);
     const delta = team.strengthDelta !== undefined ? team.strengthDelta : 0;
-    
-    // Raw calculation of where the team *should* be
     const potentialVisible = newRawStrength + delta;
     const currentVisible = team.strength;
-    
     let finalVisible = currentVisible;
     
-    // DAMPENING: Only allow growing by max 0.5 per update to prevent visual bugs (instant 4.5 stars)
     if (potentialVisible > currentVisible) {
         finalVisible = Math.min(potentialVisible, currentVisible + 0.5);
     } else if (potentialVisible < currentVisible) {
-         // Drop slowly as well for stability
          finalVisible = Math.max(potentialVisible, currentVisible - 0.5);
     }
     
@@ -322,16 +474,10 @@ export const recalculateTeamStrength = (team: Team): Team => {
 };
 
 export const calculateTeamStrength = (team: Team): number => {
-    // Return calculated raw strength to make the simulation use the new attributes
     return calculateRawTeamStrength(team.players);
 };
 
-/**
- * Calculates deterministic Annual Wage based on Skill, Value, Age and Squad Status.
- * Used for both Finance view and AI logic.
- */
 export const calculatePlayerWage = (player: Player): number => {
-    // 1. Determine Status (Fallback to skill-based if undefined)
     let status = player.squadStatus;
     if (!status) {
         if (player.skill >= 85) status = 'STAR';
@@ -341,24 +487,18 @@ export const calculatePlayerWage = (player: Player): number => {
         else status = 'JOKER';
     }
 
-    // 2. Base Wage from Market Value (20% baseline)
     let wage = player.value * 0.20;
-
-    // 3. Skill Floor (Guarantees high wages for high skill players even if value is low due to age)
     let skillFloor = 0;
     if (player.skill >= 90) skillFloor = 12.0;
     else if (player.skill >= 85) skillFloor = 8.0;
     else if (player.skill >= 80) skillFloor = 4.0;
     else if (player.skill >= 75) skillFloor = 1.5;
     
-    // Use the higher of Value-based calc or Skill Floor
     wage = Math.max(wage, skillFloor);
-
-    // 4. Squad Status Multiplier (Role Importance)
     const statusMultipliers: Record<string, number> = {
-        'STAR': 1.6,       // Massive premium for Stars
+        'STAR': 1.6,
         'IMPORTANT': 1.3,
-        'FIRST_XI': 1.0,   // Standard
+        'FIRST_XI': 1.0,
         'ROTATION': 0.7,
         'IMPACT': 0.6,
         'JOKER': 0.5,
@@ -366,37 +506,27 @@ export const calculatePlayerWage = (player: Player): number => {
     };
     wage *= (statusMultipliers[status] || 1.0);
 
-    // 5. Age Adjustments
     if (player.age <= 21) {
-        // Young players get paid significantly less unless they are already superstars
         wage *= 0.6; 
     } else if (player.age >= 33) {
-        // Old Players Logic
         if (player.skill >= 80) {
-            // "Yaşlı Yıldız": High wage premium despite age/value drop
             wage *= 1.3; 
         } else {
-            // Old Average Player: Standard or slight drop
             wage *= 0.9;
         }
     }
 
-    // 6. Nationality Adjustment (Domestic Discount)
-    // Turkish players get 30% less wage compared to foreigners
     if (player.nationality === 'Türkiye') {
         wage *= 0.7;
     }
 
-    // 7. Minimum Wage Floor (0.05 M€)
     wage = Math.max(0.05, wage);
-
     return Number(wage.toFixed(2));
 };
 
 export const calculateForm = (teamId: string, fixtures: Fixture[]): string[] => {
     const played = fixtures
         .filter(f => f.played && (f.homeTeamId === teamId || f.awayTeamId === teamId))
-        // FIX: Sort by DATE to handle Cups (Week 100+) correctly mixed with League matches
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         .slice(0, 5);
 
@@ -410,7 +540,6 @@ export const calculateForm = (teamId: string, fixtures: Fixture[]): string[] => 
 };
 
 export const calculateOdds = (home: Team, away: Team): BettingOdds => {
-    // UPDATED: Use Raw Team Strength which now incorporates Attribute Weights
     const hStr = calculateRawTeamStrength(home.players) + 5; 
     const aStr = calculateRawTeamStrength(away.players);
     
@@ -516,7 +645,6 @@ export const calculateTeamReputation = (team: Team): number => {
     return team.reputation || 1;
 };
 
-// MODIFIED: Accepts optional excludeTransfers boolean
 export const calculateMonthlyNetFlow = (team: Team, fixtures: Fixture[], currentDate: string, manager?: ManagerProfile, excludeTransfers: boolean = false): number => {
     const dateObj = new Date(currentDate);
     const currentMonth = dateObj.getMonth();
@@ -554,7 +682,6 @@ export const calculateMonthlyNetFlow = (team: Team, fixtures: Fixture[], current
     const inc_Gate = homePlayedThisMonth.length * (fanFactor * 0.01944444);
     const inc_Loca = inc_Gate * 0.45;
 
-    // Apply exclusion logic
     const inc_Transfers = (!excludeTransfers && manager && manager.contract.teamName === team.name) 
         ? (manager.stats.transferIncomeThisMonth || 0) 
         : 0;
@@ -571,8 +698,6 @@ export const calculateMonthlyNetFlow = (team: Team, fixtures: Fixture[], current
     const exp_Academy = strengthFactor * 0.4;
     
     const exp_Debt = (team.initialDebt || 0) / 60;
-    
-    // Apply exclusion logic
     const exp_Transfers = (!excludeTransfers && manager && manager.contract.teamName === team.name) 
         ? (manager.stats.transferSpendThisMonth || 0) 
         : 0;
@@ -582,45 +707,31 @@ export const calculateMonthlyNetFlow = (team: Team, fixtures: Fixture[], current
     return totalIncome - totalExpense;
 };
 
-// NEW FUNCTION: Calculate the percentage of transfer fee that goes to budget
-// LOGIC: Base calculation using Debt/Reputation + Monthly Net Flow Modifier
 export const calculateTransferRevenueRetention = (team: Team, monthlyNet: number, objectivesMet: boolean): number => {
     const reputation = team.reputation || 1.0;
     const debt = team.initialDebt || 0;
 
-    // 1. Determine Debt Threshold based on Reputation (Base Logic)
-    let threshold = 3; // Default (Rep ~1.0)
+    let threshold = 3; 
     if (reputation >= 4.5) threshold = 800;
     else if (reputation >= 4.0) threshold = 500;
     else if (reputation >= 3.5) threshold = 100;
     else if (reputation >= 3.0) threshold = 20; 
     else if (reputation >= 2.0) threshold = 5;  
-    else threshold = 3; // Rep < 2.0
+    else threshold = 3; 
 
-    // 2. Calculate BASE Percentage from Debt Situation
     let basePct = 100;
-
     if (debt > threshold) {
-        // Crisis Mode base calculation
         const ratio = threshold / debt;
         basePct = 10 + (39 * ratio);
     } else {
-        // Okay Mode base calculation
         const ratio = debt / threshold;
         basePct = 100 - (30 * ratio);
     }
 
-    // Optional: Small bonus for objectives
     if (objectivesMet) {
         basePct += 5;
     }
 
-    // 3. Apply Financial Status Penalty based on Monthly Net Flow
-    // Zengin (>10): 0% penalty
-    // Güvende (>0): 5% penalty
-    // Dengeli (>=-5): 10% penalty
-    // Riskli (< -5): 20% penalty
-    
     let penalty = 0;
     if (monthlyNet > 10) {
         penalty = 0;
@@ -633,7 +744,5 @@ export const calculateTransferRevenueRetention = (team: Team, monthlyNet: number
     }
 
     let finalPct = basePct - penalty;
-
-    // 4. Clamp result (Min 5%, Max 100%)
     return Math.floor(Math.max(5, Math.min(100, finalPct)));
 };

@@ -1,4 +1,3 @@
-
 import { Team, Player, Fixture, MatchEvent, MatchStats, Position, Message, TransferRecord, NewsItem, SeasonSummary, TransferImpact, IncomingOffer, IndividualTrainingType, ManagerProfile, TrainingConfig, TrainingType, TrainingIntensity } from '../types';
 import { generateId, generatePlayer, INJURY_TYPES, RIVALRIES, GAME_CALENDAR } from '../constants';
 import { FAN_NAMES, DERBY_TWEETS_WIN, DERBY_TWEETS_LOSS, FAN_TWEETS_WIN, FAN_TWEETS_LOSS, FAN_TWEETS_DRAW } from '../data/tweetPool';
@@ -20,6 +19,109 @@ import { getWeightedInjury } from './matchLogic';
 import { recalculateTeamStrength, calculateRawTeamStrength } from './teamCalculations';
 // Added missing import for transfer window check
 import { isTransferWindowOpen } from './calendarAndFixtures';
+
+// --- LOAN RETURN LOGIC ---
+export const processLoanReturns = (teams: Team[], date: string, currentWeek: number): { updatedTeams: Team[], returnNews: NewsItem[] } => {
+    let updatedTeams = JSON.parse(JSON.stringify(teams)) as Team[]; // Deep copy to avoid mutation issues during swaps
+    const returnNews: NewsItem[] = [];
+    const today = new Date(date);
+
+    // 1. Check players currently IN a squad (Loaned IN from somewhere)
+    // This covers: User loaned a player IN, or AI loaned a player IN.
+    for (let i = 0; i < updatedTeams.length; i++) {
+        const team = updatedTeams[i];
+        
+        // Find players whose loan expires today or passed
+        const returningPlayers = team.players.filter(p => {
+             if (!p.loanInfo) return false;
+             const returnDate = new Date(p.loanInfo.returnDate);
+             // Return if today is ON or AFTER the return date
+             return today >= returnDate;
+        });
+
+        if (returningPlayers.length > 0) {
+            // Remove from current team
+            team.players = team.players.filter(p => !returningPlayers.some(rp => rp.id === p.id));
+            
+            // Return to Original Team
+            returningPlayers.forEach(rp => {
+                const originalTeamId = rp.loanInfo!.originalTeamId;
+                const originalTeamIdx = updatedTeams.findIndex(t => t.id === originalTeamId);
+                
+                // Clear Loan Info
+                const returnedPlayer = { ...rp, loanInfo: undefined, teamId: originalTeamId, clubName: undefined };
+
+                if (originalTeamIdx !== -1) {
+                    updatedTeams[originalTeamIdx].players.push(returnedPlayer);
+                    
+                    returnNews.push({
+                        id: generateId(),
+                        week: currentWeek,
+                        type: 'TRANSFER',
+                        title: `${updatedTeams[originalTeamIdx].name}|@Transfer|OFFICIAL`,
+                        content: `Kiralık sözleşmesi sona eren ${rp.name}, kulübüne (${updatedTeams[originalTeamIdx].name}) geri döndü.`
+                    });
+                } else {
+                    // If original team is 'foreign' or 'free_agent' (Not in game DB)
+                    // They basically disappear from the current team (already removed above)
+                    if (originalTeamId === 'foreign' || originalTeamId === 'free_agent') {
+                        returnNews.push({
+                            id: generateId(),
+                            week: currentWeek,
+                            type: 'TRANSFER',
+                            title: `${team.name}|@Transfer|OFFICIAL`,
+                            content: `${rp.name} ile olan kiralık sözleşmemiz sona erdi ve oyuncu kulübüne döndü.`
+                        });
+                    }
+                }
+            });
+            
+            // Re-calculate strength for the team that lost players
+            updatedTeams[i] = recalculateTeamStrength(team);
+            // Re-calculate for the team that gained players (done in loop if we find index, but safer to do it lazily or here)
+            // Note: If originalTeamIdx was found, we modified updatedTeams[originalTeamIdx] directly above.
+        }
+    }
+
+    // 2. Check players currently OUT on loan (Loaned OUT to "Foreign/Non-Playable")
+    // Players loaned to IN-GAME teams are handled in step 1 (because they exist in that team's roster).
+    // This step is specifically for players loaned to 'foreign' clubs who sit in the 'loanedOutPlayers' array.
+    for (let i = 0; i < updatedTeams.length; i++) {
+        const team = updatedTeams[i];
+        
+        if (team.loanedOutPlayers && team.loanedOutPlayers.length > 0) {
+            const returningFromForeign = team.loanedOutPlayers.filter(p => {
+                if (!p.loanInfo) return true; // Should have info, if not return them to be safe
+                const returnDate = new Date(p.loanInfo.returnDate);
+                return today >= returnDate;
+            });
+
+            if (returningFromForeign.length > 0) {
+                 // Remove from loanedOut list
+                 team.loanedOutPlayers = team.loanedOutPlayers.filter(p => !returningFromForeign.some(rp => rp.id === p.id));
+                 
+                 // Add back to main squad
+                 returningFromForeign.forEach(rp => {
+                     const returnedPlayer = { ...rp, loanInfo: undefined, teamId: team.id, clubName: undefined };
+                     team.players.push(returnedPlayer);
+                     
+                     returnNews.push({
+                        id: generateId(),
+                        week: currentWeek,
+                        type: 'TRANSFER',
+                        title: `${team.name}|@Transfer|OFFICIAL`,
+                        content: `Yurt dışına kiralık olarak gönderilen ${rp.name}, sözleşmesi biterek takımımıza geri katıldı.`
+                    });
+                 });
+                 
+                 // Recalculate strength
+                 updatedTeams[i] = recalculateTeamStrength(team);
+            }
+        }
+    }
+
+    return { updatedTeams, returnNews };
+};
 
 // --- AI SQUAD OPTIMIZATION ---
 /**
@@ -313,7 +415,13 @@ export const processMatchPostGame = (teams: Team[], events: MatchEvent[], week: 
                 
                 const goals = playerEvents.filter(e => e.type === 'GOAL' && (e.scorer === player.name || e.playerId === player.id)).length;
                 const assists = playerEvents.filter(e => e.type === 'GOAL' && e.assist === player.name).length;
-                const yellows = playerEvents.filter(e => e.type === 'CARD_YELLOW').length;
+                
+                // Count Yellows (Including second yellow leading to red)
+                const yellows = playerEvents.filter(e => 
+                    e.type === 'CARD_YELLOW' || 
+                    (e.type === 'CARD_RED' && e.description.toLowerCase().includes('ikinci sarı'))
+                ).length;
+
                 const reds = playerEvents.filter(e => e.type === 'CARD_RED' || e.type === 'FIGHT' || e.type === 'ARGUMENT').length;
                 
                 // Increment Stats
@@ -786,16 +894,30 @@ export const archiveSeason = (myTeam: Team, allTeams: Team[], year: number): Sea
  * Resets teams for the next season, incrementing age and clearing stats.
  */
 export const resetForNewSeason = (teams: Team[]): Team[] => {
-    return teams.map(team => ({
-        ...team,
-        stats: { played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, points: 0 },
-        players: team.players.map(p => ({
+    return teams.map(team => {
+        // AGE Players
+        const agedPlayers = team.players.map(p => ({
             ...p,
             age: p.age + 1,
             seasonStats: { goals: 0, assists: 0, yellowCards: 0, redCards: 0, ratings: [], averageRating: 0, matchesPlayed: 0, processedMatchIds: [] },
             suspensions: {} // Clear suspensions on new season
-        }))
-    }));
+        }));
+
+        // AGE Loaned Out Players (Important!)
+        const agedLoanedOut = team.loanedOutPlayers ? team.loanedOutPlayers.map(p => ({
+            ...p,
+            age: p.age + 1,
+            seasonStats: { goals: 0, assists: 0, yellowCards: 0, redCards: 0, ratings: [], averageRating: 0, matchesPlayed: 0, processedMatchIds: [] },
+            suspensions: {} 
+        })) : [];
+
+        return {
+            ...team,
+            stats: { played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, points: 0 },
+            players: agedPlayers,
+            loanedOutPlayers: agedLoanedOut
+        };
+    });
 };
 
 /**

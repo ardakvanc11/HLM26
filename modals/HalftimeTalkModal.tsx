@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import { Team, Player } from '../types';
-import { Mic, Flame, Anchor, ThumbsDown, Zap, X, CheckCircle2, Heart, Smile, Meh, Frown, AlertCircle } from 'lucide-react';
+import { Mic, Flame, Anchor, ThumbsDown, Zap, X, CheckCircle2 } from 'lucide-react';
 import PlayerFace from '../components/shared/PlayerFace';
 
 interface HalftimeTalkModalProps {
     team: Team;
+    opponent: Team; // Opponent Team for difficulty calculation
     scoreDiff: number;
     onComplete: (moraleChange: number) => void;
     onClose: () => void;
 }
 
-const HalftimeTalkModal: React.FC<HalftimeTalkModalProps> = ({ team, scoreDiff, onComplete, onClose }) => {
+const HalftimeTalkModal: React.FC<HalftimeTalkModalProps> = ({ team, opponent, scoreDiff, onComplete, onClose }) => {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [isConfirmed, setIsConfirmed] = useState(false);
 
@@ -34,29 +35,75 @@ const HalftimeTalkModal: React.FC<HalftimeTalkModalProps> = ({ team, scoreDiff, 
         return 'text-red-600';
     };
 
-    const getOptions = () => {
-        if (scoreDiff > 0) {
-            return [
-                { id: '1', title: 'Disiplin', text: "Harika gidiyoruz beyler! Rehavete kapılmayın, aynısı ciddiyetle devam.", icon: Anchor, color: 'text-blue-400', moraleChange: 2 },
-                { id: '2', title: 'Saldırgan', text: "Yetmez! Daha fazla gol istiyorum, rakibi sahadan silelim!", icon: Flame, color: 'text-orange-500', moraleChange: 5 },
-                { id: '3', title: 'Sakin', text: "Topu ayağımızda tutalım, skoru kontrol edelim. Risk almayın.", icon: Zap, color: 'text-yellow-400', moraleChange: 1 }
-            ];
-        } else if (scoreDiff < 0) {
-            return [
-                { id: '1', title: 'Sert', text: "Bu futbol size yakışmıyor! Kendinize gelin ve savaşın!", icon: ThumbsDown, color: 'text-red-500', moraleChange: -5 },
-                { id: '2', title: 'Motive Edici', text: "Hala vaktimiz var. Bir gol maçı çevirir. Size inanıyorum!", icon: Flame, color: 'text-green-400', moraleChange: 8 },
-                { id: '3', title: 'Analitik', text: "Sakin olun, taktiğe sadık kalın. Fırsatlar mutlaka gelecek.", icon: Anchor, color: 'text-blue-400', moraleChange: 3 }
-            ];
-        } else {
-            return [
-                { id: '1', title: 'Motive Edici', text: "Maçı kazanabiliriz. Biraz daha baskı kurarsak gol gelecek.", icon: Flame, color: 'text-green-400', moraleChange: 5 },
-                { id: '2', title: 'Dikkatli', text: "Hata yapan kaybeder. Kontrollü oyundan taviz vermeyin.", icon: Anchor, color: 'text-blue-400', moraleChange: 2 },
-                { id: '3', title: 'Agresif', text: "Rakip yoruldu! Tempoyu arttırın ve onları boğun!", icon: Zap, color: 'text-orange-500', moraleChange: 4 }
-            ];
+    // Calculate Opponent Difficulty
+    const myStrength = team.strength;
+    const oppStrength = opponent.strength;
+    let difficulty: 'HARD' | 'EQUAL' | 'EASY' = 'EQUAL';
+    
+    if (oppStrength > myStrength + 4) difficulty = 'HARD';
+    else if (oppStrength < myStrength - 4) difficulty = 'EASY';
+
+    // Calculate Dynamic Morale Effect
+    const calculateMoraleChange = (type: 'RELAXED' | 'BALANCED' | 'DEMANDING') => {
+        let change = -4; // Default negative impact (Wrong choice penalty)
+
+        if (type === 'RELAXED') {
+            // Rahatlatıcı: Only good if winning big (3+ diff)
+            if (scoreDiff >= 3) change = 5;
+        } 
+        else if (type === 'BALANCED') {
+            // Dengeli
+            if (scoreDiff === 0 && (difficulty === 'HARD' || difficulty === 'EQUAL')) change = 4; // Draw vs Hard/Equal
+            else if (scoreDiff > 0 && scoreDiff < 3) change = 4; // Winning narrow (Any Opponent)
+        } 
+        else if (type === 'DEMANDING') {
+            // Talepkar
+            if (scoreDiff === 0 && difficulty === 'EASY') change = 6; // Draw vs Easy (Should be winning)
+            else if (scoreDiff < 0 && (difficulty === 'EQUAL' || difficulty === 'EASY')) change = 6; // Losing vs Equal/Easy (Unacceptable)
+            else if (scoreDiff < 0 && difficulty === 'HARD') change = 2; // Losing vs Hard (Demand effort, small positive)
         }
+
+        return change;
     };
 
-    const options = getOptions();
+    const options = [
+        { 
+            id: 'RELAXED', 
+            title: 'Rahatlatıcı', 
+            icon: Zap, 
+            color: 'text-green-400',
+            getText: () => {
+                if (scoreDiff >= 3) return "Harika iş çıkardınız, skoru aldık. İkinci yarı keyfini çıkarın ama gevşemeyin.";
+                if (scoreDiff > 0) return "İyi gidiyoruz, baskı yapmanıza gerek yok. Topu tutun ve skoru koruyun.";
+                return "Henüz bir şey bitmedi, üzerinizdeki baskıyı atın ve oyununuzu oynayın.";
+            },
+            moraleChange: calculateMoraleChange('RELAXED')
+        },
+        { 
+            id: 'BALANCED', 
+            title: 'Dengeli', 
+            icon: Anchor, 
+            color: 'text-blue-400',
+            getText: () => {
+                if (scoreDiff > 0) return "Disiplini elden bırakmadan aynı ciddiyetle devam etmenizi istiyorum.";
+                if (scoreDiff === 0) return "Maç ortada, sabırlı oynarsak ibre bize dönecektir. Plana sadık kalın.";
+                return "Maçı çevirebiliriz. Paniğe gerek yok, organize olursak golleri buluruz.";
+            },
+            moraleChange: calculateMoraleChange('BALANCED')
+        },
+        { 
+            id: 'DEMANDING', 
+            title: 'Talepkar', 
+            icon: Flame, 
+            color: 'text-red-500',
+            getText: () => {
+                if (scoreDiff > 0) return "Bu skor yetmez! Rakibi sahadan silmenizi ve daha fazla atmanızı istiyorum!";
+                if (scoreDiff === 0) return "Beraberlik bizim için başarı değil! Sahaya çıkın ve bu maçı alın!";
+                return "Bu futbol size yakışmıyor! İkinci yarıda bambaşka bir takım görmek istiyorum!";
+            },
+            moraleChange: calculateMoraleChange('DEMANDING')
+        }
+    ];
 
     const handleConfirm = () => {
         if (!selectedId) return;
@@ -76,7 +123,9 @@ const HalftimeTalkModal: React.FC<HalftimeTalkModalProps> = ({ team, scoreDiff, 
                         <Mic size={24} className="text-blue-500 animate-pulse" />
                         <div>
                             <h3 className="text-xl font-bold text-white uppercase tracking-widest">Devre Arası Konuşması</h3>
-                            <p className="text-xs text-slate-500">Skor: {scoreDiff > 0 ? 'Öndesiniz' : scoreDiff < 0 ? 'Geridesiniz' : 'Beraberlik'}</p>
+                            <p className="text-xs text-slate-500">
+                                Skor: {scoreDiff > 0 ? `+${scoreDiff} (Öndesiniz)` : scoreDiff < 0 ? `${scoreDiff} (Geridesiniz)` : 'Beraberlik'} • Rakip: {difficulty === 'HARD' ? 'Zorlu' : difficulty === 'EASY' ? 'Zayıf' : 'Denk'}
+                            </p>
                         </div>
                     </div>
                     {!isConfirmed && (
@@ -123,7 +172,7 @@ const HalftimeTalkModal: React.FC<HalftimeTalkModalProps> = ({ team, scoreDiff, 
                                             <opt.icon size={18} className={selectedId === opt.id ? 'text-white' : opt.color} />
                                             <span className="text-sm font-black uppercase tracking-wider">{opt.title}</span>
                                         </div>
-                                        <p className="text-sm italic opacity-90 leading-tight">"{opt.text}"</p>
+                                        <p className="text-sm italic opacity-90 leading-tight">"{opt.getText()}"</p>
                                     </button>
                                 ))}
 
@@ -143,7 +192,7 @@ const HalftimeTalkModal: React.FC<HalftimeTalkModalProps> = ({ team, scoreDiff, 
                                     <CheckCircle2 size={56} />
                                 </div>
                                 <h4 className="text-2xl font-black text-white mb-2">Konuşma Etkili Oldu</h4>
-                                <p className="text-slate-400">Takım moral kazandı. İkinci yarı başlamak üzere!</p>
+                                <p className="text-slate-400">Takım reaksiyon gösterdi. İkinci yarı başlamak üzere!</p>
                             </div>
                         )}
                     </div>

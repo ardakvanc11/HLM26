@@ -92,6 +92,72 @@ const FORMATIONS: Record<string, { left: string, bottom: string }[]> = {
         { left: '65%', bottom: '48%' },   // RCM
         { left: '40%', bottom: '78%' },   // LST (Aşağı çekildi)
         { left: '60%', bottom: '78%' }    // RST (Aşağı çekildi)
+    ],
+    // NEW FORMATIONS
+    '3-2-4-1': [
+        { left: '50%', bottom: '8%' },   // GK
+        { left: '25%', bottom: '22%' },   // LCB
+        { left: '50%', bottom: '22%' },   // CB
+        { left: '75%', bottom: '22%' },   // RCB
+        { left: '35%', bottom: '40%' },   // LDM
+        { left: '65%', bottom: '40%' },   // RDM
+        { left: '10%', bottom: '55%' },   // LM
+        { left: '35%', bottom: '60%' },   // LAM
+        { left: '65%', bottom: '60%' },   // RAM
+        { left: '90%', bottom: '55%' },   // RM
+        { left: '50%', bottom: '80%' }    // ST
+    ],
+    '4-2-2-2': [
+        { left: '50%', bottom: '8%' },   // GK
+        { left: '15%', bottom: '25%' },   // LB
+        { left: '38%', bottom: '25%' },   // LCB
+        { left: '62%', bottom: '25%' },   // RCB
+        { left: '85%', bottom: '25%' },   // RB
+        { left: '35%', bottom: '38%' },   // LDM
+        { left: '65%', bottom: '38%' },   // RDM
+        { left: '25%', bottom: '60%' },   // LAM
+        { left: '75%', bottom: '60%' },   // RAM
+        { left: '35%', bottom: '80%' },   // LST
+        { left: '65%', bottom: '80%' }    // RST
+    ],
+    '4-2-4': [
+        { left: '50%', bottom: '8%' },   // GK
+        { left: '15%', bottom: '25%' },   // LB
+        { left: '38%', bottom: '25%' },   // LCB
+        { left: '62%', bottom: '25%' },   // RCB
+        { left: '85%', bottom: '25%' },   // RB
+        { left: '35%', bottom: '40%' },   // LCM
+        { left: '65%', bottom: '40%' },   // RCM
+        { left: '10%', bottom: '65%' },   // LW
+        { left: '90%', bottom: '65%' },   // RW
+        { left: '35%', bottom: '80%' },   // LST
+        { left: '65%', bottom: '80%' }    // RST
+    ],
+    '4-3-2-1': [
+        { left: '50%', bottom: '8%' },   // GK
+        { left: '15%', bottom: '25%' },   // LB
+        { left: '38%', bottom: '25%' },   // LCB
+        { left: '62%', bottom: '25%' },   // RCB
+        { left: '85%', bottom: '25%' },   // RB
+        { left: '30%', bottom: '40%' },   // LCM
+        { left: '50%', bottom: '38%' },   // CM
+        { left: '70%', bottom: '40%' },   // RCM
+        { left: '35%', bottom: '60%' },   // LAM
+        { left: '65%', bottom: '60%' },   // RAM
+        { left: '50%', bottom: '80%' }    // ST
+    ],
+    '3-4-3': [
+        { left: '50%', bottom: '8%' },   // GK
+        { left: '25%', bottom: '22%' },   // LCB
+        { left: '50%', bottom: '22%' },   // CB
+        { left: '75%', bottom: '22%' },   // RCB
+        { left: '10%', bottom: '50%' },   // LM
+        { left: '35%', bottom: '45%' },   // LCM
+        { left: '65%', bottom: '45%' },   // RCM
+        { left: '90%', bottom: '50%' },   // RM
+        { left: '20%', bottom: '75%' },   // LW
+        { left: '50%', bottom: '80%' },   // ST
+        { left: '80%', bottom: '75%' }    // RW
     ]
 };
 

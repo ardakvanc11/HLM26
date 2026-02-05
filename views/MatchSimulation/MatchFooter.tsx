@@ -1,14 +1,14 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Team, Mentality, Player } from '../../types';
-import { Settings, Megaphone, Mic, Users, RefreshCw, Shield, Swords, Anchor, Zap, ChevronUp } from 'lucide-react';
+import { Settings, Megaphone, Mic, Users, RefreshCw, Shield, Swords, Anchor, Zap, ChevronUp, MessageSquare, ShieldCheck, TrendingUp } from 'lucide-react';
 import PlayerMatchCard from './PlayerMatchCard';
 
 interface MatchFooterProps {
     myTeamCurrent: Team;
     handleQuickMentalityChange: (e: React.ChangeEvent<HTMLSelectElement> | any) => void;
     managerDiscipline: string;
-    setIsTacticsOpen: (v: boolean) => void;
+    onOpenTactics: (tab: 'XI' | 'TACTICS') => void;
     isOwnGoal: boolean;
     handleObjection: () => void;
     phase: string;
@@ -20,6 +20,8 @@ interface MatchFooterProps {
     setShowBenchInBottomBar: (v: boolean) => void;
     handlePlayerClick: (e: React.MouseEvent, p: Player) => void;
     getPlayerRating: (p: Player) => number;
+    isMatchOver: boolean;
+    redCardedPlayerIds: string[]; // Added Prop
 }
 
 // --- MENTALITY DATA & CONFIGURATION ---
@@ -36,11 +38,23 @@ const MENTALITY_INFO: Record<Mentality, { label: string, desc: string, color: st
         color: "text-cyan-400",
         icon: Shield
     },
+    [Mentality.CAUTIOUS]: {
+        label: "Temkinli",
+        desc: "Risk almadan, güvenli paslarla oynanan kontrollü oyun. Savunma güvenliği ön plandadır, kontra fırsatları kovalanır.",
+        color: "text-emerald-400",
+        icon: ShieldCheck
+    },
     [Mentality.STANDARD]: {
         label: "Dengeli",
         desc: "Dengeli oyun anlayışı, diğer oyun anlayışlarına göre belki de en önemli olanıdır. Menajer, bu oyun anlayışı ile maça başlayarak, karşılaşmanın gidişatına ve oyuncularının performansına bakarak taktiksel planını daha detaylı şekillendirebilir.",
         color: "text-yellow-500",
         icon: Anchor
+    },
+    [Mentality.POSITIVE]: {
+        label: "Pozitif Futbol",
+        desc: "Kazanmaya odaklı, topa sahip olmayı seven oyun. Savunma disiplinini bozmadan hücumu düşünür.",
+        color: "text-lime-400",
+        icon: TrendingUp
     },
     [Mentality.ATTACKING]: {
         label: "Hücum Ağırlıklı",
@@ -61,7 +75,6 @@ const MentalitySelector = ({ value, onChange, disabled }: { value: Mentality, on
     const [hovered, setHovered] = useState<Mentality | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
 
-    // Close on click outside
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -77,7 +90,6 @@ const MentalitySelector = ({ value, onChange, disabled }: { value: Mentality, on
 
     return (
         <div className="relative w-[307px] min-w-[307px]" ref={menuRef}>
-            {/* Trigger Button */}
             <button
                 onClick={() => !disabled && setIsOpen(!isOpen)}
                 disabled={disabled}
@@ -93,10 +105,8 @@ const MentalitySelector = ({ value, onChange, disabled }: { value: Mentality, on
                 <ChevronUp size={16} className={`text-slate-500 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
             </button>
 
-            {/* Popup Menu */}
             {isOpen && (
                 <div className="absolute bottom-full left-0 mb-2 w-[500px] bg-[#1b1e26]/95 backdrop-blur-md border border-slate-600 rounded-lg shadow-2xl flex overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2">
-                    {/* List */}
                     <div className="w-1/2 border-r border-slate-700 p-1 flex flex-col gap-0.5">
                         {Object.values(Mentality).map((m) => {
                             const info = MENTALITY_INFO[m];
@@ -117,8 +127,6 @@ const MentalitySelector = ({ value, onChange, disabled }: { value: Mentality, on
                             );
                         })}
                     </div>
-                    
-                    {/* Description Panel */}
                     <div className="w-1/2 p-4 flex flex-col justify-center bg-black/20">
                         <div className={`flex items-center gap-2 mb-2 text-sm font-black uppercase ${activeInfo.color}`}>
                             <activeInfo.icon size={18} />
@@ -138,7 +146,7 @@ const MatchFooter: React.FC<MatchFooterProps> = ({
     myTeamCurrent,
     handleQuickMentalityChange,
     managerDiscipline,
-    setIsTacticsOpen,
+    onOpenTactics,
     isOwnGoal,
     handleObjection,
     phase,
@@ -149,23 +157,23 @@ const MatchFooter: React.FC<MatchFooterProps> = ({
     showBenchInBottomBar,
     setShowBenchInBottomBar,
     handlePlayerClick,
-    getPlayerRating
+    getPlayerRating,
+    isMatchOver,
+    redCardedPlayerIds
 }) => {
     return (
-        <div className="h-48 bg-[#1b1e26] border-t border-slate-700 flex shrink-0 shadow-[0_-5px_20px_rgba(0,0,0,0.5)] z-20">
+        <div className="h-48 bg-[#1b1e26] border-t border-slate-700 flex shrink-0 shadow-[0_-5px_20px_rgba(0,0,0,0.5)] z-40">
             {/* Left Side: Tactical Controls */}
             <div className="w-1/3 md:w-1/4 lg:w-1/3 border-r border-slate-700 p-3 flex flex-col gap-2 bg-[#21242c]">
                 
                 {/* Mentality + Speed Row */}
                 <div className="flex gap-2 h-14 relative">
-                    {/* Custom Mentality Selector */}
                     <MentalitySelector 
                         value={myTeamCurrent.mentality}
                         onChange={(val) => handleQuickMentalityChange({ target: { value: val } } as any)}
-                        disabled={managerDiscipline === 'RED'}
+                        disabled={managerDiscipline === 'RED' || isMatchOver}
                     />
 
-                    {/* Speed Controls */}
                     <div className="bg-[#16181d] rounded border border-slate-600 p-1 flex flex-1 items-center gap-3 px-3">
                         <div className="text-[10px] text-slate-500 font-bold uppercase whitespace-nowrap">Oyun Hızı</div>
                         <div className="flex gap-1 flex-1 h-full">
@@ -182,37 +190,48 @@ const MatchFooter: React.FC<MatchFooterProps> = ({
                     </div>
                 </div>
 
+                {/* Control Grid - 2x2 Layout */}
                 <div className="grid grid-cols-2 gap-2 flex-1">
                     <button 
-                        disabled={managerDiscipline === 'RED'} 
-                        onClick={() => setIsTacticsOpen(true)}
-                        className="bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded flex flex-col items-center justify-center gap-1 text-slate-300 hover:text-white transition disabled:opacity-50"
+                        disabled={managerDiscipline === 'RED' || isMatchOver} 
+                        onClick={() => onOpenTactics('XI')}
+                        className="bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded flex flex-col items-center justify-center gap-1 text-slate-300 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <Settings size={16}/>
-                        <span className="text-[10px] font-bold uppercase">Talimatlar</span>
+                        <span className="text-[10px] font-bold uppercase">Taktikler</span>
                     </button>
+
                     <button 
-                        disabled={isOwnGoal || managerDiscipline === 'RED'} 
+                        disabled={isOwnGoal || managerDiscipline === 'RED' || isMatchOver} 
                         onClick={handleObjection}
-                        className="bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded flex flex-col items-center justify-center gap-1 text-slate-300 hover:text-white transition disabled:opacity-50"
+                        className="bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded flex flex-col items-center justify-center gap-1 text-slate-300 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <Megaphone size={16}/>
                         <span className="text-[10px] font-bold uppercase">İtiraz Et</span>
                     </button>
+
+                    <button 
+                        disabled={managerDiscipline === 'RED' || isMatchOver} 
+                        onClick={() => onOpenTactics('TACTICS')}
+                        className="bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded flex flex-col items-center justify-center gap-1 text-slate-300 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <MessageSquare size={16}/>
+                        <span className="text-[10px] font-bold uppercase">Talimatlar</span>
+                    </button>
+
                     <button
-                        disabled={phase !== 'HALFTIME' || managerDiscipline === 'RED' || hasHalftimeTalkBeenGiven}
+                        disabled={phase !== 'HALFTIME' || managerDiscipline === 'RED' || hasHalftimeTalkBeenGiven || isMatchOver}
                         onClick={() => setIsHalftimeTalkOpen(true)}
-                        className={`border border-slate-600 rounded flex flex-col items-center justify-center gap-1 transition disabled:opacity-50 col-span-2 ${phase === 'HALFTIME' && managerDiscipline !== 'RED' && !hasHalftimeTalkBeenGiven ? 'bg-blue-600 hover:bg-blue-500 text-white border-blue-500' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}
+                        className={`border border-slate-600 rounded flex flex-col items-center justify-center gap-1 transition disabled:opacity-50 ${phase === 'HALFTIME' && managerDiscipline !== 'RED' && !hasHalftimeTalkBeenGiven && !isMatchOver ? 'bg-blue-600 hover:bg-blue-500 text-white border-blue-500' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}
                     >
                         <Mic size={16}/>
-                        <span className="text-[10px] font-bold uppercase">Devre Arası Konuşması</span>
+                        <span className="text-[10px] font-bold uppercase">Devre Arası</span>
                     </button>
                 </div>
             </div>
 
             {/* Right Side: Live Player Ratings & Status */}
             <div className="flex-1 flex flex-row h-full overflow-hidden">
-                {/* Horizontal Player Scroll */}
                 <div className="flex-1 overflow-x-auto custom-scrollbar flex items-center px-4 gap-3 bg-[#1b1e26] py-2">
                     {myTeamCurrent.players.slice(showBenchInBottomBar ? 11 : 0, showBenchInBottomBar ? 18 : 11).map(p => (
                         <PlayerMatchCard 
@@ -220,15 +239,14 @@ const MatchFooter: React.FC<MatchFooterProps> = ({
                             player={p} 
                             rating={getPlayerRating(p)} 
                             onClick={(e) => handlePlayerClick(e, p)}
+                            isRedCarded={redCardedPlayerIds.includes(p.id)}
                         />
                     ))}
-                     {/* Empty state if no subs */}
                      {showBenchInBottomBar && myTeamCurrent.players.length <= 11 && (
                         <div className="text-slate-500 text-xs italic w-full text-center">Yedek oyuncu yok.</div>
                      )}
                 </div>
 
-                {/* Toggle Button */}
                 <button 
                     onClick={() => setShowBenchInBottomBar(!showBenchInBottomBar)}
                     className="w-16 h-full bg-[#252830] border-l border-slate-700 hover:bg-[#2f333d] flex items-center justify-center transition-colors cursor-pointer group shadow-[-10px_0_20px_rgba(0,0,0,0.2)] z-10"

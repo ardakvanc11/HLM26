@@ -240,9 +240,9 @@ const PlayerDetailView: React.FC<PlayerDetailViewProps> = ({ player, onClose, my
                     <div className="w-5 flex justify-center">
                         {change === 'UP' && (
                             <div className="relative group/tooltip">
-                                <ArrowUp size={16} className="text-green-500 stroke-[3] animate-bounce" />
+                                <ArrowUp size={16} className="text-emerald-700 dark:text-emerald-500 stroke-[3] animate-bounce" />
                                 <div className="absolute right-6 top-1/2 -translate-y-1/2 bg-green-900 text-green-100 text-[10px] px-2 py-1 rounded whitespace-nowrap hidden group-hover/tooltip:flex items-center gap-1 shadow-lg z-50">
-                                    <ThumbsUp size={10} /> Bireysel Antreman Başarılı
+                                    <ThumbsUp size={10} /> Özellik Seviye Atladı!
                                 </div>
                             </div>
                         )}
@@ -250,7 +250,12 @@ const PlayerDetailView: React.FC<PlayerDetailViewProps> = ({ player, onClose, my
                             <ArrowDown size={16} className="text-red-500 stroke-[3]" />
                         )}
                         {change === 'PARTIAL_UP' && (
-                            <ArrowUpRight size={16} className="text-green-500 stroke-[3]" />
+                            <div className="relative group/tooltip">
+                                <ArrowUpRight size={16} className="text-green-500 stroke-[3]" />
+                                <div className="absolute right-6 top-1/2 -translate-y-1/2 bg-green-900 text-green-100 text-[10px] px-2 py-1 rounded whitespace-nowrap hidden group-hover/tooltip:flex items-center gap-1 shadow-lg z-50">
+                                    <TrendingUp size={10} /> Antrenman ile Gelişiyor
+                                </div>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -310,7 +315,7 @@ const PlayerDetailView: React.FC<PlayerDetailViewProps> = ({ player, onClose, my
             );
         }
 
-        if (activeDropdown === 'INTERACT' && isMyPlayer) return (<div className={sectionClass}><button onClick={() => handleAction('TALK')} className={btnClass}><MessageCircle size={16} /> Oyuncuyla Görüş</button><button onClick={() => handleAction('REST')} className={btnClass}><BedDouble size={16} className="text-indigo-500" /> Oyuncuyu Dinlendir</button></div>);
+        if (activeDropdown === 'INTERACT' && isMyPlayer) return (<div className="grid grid-cols-1 md:grid-cols-2 gap-2 p-2"><button onClick={() => handleAction('TALK')} className={btnClass}><MessageCircle size={16} /> Oyuncuyla Görüş</button><button onClick={() => handleAction('REST')} className={btnClass}><BedDouble size={16} className="text-indigo-500" /> Oyuncuyu Dinlendir</button></div>);
         return null;
     };
 

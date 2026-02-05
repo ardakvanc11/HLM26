@@ -63,7 +63,7 @@ const MatchDetailModal = ({ fixture, teams, onClose }: { fixture: Fixture, teams
                     <div className={`w-2 h-2 rounded-full ${teamColors[0]}`}></div>
                     {teamName}
                 </span>
-                <span className="flex gap-2"><span>Pn</span><span>G</span><span>A</span></span>
+                <span className="flex gap-3 text-[10px]"><span>Puan</span><span>Gol</span><span>Asist</span></span>
             </div>
             <div className="space-y-1">
                 {ratings.sort((a:any, b:any) => b.rating - a.rating).map((p:any, i:number) => {
@@ -79,10 +79,10 @@ const MatchDetailModal = ({ fixture, teams, onClose }: { fixture: Fixture, teams
                                  <span className="text-slate-200 font-medium truncate max-w-[100px]">{p.name}</span>
                                  {stats.mvpPlayerName === p.name && <Star size={10} className="text-yellow-400 fill-yellow-400"/>}
                              </div>
-                             <div className="flex gap-2 font-mono text-center">
-                                 <span className={`font-bold w-6 ${p.rating >= 8.0 ? 'text-green-400' : p.rating >= 6.0 ? 'text-yellow-400' : 'text-red-400'}`}>{p.rating}</span>
-                                 <span className={`w-4 ${goalCount > 0 ? 'text-green-400 font-bold' : 'text-slate-600'}`}>{goalCount > 0 ? goalCount : '-'}</span>
-                                 <span className={`w-4 ${assistCount > 0 ? 'text-blue-400 font-bold' : 'text-slate-600'}`}>{assistCount > 0 ? assistCount : '-'}</span>
+                             <div className="flex gap-3 font-mono text-center">
+                                 <span className={`font-bold w-8 ${p.rating >= 8.0 ? 'text-green-400' : p.rating >= 6.0 ? 'text-yellow-400' : 'text-red-400'}`}>{p.rating}</span>
+                                 <span className={`w-6 ${goalCount > 0 ? 'text-green-400 font-bold' : 'text-slate-600'}`}>{goalCount > 0 ? goalCount : '-'}</span>
+                                 <span className={`w-6 ${assistCount > 0 ? 'text-blue-400 font-bold' : 'text-slate-600'}`}>{assistCount > 0 ? assistCount : '-'}</span>
                              </div>
                         </div>
                     );

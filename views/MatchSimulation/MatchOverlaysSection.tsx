@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { MatchOverlays } from '../../components/match/MatchUI';
 import HalftimeTalkModal from '../../modals/HalftimeTalkModal';
@@ -25,13 +24,16 @@ interface MatchOverlaysSectionProps {
     scoreDiff: number;
     handleHalftimeTalkComplete: (moraleChange: number) => void;
     setIsHalftimeTalkOpen: (v: boolean) => void;
+    tacticsInitialTab?: 'XI' | 'TACTICS'; // Add this prop
+    opponent: Team; // NEW PROP: Opponent team object for halftime talk logic
 }
 
 const MatchOverlaysSection: React.FC<MatchOverlaysSectionProps> = ({
     isVarActive, varMessage, isPenaltyActive, penaltyMessage, activePenaltyTeam,
     isTacticsOpen, forcedSubstitutionPlayerId, myTeamCurrent, handleTacticsUpdate,
     userIsHome, homeSubsUsed, awaySubsUsed, handleUserSubstitution, minute, onCloseTactics,
-    redCardedPlayerIds, isHalftimeTalkOpen, scoreDiff, handleHalftimeTalkComplete, setIsHalftimeTalkOpen
+    redCardedPlayerIds, isHalftimeTalkOpen, scoreDiff, handleHalftimeTalkComplete, setIsHalftimeTalkOpen,
+    tacticsInitialTab, opponent // Added
 }) => {
     return (
         <>
@@ -39,13 +41,14 @@ const MatchOverlaysSection: React.FC<MatchOverlaysSectionProps> = ({
                 isVarActive={isVarActive} varMessage={varMessage} isPenaltyActive={isPenaltyActive} penaltyMessage={penaltyMessage} activePenaltyTeam={activePenaltyTeam}
                 isTacticsOpen={isTacticsOpen} forcedSubstitutionPlayerId={forcedSubstitutionPlayerId} myTeamCurrent={myTeamCurrent} handleTacticsUpdate={handleTacticsUpdate}
                 userIsHome={userIsHome} homeSubsUsed={homeSubsUsed} awaySubsUsed={awaySubsUsed} handleUserSubstitution={handleUserSubstitution} minute={minute} onCloseTactics={onCloseTactics}
-                redCardedPlayerIds={redCardedPlayerIds}
+                redCardedPlayerIds={redCardedPlayerIds} tacticsInitialTab={tacticsInitialTab}
             />
 
             {/* HALFTIME TALK OVERLAY */}
             {isHalftimeTalkOpen && (
                 <HalftimeTalkModal 
                     team={myTeamCurrent} 
+                    opponent={opponent} // Pass opponent
                     scoreDiff={scoreDiff} 
                     onComplete={handleHalftimeTalkComplete} 
                     onClose={() => setIsHalftimeTalkOpen(false)}

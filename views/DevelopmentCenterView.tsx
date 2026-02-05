@@ -3,13 +3,15 @@ import React, { useState } from 'react';
 import { Player, IndividualTrainingType, Position, PlayerPersonality } from '../types';
 import { INDIVIDUAL_PROGRAMS, POSITION_TRANSITION_TIME } from '../data/trainingData';
 import PlayerFace from '../components/shared/PlayerFace';
-import { Check, Info, TrendingUp, X, Flame, AlertTriangle, Clock, Target, Repeat, LayoutTemplate } from 'lucide-react';
+import { Check, Info, TrendingUp, X, Flame, AlertTriangle, Clock, Target, Repeat, LayoutTemplate, Lock, ChevronRight } from 'lucide-react';
 import { PERSONALITY_TRANSLATIONS } from '../data/playerConstants';
 
 interface DevelopmentCenterViewProps {
     players: Player[];
     onAssignTraining: (playerId: string, type: IndividualTrainingType) => void;
     onAssignPositionTraining?: (playerId: string, target: Position, weeks: number) => void;
+    currentWeek: number;
+    onPlayerClick?: (player: Player) => void; // Added Prop
 }
 
 // Turkish Translations for Stat Keys
@@ -44,7 +46,7 @@ const STAT_TRANSLATIONS: Record<string, string> = {
     freeKick: 'Serbest Vuruş'
 };
 
-const DevelopmentCenterView: React.FC<DevelopmentCenterViewProps> = ({ players, onAssignTraining, onAssignPositionTraining }) => {
+const DevelopmentCenterView: React.FC<DevelopmentCenterViewProps> = ({ players, onAssignTraining, onAssignPositionTraining, currentWeek, onPlayerClick }) => {
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(players.length > 0 ? players[0].id : null);
     const [activeTab, setActiveTab] = useState<'PROGRAMS' | 'POSITION'>('PROGRAMS');
     
@@ -68,15 +70,13 @@ const DevelopmentCenterView: React.FC<DevelopmentCenterViewProps> = ({ players, 
         }
     };
 
-    // Determine estimated duration based on personality
-    const getEstimatedDuration = (personality?: PlayerPersonality) => {
+    // Determine estimated duration based on personality (Returns Weeks)
+    const getProgramDurationInWeeks = (personality?: PlayerPersonality) => {
         if (personality === PlayerPersonality.HARDWORKING || personality === PlayerPersonality.AMBITIOUS) return 8;
         if (personality === PlayerPersonality.PROFESSIONAL) return 9;
         if (personality === PlayerPersonality.LAZY) return 12;
         return 10;
     };
-
-    const duration = selectedPlayer ? getEstimatedDuration(selectedPlayer.personality) : 10;
 
     return (
         <div className="h-full flex flex-col bg-slate-900 text-white overflow-hidden">
@@ -117,22 +117,27 @@ const DevelopmentCenterView: React.FC<DevelopmentCenterViewProps> = ({ players, 
                                 <button
                                     key={p.id}
                                     onClick={() => setSelectedPlayerId(p.id)}
-                                    className={`w-full flex items-center gap-3 p-2 rounded-lg transition-all text-left group ${isSelected ? 'bg-blue-900/30 border border-blue-500/50' : 'hover:bg-slate-800 border border-transparent'}`}
+                                    className={`w-full flex items-center gap-3 p-2 rounded-lg transition-all text-left group relative cursor-pointer ${isSelected ? 'bg-blue-900/30 border border-blue-500/50' : 'hover:bg-slate-800 border border-transparent'}`}
                                 >
+                                    {/* Active Indicators */}
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col gap-1.5">
+                                        {p.activeTraining && (
+                                            <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)] border border-black/50" title="Bireysel Antrenman Aktif"></div>
+                                        )}
+                                        {p.positionTrainingTarget && (
+                                            <div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)] border border-black/50" title="Mevki Geliştirme Aktif"></div>
+                                        )}
+                                    </div>
+
                                     <div className="w-10 h-10 rounded-full bg-slate-800 overflow-hidden border border-slate-700 shrink-0">
                                         <PlayerFace player={p} />
                                     </div>
-                                    <div className="flex-1 min-w-0">
+                                    <div className="flex-1 min-w-0 pr-4">
                                         <div className={`text-sm font-bold truncate ${isSelected ? 'text-white' : 'text-slate-300'}`}>{p.name}</div>
                                         <div className="flex justify-between items-center mt-0.5">
                                             <span className="text-[10px] text-slate-500 font-bold bg-slate-800 px-1.5 rounded">
                                                 {p.position}{p.secondaryPosition ? ` / ${p.secondaryPosition}` : ''}
                                             </span>
-                                            {p.positionTrainingTarget && (
-                                                <span className="text-[9px] text-indigo-400 font-bold flex items-center gap-0.5">
-                                                    <Repeat size={8}/> {p.positionTrainingTarget}
-                                                </span>
-                                            )}
                                         </div>
                                     </div>
                                 </button>
@@ -145,41 +150,99 @@ const DevelopmentCenterView: React.FC<DevelopmentCenterViewProps> = ({ players, 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-[#121519]">
                     {selectedPlayer ? (
                         <div className="max-w-5xl mx-auto">
-                            <div className="flex items-center gap-6 mb-8 bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
-                                <div className="w-20 h-20 rounded-full bg-slate-700 border-4 border-slate-600 overflow-hidden shrink-0">
+                            {/* Player Header Card - Clickable for Profile */}
+                            <div 
+                                onClick={() => onPlayerClick && onPlayerClick(selectedPlayer)}
+                                className="flex items-center gap-6 mb-8 bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg relative group cursor-pointer hover:border-blue-500 transition-colors"
+                            >
+                                <div className="absolute top-4 right-4 text-slate-500 group-hover:text-blue-400 transition-colors opacity-50 group-hover:opacity-100 flex items-center gap-1 text-xs font-bold uppercase">
+                                    Profile Git <ChevronRight size={16}/>
+                                </div>
+
+                                <div className="w-20 h-20 rounded-full bg-slate-700 border-4 border-slate-600 overflow-hidden shrink-0 group-hover:border-blue-500 transition-colors">
                                     <PlayerFace player={selectedPlayer} />
                                 </div>
                                 <div className="flex-1">
                                     <div className="flex items-center gap-3 mb-1">
-                                        <h3 className="text-2xl font-bold text-white">{selectedPlayer.name}</h3>
+                                        <h3 className="text-2xl font-bold text-white group-hover:text-blue-400 transition-colors">{selectedPlayer.name}</h3>
                                         <span className={`text-[10px] px-2 py-0.5 rounded uppercase font-bold border ${selectedPlayer.personality === PlayerPersonality.HARDWORKING || selectedPlayer.personality === PlayerPersonality.AMBITIOUS ? 'border-green-500 text-green-400 bg-green-900/20' : selectedPlayer.personality === PlayerPersonality.LAZY ? 'border-red-500 text-red-400 bg-red-900/20' : 'border-slate-500 text-slate-400 bg-slate-800'}`}>
                                             {PERSONALITY_TRANSLATIONS[selectedPlayer.personality || 'Normal'] || selectedPlayer.personality}
                                         </span>
                                     </div>
-                                    <p className="text-slate-400 text-sm mb-2">{selectedPlayer.position} {selectedPlayer.secondaryPosition ? `(${selectedPlayer.secondaryPosition})` : ''} • {selectedPlayer.age} Yaş</p>
+                                    <p className="text-slate-400 text-sm mb-4">{selectedPlayer.position} {selectedPlayer.secondaryPosition ? `(${selectedPlayer.secondaryPosition})` : ''} • {selectedPlayer.age} Yaş</p>
                                     
-                                    <div className="flex items-center gap-4 text-xs">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-slate-500">Mevcut Program:</span>
-                                            {selectedPlayer.activeTraining ? (
-                                                <span className="text-green-400 font-bold bg-green-900/20 px-2 py-0.5 rounded border border-green-900/50">
-                                                    {INDIVIDUAL_PROGRAMS.find(prog => prog.id === selectedPlayer.activeTraining)?.label || selectedPlayer.activeTraining}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {/* Bireysel Antrenman Progress */}
+                                        <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
+                                            <div className="flex items-center justify-between mb-1.5">
+                                                <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                                                    <Target size={12}/> Bireysel Program
                                                 </span>
-                                            ) : <span className="text-slate-500 italic">Yok</span>}
+                                                {selectedPlayer.activeTraining ? (
+                                                    <div className="flex items-center gap-1.5">
+                                                        <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                                                        <span className="text-green-400 font-black text-xs">
+                                                            {INDIVIDUAL_PROGRAMS.find(prog => prog.id === selectedPlayer.activeTraining)?.label}
+                                                        </span>
+                                                    </div>
+                                                ) : <span className="text-slate-600 text-xs italic">Seçilmedi</span>}
+                                            </div>
+                                            {selectedPlayer.activeTraining ? (
+                                                <>
+                                                    {(() => {
+                                                        const totalWeeks = getProgramDurationInWeeks(selectedPlayer.personality);
+                                                        const totalDays = totalWeeks * 7;
+                                                        // Calculate active days in CURRENT cycle (modulo)
+                                                        const currentDays = (selectedPlayer.activeTrainingWeeks || 0) % totalDays;
+                                                        const pct = Math.min(100, (currentDays / totalDays) * 100);
+                                                        const currentWeekNum = Math.ceil((currentDays + 1) / 7);
+
+                                                        return (
+                                                            <div className="relative">
+                                                                <div className="h-2 bg-slate-800 rounded-full overflow-hidden mb-1">
+                                                                    <div className="h-full bg-green-500 rounded-full transition-all duration-1000" style={{ width: `${pct}%` }}></div>
+                                                                </div>
+                                                                <div className="flex justify-between text-[9px] text-slate-400">
+                                                                    <span>Hafta {currentWeekNum} / {totalWeeks}</span>
+                                                                    <span>%{Math.floor(pct)}</span>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </>
+                                            ) : (
+                                                <div className="h-2 bg-slate-800 rounded-full"></div>
+                                            )}
                                         </div>
-                                        <div className="w-px h-4 bg-slate-700"></div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-slate-500">Mevki Hedefi:</span>
+
+                                        {/* Mevki Antrenman Progress */}
+                                        <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
+                                            <div className="flex items-center justify-between mb-1.5">
+                                                <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                                                    <Repeat size={12}/> Mevki Hedefi
+                                                </span>
+                                                {selectedPlayer.positionTrainingTarget ? (
+                                                    <div className="flex items-center gap-1.5">
+                                                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                                                        <span className="text-indigo-400 font-black text-xs">
+                                                            {selectedPlayer.positionTrainingTarget}
+                                                        </span>
+                                                    </div>
+                                                ) : <span className="text-slate-600 text-xs italic">Seçilmedi</span>}
+                                            </div>
                                             {selectedPlayer.positionTrainingTarget ? (
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-indigo-400 font-bold bg-indigo-900/20 px-2 py-0.5 rounded border border-indigo-900/50">
-                                                        {selectedPlayer.positionTrainingTarget}
-                                                    </span>
-                                                    <span className="text-slate-400 text-[10px]">
-                                                        {(selectedPlayer.positionTrainingProgress || 0).toFixed(1)} / {selectedPlayer.positionTrainingRequired} Hafta
-                                                    </span>
-                                                </div>
-                                            ) : <span className="text-slate-500 italic">Yok</span>}
+                                                <>
+                                                    <div className="h-2 bg-slate-800 rounded-full overflow-hidden mb-1">
+                                                        <div className="h-full bg-indigo-500 rounded-full transition-all duration-1000" style={{ width: `${((selectedPlayer.positionTrainingProgress || 0) / (selectedPlayer.positionTrainingRequired || 1)) * 100}%` }}></div>
+                                                    </div>
+                                                    <div className="flex justify-between text-[9px] text-slate-400">
+                                                        <span>{Math.floor(selectedPlayer.positionTrainingProgress || 0)} / {selectedPlayer.positionTrainingRequired} Hafta</span>
+                                                        <span>%{Math.floor(((selectedPlayer.positionTrainingProgress || 0) / (selectedPlayer.positionTrainingRequired || 1)) * 100)}</span>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="h-2 bg-slate-800 rounded-full"></div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -203,15 +266,29 @@ const DevelopmentCenterView: React.FC<DevelopmentCenterViewProps> = ({ players, 
                                                         if (prog.target.includes(selectedPlayer.position) || prog.target.includes('ALL')) synergy = 120;
                                                         const isGoodFit = (selectedPlayer.personality === PlayerPersonality.HARDWORKING || selectedPlayer.personality === PlayerPersonality.AMBITIOUS);
                                                         const isBadFit = (selectedPlayer.personality === PlayerPersonality.LAZY);
+                                                        
+                                                        // CHECK COOLDOWN
+                                                        const isOnCooldown = selectedPlayer.individualTrainingCooldownUntil && selectedPlayer.individualTrainingCooldownUntil > currentWeek;
 
                                                         return (
                                                             <div 
                                                                 key={prog.id}
-                                                                onClick={() => handleAssign(prog.id)}
-                                                                className={`relative p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between min-h-[220px] ${isActive ? 'bg-blue-900/20 border-blue-500 shadow-lg' : 'bg-slate-800 border-slate-700 hover:border-slate-500 hover:bg-slate-750'}`}
+                                                                onClick={() => !isOnCooldown && handleAssign(prog.id)}
+                                                                className={`relative p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between min-h-[220px] 
+                                                                    ${isActive ? 'bg-blue-900/20 border-blue-500 shadow-lg' : isOnCooldown ? 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed' : 'bg-slate-800 border-slate-700 hover:border-slate-500 hover:bg-slate-750'}
+                                                                `}
                                                             >
                                                                 {isActive && <div className="absolute top-3 right-3 bg-blue-500 text-white rounded-full p-1"><Check size={16} /></div>}
-                                                                {!isActive && <div className={`absolute top-3 right-3 text-[10px] px-2 py-0.5 rounded border font-bold ${synergy >= 120 ? 'bg-green-900/30 text-green-400 border-green-600' : 'bg-orange-900/30 text-orange-400 border-orange-600'}`}>Verim: %{synergy}</div>}
+                                                                
+                                                                {isOnCooldown && (
+                                                                    <div className="absolute inset-0 bg-black/60 z-10 flex flex-col items-center justify-center text-center p-4 backdrop-blur-[1px] rounded-xl">
+                                                                        <Lock size={32} className="text-slate-400 mb-2"/>
+                                                                        <span className="text-white font-bold text-sm">Yenilenme Süreci</span>
+                                                                        <span className="text-slate-400 text-xs">{selectedPlayer.individualTrainingCooldownUntil! - currentWeek} hafta kaldı</span>
+                                                                    </div>
+                                                                )}
+                                                                
+                                                                {!isActive && !isOnCooldown && <div className={`absolute top-3 right-3 text-[10px] px-2 py-0.5 rounded border font-bold ${synergy >= 120 ? 'bg-green-900/30 text-green-400 border-green-600' : 'bg-orange-900/30 text-orange-400 border-orange-600'}`}>Verim: %{synergy}</div>}
 
                                                                 <div>
                                                                     <h5 className={`font-bold text-lg mb-1 flex items-center gap-2 ${isActive ? 'text-blue-400' : 'text-slate-200'}`}>

@@ -1,274 +1,191 @@
 
-import React, { useEffect, useState, useRef } from 'react';
-import { Player, Position, Team } from '../../types';
+import React from 'react';
+import { Team } from '../../types';
 
 interface MatchPitch2DProps {
     homeTeam: Team;
     awayTeam: Team;
     ballPosition: { x: number, y: number };
     possessionTeamId: string | null;
-    lastAction: string;
+    lastAction: string; // Prop kept for interface compatibility but ignored in render
+    isSecondHalf: boolean; // New prop for side swapping
 }
 
-// Saha koordinatları (0-100 ölçeğinde)
-const FORMATIONS: Record<string, { left: number, bottom: number }[]> = {
-    '4-4-2': [
-        { left: 50, bottom: 5 },   // GK
-        { left: 15, bottom: 20 },  // LB
-        { left: 35, bottom: 20 },  // LCB
-        { left: 65, bottom: 20 },  // RCB
-        { left: 85, bottom: 20 },  // RB
-        { left: 15, bottom: 50 },  // LM
-        { left: 38, bottom: 45 },  // LCM
-        { left: 62, bottom: 45 },  // RCM
-        { left: 85, bottom: 50 },  // RM
-        { left: 35, bottom: 78 },  // LST
-        { left: 65, bottom: 78 }   // RST
-    ],
-    '4-3-3': [
-        { left: 50, bottom: 5 },   // GK
-        { left: 15, bottom: 20 },  // LB
-        { left: 35, bottom: 20 },  // LCB
-        { left: 65, bottom: 20 },  // RCB
-        { left: 85, bottom: 20 },  // RB
-        { left: 50, bottom: 40 },  // CM
-        { left: 28, bottom: 50 },  // LCM
-        { left: 72, bottom: 50 },  // RCM
-        { left: 18, bottom: 72 },  // LW
-        { left: 82, bottom: 72 },  // RW
-        { left: 50, bottom: 82 }   // ST
-    ],
-    '4-2-3-1': [
-        { left: 50, bottom: 5 },   // GK
-        { left: 15, bottom: 20 },  // LB
-        { left: 35, bottom: 20 },  // LCB
-        { left: 65, bottom: 20 },  // RCB
-        { left: 85, bottom: 20 },  // RB
-        { left: 35, bottom: 38 },  // LDM
-        { left: 65, bottom: 38 },  // RDM
-        { left: 20, bottom: 62 },  // LAM
-        { left: 50, bottom: 62 },  // CAM
-        { left: 80, bottom: 62 },  // RAM
-        { left: 50, bottom: 82 }   // ST
-    ],
-    '4-1-4-1': [
-        { left: 50, bottom: 5 },   // GK
-        { left: 15, bottom: 20 },  // LB
-        { left: 35, bottom: 20 },  // LCB
-        { left: 65, bottom: 20 },  // RCB
-        { left: 85, bottom: 20 },  // RB
-        { left: 50, bottom: 35 },  // DM
-        { left: 15, bottom: 58 },  // LM
-        { left: 35, bottom: 55 },  // LCM
-        { left: 65, bottom: 55 },  // RCM
-        { left: 85, bottom: 58 },  // RM
-        { left: 50, bottom: 82 }   // ST
-    ],
-    '3-5-2': [
-        { left: 50, bottom: 5 },   // GK
-        { left: 25, bottom: 22 },  // LCB
-        { left: 50, bottom: 20 },  // CB
-        { left: 75, bottom: 22 },  // RCB
-        { left: 12, bottom: 48 },  // LWB
-        { left: 88, bottom: 48 },  // RWB
-        { left: 35, bottom: 42 },  // LCM
-        { left: 65, bottom: 42 },  // RCM
-        { left: 50, bottom: 58 },  // CAM
-        { left: 38, bottom: 80 },  // LST
-        { left: 62, bottom: 80 }   // RST
-    ],
-    '5-3-2': [
-        { left: 50, bottom: 5 },   // GK
-        { left: 12, bottom: 28 },  // LWB
-        { left: 30, bottom: 20 },  // LCB
-        { left: 50, bottom: 20 },  // CB
-        { left: 70, bottom: 20 },  // RCB
-        { left: 88, bottom: 28 },  // RWB
-        { left: 35, bottom: 45 },  // LCM
-        { left: 50, bottom: 40 },  // CM
-        { left: 65, bottom: 45 },  // RCM
-        { left: 40, bottom: 80 },  // LST
-        { left: 60, bottom: 80 }   // RST
-    ]
-};
+const MatchPitch2D: React.FC<MatchPitch2DProps> = ({ homeTeam, awayTeam, ballPosition, possessionTeamId, isSecondHalf }) => {
+    
+    // --- COLOR CONFLICT RESOLUTION ---
+    const getBaseColorFamily = (colorClass: string) => {
+        // Extract 'red' from 'bg-red-600'
+        return colorClass.replace('bg-', '').split('-')[0];
+    };
 
-const getRole = (index: number): 'GK' | 'DEF' | 'MID' | 'FWD' => {
-    if (index === 0) return 'GK';
-    if (index <= 4) return 'DEF';
-    if (index <= 8) return 'MID';
-    return 'FWD';
-};
+    const homePrimary = homeTeam.colors[0];
+    const awayPrimary = awayTeam.colors[0];
 
-const lerp = (start: number, end: number, factor: number) => {
-    return start + (end - start) * factor;
-};
+    let homeVisualColor = homePrimary;
+    let awayVisualColor = awayPrimary;
 
-const MatchPitch2D: React.FC<MatchPitch2DProps> = ({ homeTeam, awayTeam, ballPosition, possessionTeamId, lastAction }) => {
-    const [positions, setPositions] = useState<Record<string, { x: number, y: number }>>({});
-    const requestRef = useRef<number>(0);
-    const ballRef = useRef(ballPosition);
-    const possessionRef = useRef(possessionTeamId);
+    // Check if color families match (e.g. both are 'red' or 'blue')
+    // Also handle dark colors grouping (slate, gray, zinc, neutral, stone, black)
+    const isDark = (f: string) => ['slate', 'gray', 'zinc', 'neutral', 'stone', 'black'].includes(f);
+    const homeFam = getBaseColorFamily(homePrimary);
+    const awayFam = getBaseColorFamily(awayPrimary);
 
-    useEffect(() => { ballRef.current = ballPosition; }, [ballPosition]);
-    useEffect(() => { possessionRef.current = possessionTeamId; }, [possessionTeamId]);
+    if (homeFam === awayFam || (isDark(homeFam) && isDark(awayFam))) {
+        // Conflict detected! Use Away Team's secondary color.
+        // Secondary color is usually text color (e.g., 'text-white', 'text-yellow-400').
+        // We need to convert it to a background color (e.g., 'bg-white', 'bg-yellow-400').
+        const secColor = awayTeam.colors[1];
+        awayVisualColor = secColor.replace('text-', 'bg-');
+        
+        // Edge case adjustment: If secondary was white/black, ensure contrast if needed
+        // But usually secondary provides good contrast by definition.
+    }
 
-    const calculateTargetPos = (
-        anchor: { left: number, bottom: number },
-        ball: { x: number, y: number },
-        role: 'GK' | 'DEF' | 'MID' | 'FWD',
-        isHome: boolean,
-        isAttacking: boolean
-    ) => {
-        let targetX = anchor.left;
-        let targetY = anchor.bottom;
-
-        let baseY = isHome ? anchor.bottom : (100 - anchor.bottom);
-        let baseX = isHome ? anchor.left : (100 - anchor.left);
-
-        const dx = ball.x - baseX;
-        const dy = ball.y - baseY;
-
-        if (role === 'GK') {
-            targetX = baseX + (dx * 0.15); 
-            targetY = baseY + (ball.y > 50 ? (isHome ? 10 : -10) : 0);
-            targetX = Math.max(35, Math.min(65, targetX));
-            targetY = isHome ? Math.max(2, Math.min(15, targetY)) : Math.max(85, Math.min(98, targetY));
-        } 
-        else if (role === 'DEF') {
-            if (isAttacking) {
-                const pushUpLimit = isHome ? 55 : 45; 
-                targetX = baseX + (dx * 0.3);
-                targetY = baseY + (isHome ? 20 : -20);
-                if (isHome) targetY = Math.min(Math.min(ball.y - 10, pushUpLimit), targetY);
-                else targetY = Math.max(Math.max(ball.y + 10, pushUpLimit), targetY);
-            } else {
-                targetX = baseX + (dx * 0.6);
-                targetY = ball.y + (isHome ? -15 : 15);
-                if (isHome) targetY = Math.max(10, targetY);
-                else targetY = Math.min(90, targetY);
-            }
-        } 
-        else if (role === 'MID') {
-            targetX = baseX + (dx * 0.5);
-            targetY = baseY + (dy * 0.5);
-            if (!isAttacking) targetY = ball.y + (isHome ? -10 : 10);
+    // Helper to ensure text visibility on light backgrounds
+    const getTextColor = (bgClass: string) => {
+        if (
+            bgClass.includes('white') || 
+            bgClass.includes('yellow') || 
+            bgClass.includes('cyan') || 
+            bgClass.includes('lime') || 
+            bgClass.includes('amber-300') || 
+            bgClass.includes('amber-400') ||
+            bgClass.includes('slate-100') ||
+            bgClass.includes('slate-200')
+        ) {
+            return 'text-black';
         }
-        else {
-            if (isAttacking) {
-                targetX = baseX + (dx * 0.4); 
-                targetY = Math.max(10, Math.min(90, ball.y + (isHome ? 15 : -15)));
-            } else {
-                targetX = baseX + (dx * 0.2);
-                targetY = baseY + (dy * 0.2);
-            }
+        return 'text-white';
+    };
+
+    // VISUAL SIDE SWAPPING LOGIC
+    // Simulation Logic: Home Attacks towards Y=100 (Top), Away Attacks towards Y=0 (Bottom)
+    // Visual Logic: 
+    // 1st Half: Home Defends Bottom (0-30), Attacks Top (70-100).
+    // 2nd Half: We flip Y. Home Defends Top, Attacks Bottom.
+
+    const displayY = isSecondHalf ? 100 - ballPosition.y : ballPosition.y;
+
+    // Determine active zone based on Visual Y position (0-100)
+    // 0-33: Bottom (Zone 1)
+    // 33-66: Middle (Zone 2)
+    // 66-100: Top (Zone 3)
+    let activeZoneIndex = 1; // Default Midfield
+    if (displayY < 35) activeZoneIndex = 0;
+    else if (displayY > 65) activeZoneIndex = 2;
+
+    const getZoneStyle = (zoneIndex: number) => {
+        const isActive = activeZoneIndex === zoneIndex;
+        
+        // Base Grass Styles for inactive zones
+        if (!isActive) {
+            // Alternating grass shades for aesthetic
+            return zoneIndex === 1 ? 'bg-[#1e5c42]/40' : 'bg-[#1a4a35]/40';
+        }
+
+        // Active Zone Logic
+        if (possessionTeamId) {
+            const isHomePossession = possessionTeamId === homeTeam.id;
+            // Use the RESOLVED visual color
+            const activeColor = isHomePossession ? homeVisualColor : awayVisualColor;
+            
+            return `${activeColor} opacity-90 shadow-[inset_0_0_50px_rgba(0,0,0,0.5)]`;
         }
         
-        return { x: targetX, y: targetY };
+        // Fallback if no possession data
+        return 'bg-slate-500';
     };
 
-    const animate = () => {
-        const ball = ballRef.current;
-        const possessionId = possessionRef.current;
+    // Determine which team defends which side
+    // 1st Half: Home defends Bottom, Away defends Top
+    // 2nd Half: Away defends Bottom, Home defends Top
+    const bottomTeam = isSecondHalf ? awayTeam : homeTeam;
+    const topTeam = isSecondHalf ? homeTeam : awayTeam;
+    
+    // Resolve labels colors as well based on side
+    const bottomTeamColor = isSecondHalf ? awayVisualColor : homeVisualColor;
+    const topTeamColor = isSecondHalf ? homeVisualColor : awayVisualColor;
 
-        setPositions(prev => {
-            const nextPositions = { ...prev };
-            
-            const processTeam = (team: Team, isHome: boolean) => {
-                const anchors = FORMATIONS[team.formation || '4-4-2'] || FORMATIONS['4-4-2'];
-                const isAttacking = possessionId === team.id;
-                
-                team.players.slice(0, 11).forEach((p, idx) => {
-                    const key = `${team.id}_${idx}`;
-                    const anchor = anchors[idx] || { left: 50, bottom: 50 };
-                    const role = getRole(idx);
-                    
-                    const target = calculateTargetPos(anchor, ball, role, isHome, isAttacking);
-                    
-                    const current = prev[key] || { 
-                        x: isHome ? anchor.left : (100 - anchor.left), 
-                        y: isHome ? anchor.bottom : (100 - anchor.bottom) 
-                    };
-                    
-                    const speed = 0.05 + (Math.random() * 0.02);
-                    nextPositions[key] = {
-                        x: lerp(current.x, target.x, speed),
-                        y: lerp(current.y, target.y, speed)
-                    };
-                });
-            };
+    // Helper to identify the team currently holding the ball
+    const activePossessionTeam = possessionTeamId ? (possessionTeamId === homeTeam.id ? homeTeam : awayTeam) : null;
+    const activePossessionColor = possessionTeamId === homeTeam.id ? homeVisualColor : awayVisualColor;
 
-            processTeam(homeTeam, true);
-            processTeam(awayTeam, false);
-            
-            return nextPositions;
-        });
+    const renderPossessionLabel = () => {
+        if (!activePossessionTeam) return null;
+        
+        const textColor = getTextColor(activePossessionColor);
 
-        requestRef.current = requestAnimationFrame(animate);
-    };
-
-    useEffect(() => {
-        requestRef.current = requestAnimationFrame(animate);
-        return () => cancelAnimationFrame(requestRef.current);
-    }, []);
-
-    const renderTeam = (team: Team, isHome: boolean) => {
-        return team.players.slice(0, 11).map((p, idx) => {
-            const key = `${team.id}_${idx}`;
-            const pos = positions[key];
-            if (!pos) return null;
-            if (p.injury && p.injury.daysRemaining > 0) return null;
-
-            const isGK = idx === 0;
-            const bgColorClass = isGK ? 'bg-yellow-500' : team.colors[0]; 
-
-            return (
-                <div 
-                    key={p.id}
-                    className={`absolute w-3 h-3 md:w-4 md:h-4 rounded-full border border-white shadow-sm flex items-center justify-center text-[6px] md:text-[8px] font-bold text-white transition-all duration-75 select-none ${bgColorClass} z-10`}
-                    style={{ 
-                        left: `${pos.x}%`, 
-                        bottom: `${pos.y}%`, 
-                        transform: 'translate(-50%, 50%)',
-                    }}
-                    title={p.name}
-                >
+        return (
+            <div className="z-20 flex flex-col items-center justify-center animate-in zoom-in duration-300 pointer-events-none">
+                <div className={`bg-black/60 backdrop-blur-sm border border-white/20 px-4 py-2 rounded-full flex items-center gap-2 shadow-xl transform transition-transform`}>
+                    {activePossessionTeam.logo ? (
+                        <img src={activePossessionTeam.logo} className="w-5 h-5 object-contain drop-shadow-md" />
+                    ) : (
+                        <div className={`w-5 h-5 rounded-full ${activePossessionColor} border border-white`}></div>
+                    )}
+                    <span className="text-xs font-black text-white uppercase tracking-wider drop-shadow-md">
+                        {activePossessionTeam.name}
+                    </span>
                 </div>
-            );
-        });
+            </div>
+        );
     };
 
     return (
-        <div className="h-full w-full bg-[#1a4a35] relative overflow-hidden shadow-inner border-r border-slate-800">
-            <div className="absolute inset-0 opacity-30 pointer-events-none">
-                 <div className="w-full h-full bg-[repeating-linear-gradient(0deg,transparent,transparent_19px,#000000_20px,#000000_21px)] opacity-10"></div>
-                 <div className="absolute top-1/2 left-1/2 w-24 h-24 border-2 border-white rounded-full -translate-x-1/2 -translate-y-1/2"></div>
-                 <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-white -translate-y-1/2"></div>
-                 <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/2 h-24 border-2 border-b-0 border-white"></div>
-                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-24 border-2 border-t-0 border-white"></div>
-                 <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/4 h-8 border-2 border-b-0 border-white"></div>
-                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/4 h-8 border-2 border-t-0 border-white"></div>
-            </div>
-
-            {renderTeam(homeTeam, true)}
-            {renderTeam(awayTeam, false)}
-
-            <div 
-                className="absolute w-2 h-2 md:w-3 md:h-3 bg-white rounded-full shadow-[0_0_10px_white] z-20 transition-all duration-75"
-                style={{ 
-                    left: `${ballPosition.x}%`, 
-                    bottom: `${ballPosition.y}%`, 
-                    transform: 'translate(-50%, 50%)' 
-                }}
-            ></div>
-            
-            <div className="absolute top-2 left-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded backdrop-blur-sm border border-white/10">
-                {lastAction || "Oyun Devam Ediyor"}
-            </div>
-            {possessionTeamId && (
-                <div className={`absolute bottom-2 right-2 text-[10px] px-2 py-1 rounded font-bold uppercase backdrop-blur-sm border border-white/20 ${possessionTeamId === homeTeam.id ? 'bg-blue-600/80 text-white' : 'bg-red-600/80 text-white'}`}>
-                    Top: {possessionTeamId === homeTeam.id ? homeTeam.name : awayTeam.name}
+        <div className="h-full w-full bg-[#12221b] relative flex flex-col-reverse overflow-hidden rounded-2xl">
+             
+             {/* TOP LABEL (Defending Team Top) */}
+             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+                <div className="flex flex-col items-center">
+                    <div className={`px-4 py-1 rounded-b-lg shadow-lg border-x border-b border-white/20 flex items-center gap-2 ${topTeamColor} ${getTextColor(topTeamColor)}`}>
+                        {topTeam.logo && <img src={topTeam.logo} className="w-4 h-4 object-contain" />}
+                        <span className="text-[10px] font-black uppercase tracking-widest">{topTeam.name}</span>
+                    </div>
+                    <div className="text-[8px] font-bold text-white/50 uppercase mt-0.5 tracking-wider bg-black/40 px-2 rounded-full">KALE</div>
                 </div>
-            )}
+             </div>
+
+             {/* ZONE 1 (Bottom) */}
+             <div className={`flex-1 transition-all duration-700 ease-in-out border-t border-white/5 relative flex items-center justify-center ${getZoneStyle(0)}`}>
+                 {activeZoneIndex === 0 && renderPossessionLabel()}
+             </div>
+
+             {/* ZONE 2 (Middle) */}
+             <div className={`flex-1 transition-all duration-700 ease-in-out border-y border-white/5 relative flex items-center justify-center ${getZoneStyle(1)}`}>
+                 {activeZoneIndex === 1 && renderPossessionLabel()}
+             </div>
+
+             {/* ZONE 3 (Top) */}
+             <div className={`flex-1 transition-all duration-700 ease-in-out border-b border-white/5 relative flex items-center justify-center ${getZoneStyle(2)}`}>
+                 {activeZoneIndex === 2 && renderPossessionLabel()}
+             </div>
+
+             {/* BOTTOM LABEL (Defending Team Bottom) */}
+             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+                <div className="flex flex-col-reverse items-center">
+                    <div className={`px-4 py-1 rounded-t-lg shadow-lg border-x border-t border-white/20 flex items-center gap-2 ${bottomTeamColor} ${getTextColor(bottomTeamColor)}`}>
+                        {bottomTeam.logo && <img src={bottomTeam.logo} className="w-4 h-4 object-contain" />}
+                        <span className="text-[10px] font-black uppercase tracking-widest">{bottomTeam.name}</span>
+                    </div>
+                    <div className="text-[8px] font-bold text-white/50 uppercase mb-0.5 tracking-wider bg-black/40 px-2 rounded-full">KALE</div>
+                </div>
+             </div>
+
+             {/* Static Pitch Markings Overlay */}
+             <div className="absolute inset-0 pointer-events-none opacity-20 z-0">
+                {/* Center Circle */}
+                <div className="absolute top-1/2 left-1/2 w-32 h-32 border-4 border-white rounded-full -translate-x-1/2 -translate-y-1/2"></div>
+                <div className="absolute top-1/2 left-0 right-0 h-1 bg-white -translate-y-1/2"></div>
+                
+                {/* Penalty Areas */}
+                <div className="absolute bottom-0 left-1/4 right-1/4 h-24 border-4 border-b-0 border-white"></div>
+                <div className="absolute top-0 left-1/4 right-1/4 h-24 border-4 border-t-0 border-white"></div>
+                
+                {/* Goals */}
+                <div className="absolute bottom-0 left-[45%] right-[45%] h-6 border-x-4 border-t-4 border-white bg-white/10"></div>
+                <div className="absolute top-0 left-[45%] right-[45%] h-6 border-x-4 border-b-4 border-white bg-white/10"></div>
+             </div>
         </div>
     );
 };

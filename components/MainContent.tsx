@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { GameState, Team, Player, Fixture, MatchEvent, MatchStats, PendingTransfer, SponsorDeal, IncomingOffer, TrainingConfig, IndividualTrainingType, BoardInteraction, Position, TransferViewState, SquadViewState } from '../types';
+import { GameState, Team, Player, Fixture, MatchEvent, MatchStats, PendingTransfer, SponsorDeal, IncomingOffer, TrainingConfig, IndividualTrainingType, BoardInteraction, Position, TransferViewState, SquadViewState, UIAlert } from '../types';
 import { FileWarning, LogOut, Trophy, Building2, BarChart3, ArrowRightLeft, Wallet, Clock, TrendingUp, TrendingDown, Crown } from 'lucide-react';
 import { isSameDay } from '../utils/calendarAndFixtures';
 
@@ -457,6 +458,11 @@ const MainContent: React.FC<MainContentProps> = (props) => {
         } as unknown as Team;
     };
 
+    // Helper function for showing alerts
+    const handleShowAlert = (alert: UIAlert) => {
+        setGameState(prev => ({ ...prev, uiAlert: alert }));
+    };
+
     if (currentView === 'intro') return <IntroScreen onStart={handleStart} />;
     if (currentView === 'team_select') return <TeamSelection teams={gameState.teams} onSelect={handleSelectTeam} />;
 
@@ -662,6 +668,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     onRetire={handleRetire}
                     onTerminateContract={handleTerminateContract}
                     onUpdateManagerContract={handleManagerContractUpdate} 
+                    onShowAlert={handleShowAlert} // PASS ALERT HANDLER
                 />
             )}
             
@@ -800,6 +807,8 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     players={myTeam.players}
                     onAssignTraining={handleAssignIndividualTraining}
                     onAssignPositionTraining={handleAssignPositionTraining} 
+                    currentWeek={gameState.currentWeek} 
+                    onPlayerClick={handleShowPlayerDetail} // NEW: Pass handler
                 />
             )}
 

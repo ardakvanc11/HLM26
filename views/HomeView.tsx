@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { ManagerProfile, Team, Fixture, StaffRelation } from '../types';
+import { ManagerProfile, Team, Fixture, StaffRelation, UIAlert } from '../types';
 import { calculateForm, calculateManagerPower } from '../utils/gameEngine';
 import { getFormattedDate } from '../utils/calendarAndFixtures';
 // FIX: Added 'Users' to imports from lucide-react
@@ -21,10 +21,11 @@ interface HomeViewProps {
     onRetire?: () => void;
     onTerminateContract?: () => void;
     onUpdateManagerContract?: (wage: number, years: number) => void; // New Prop
+    onShowAlert: (alert: UIAlert) => void; // Added for visual feedback
 }
 
-const HomeView: React.FC<HomeViewProps> = ({ manager, team, teams, myTeamId, currentWeek, fixtures, onTeamClick, onFixtureClick, playTime, onRetire, onTerminateContract, onUpdateManagerContract }) => {
-    const [tab, setTab] = useState('GENERAL');
+const HomeView: React.FC<HomeViewProps> = ({ manager, team, teams, myTeamId, currentWeek, fixtures, onTeamClick, onFixtureClick, playTime, onRetire, onTerminateContract, onUpdateManagerContract, onShowAlert }) => {
+    const [tab, setTab] = useState<'GENERAL' | 'PROFILE' | 'CONTRACT' | 'RELATIONS'>('GENERAL');
     const [retireConfirm, setRetireConfirm] = useState(false);
     const [terminateConfirm, setTerminateConfirm] = useState(false);
     const [showHallOfFame, setShowHallOfFame] = useState(false);
@@ -205,7 +206,11 @@ const HomeView: React.FC<HomeViewProps> = ({ manager, team, teams, myTeamId, cur
     const handleRequestRenewal = () => {
         // Condition: Trust >= 80%
         if (manager.trust.board < 80) {
-            alert("Yönetim Talebi Reddetti!\n\n'Henüz kendinizi tam olarak kanıtlamadınız. İlişkilerimiz %80 seviyesine ulaşmadan yeni sözleşme konuşamayız.'");
+            onShowAlert({
+                title: "Yönetim Talebi Reddetti",
+                message: "Başkan: 'Henüz kendinizi tam olarak kanıtlamadınız. İlişkilerimiz %80 seviyesine ulaşmadan yeni sözleşme konuşamayız.'",
+                type: 'error'
+            });
             return;
         }
 
@@ -218,6 +223,12 @@ const HomeView: React.FC<HomeViewProps> = ({ manager, team, teams, myTeamId, cur
         
         const offeredSalary = parseFloat((currentSalary * randomMult).toFixed(2));
         const extensionYears = 3; 
+
+        onShowAlert({
+            title: "Talep Kabul Edildi",
+            message: "Yönetim performansınızdan memnun ve masaya oturmaya hazır. Görüşme odasına geçiliyor...",
+            type: 'success'
+        });
 
         setRenewalOffer({ wage: offeredSalary, years: extensionYears });
     };
@@ -295,7 +306,7 @@ const HomeView: React.FC<HomeViewProps> = ({ manager, team, teams, myTeamId, cur
                     return (
                         <button
                             key={t.id}
-                            onClick={() => setTab(t.id)}
+                            onClick={() => setTab(t.id as any)}
                             className={`flex items-center gap-2 px-4 md:px-6 py-3 text-sm md:text-base font-bold transition-all relative rounded-t-lg group whitespace-nowrap shrink-0 ${
                                 isActive 
                                 ? 'text-yellow-600 dark:text-yellow-400 bg-white dark:bg-slate-800' 

@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Team, Player, Mentality, PassingStyle, Tempo, Width, AttackingTransition, CreativeFreedom, SetPiecePlay, PlayStrategy, GoalKickType, GKDistributionTarget, SupportRuns, Dribbling, FocusArea, PassTarget, Patience, LongShots, CrossingType, GKDistributionSpeed, PressingLine, DefensiveLine, DefLineMobility, PressIntensity, DefensiveTransition, Tackling, PreventCrosses, PressingFocus, Position, SetPieceTakers, TimeWasting, GameSystem } from '../types';
 import PitchVisual from '../components/shared/PitchVisual';
-import { Syringe, Ban, Zap, Users, Target, Goal, Shield, Activity, Star, AlertTriangle, MoveRight, Gauge, Timer, MoveHorizontal, Flag, Sparkles, ArrowUpFromLine, GitCommit, MousePointerClick, Anchor, ArrowLeftRight, Crosshair, FastForward, ScanLine, ChevronUp, ChevronDown, Minus, RefreshCw, LayoutTemplate, RectangleVertical } from 'lucide-react';
+import { Syringe, Ban, Zap, Users, Target, Goal, Shield, Activity, Star, AlertTriangle, MoveRight, Gauge, Timer, MoveHorizontal, Flag, Sparkles, ArrowUpFromLine, GitCommit, MousePointerClick, Anchor, ArrowLeftRight, Crosshair, FastForward, ScanLine, ChevronUp, ChevronDown, Minus, RefreshCw, LayoutTemplate, RectangleVertical, Swords, Grid, ShieldCheck, TrendingUp, Settings } from 'lucide-react';
 import TacticDetailModal from '../modals/TacticDetailModal';
 import { TACTICAL_DESCRIPTIONS } from '../data/tacticalDescriptions';
 import PlayerFace from '../components/shared/PlayerFace';
@@ -15,7 +15,70 @@ const GAME_SYSTEM_LABELS: Record<GameSystem, string> = {
     [GameSystem.VERTICAL_TIKI_TAKA]: 'Dikine Tiki-Taka',
     [GameSystem.WING_PLAY]: 'Kanat Oyunu',
     [GameSystem.LONG_BALL]: 'Uzun Top',
-    [GameSystem.HARAMBALL]: 'Haram-Ball'
+    [GameSystem.HARAMBALL]: 'Haram-Ball',
+    [GameSystem.CUSTOM]: 'Özel Sistem'
+};
+
+// --- MENTALITY DATA ---
+const MENTALITY_INFO: Record<Mentality, { label: string, desc: string, color: string, icon: any }> = {
+    [Mentality.VERY_DEFENSIVE]: {
+        label: "Aşırı Savunma",
+        desc: "Takım tamamen kendi yarı sahasına çekilir. Öncelik kesinlikle gol yememektir. Risk alınmaz.",
+        color: "text-blue-500",
+        icon: Shield
+    },
+    [Mentality.DEFENSIVE]: {
+        label: "Savunma Ağırlıklı",
+        desc: "Kontrollü ve temkinli oyun. Bekler ileri çıkmaz, rakibi karşılayıp hata yapmalarını bekleriz.",
+        color: "text-cyan-400",
+        icon: Shield
+    },
+    [Mentality.CAUTIOUS]: {
+        label: "Temkinli",
+        desc: "Risk almadan, güvenli paslarla oynanan kontrollü oyun. Savunma güvenliği ön plandadır, kontra fırsatları kovalanır.",
+        color: "text-emerald-400",
+        icon: ShieldCheck
+    },
+    [Mentality.STANDARD]: {
+        label: "Dengeli",
+        desc: "Dengeli oyun anlayışı. Maçın gidişatına göre esneklik sağlar.",
+        color: "text-yellow-500",
+        icon: Anchor
+    },
+    [Mentality.POSITIVE]: {
+        label: "Pozitif Futbol",
+        desc: "Kazanmaya odaklı, topa sahip olmayı seven oyun. Savunma disiplinini bozmadan hücumu düşünür.",
+        color: "text-lime-400",
+        icon: TrendingUp
+    },
+    [Mentality.ATTACKING]: {
+        label: "Hücum Ağırlıklı",
+        desc: "Rakip yarı alanda baskı. Bekler bindirme yapar, gol ararken savunmada risk alınabilir.",
+        color: "text-orange-500",
+        icon: Swords
+    },
+    [Mentality.VERY_ATTACKING]: {
+        label: "Aşırı Hücum",
+        desc: "Tüm hatlarla saldır! Savunma güvenliği ikinci plandadır. Gol atmak zorundaysak kullanılır.",
+        color: "text-red-600",
+        icon: Zap
+    }
+};
+
+// --- FORMATION DATA ---
+// Added new formations. Descriptions removed as requested from UI, but keys kept for logic.
+const FORMATION_INFO: Record<string, { label: string, desc: string, color: string, icon: any }> = {
+    '4-4-2': { label: "4-4-2", desc: "", color: "text-emerald-400", icon: LayoutTemplate },
+    '4-3-3': { label: "4-3-3", desc: "", color: "text-blue-400", icon: LayoutTemplate },
+    '4-2-3-1': { label: "4-2-3-1", desc: "", color: "text-purple-400", icon: LayoutTemplate },
+    '4-1-4-1': { label: "4-1-4-1", desc: "", color: "text-yellow-400", icon: LayoutTemplate },
+    '3-5-2': { label: "3-5-2", desc: "", color: "text-orange-400", icon: Grid },
+    '5-3-2': { label: "5-3-2", desc: "", color: "text-slate-400", icon: Shield },
+    '3-2-4-1': { label: "3-2-4-1", desc: "", color: "text-teal-400", icon: Grid },
+    '4-2-2-2': { label: "4-2-2-2", desc: "", color: "text-indigo-400", icon: LayoutTemplate },
+    '4-2-4': { label: "4-2-4", desc: "", color: "text-red-400", icon: Zap },
+    '4-3-2-1': { label: "4-3-2-1", desc: "", color: "text-green-500", icon: LayoutTemplate },
+    '3-4-3': { label: "3-4-3", desc: "", color: "text-cyan-500", icon: Grid },
 };
 
 interface TacticsViewProps {
@@ -29,9 +92,142 @@ interface TacticsViewProps {
     currentMinute?: number;
     currentWeek?: number;
     forcedSubstitutionPlayerId?: string | null;
-    matchCompetitionId?: string; // New Prop
-    redCardedPlayerIds?: string[]; // New Prop
+    matchCompetitionId?: string; 
+    redCardedPlayerIds?: string[]; 
+    initialTab?: 'XI' | 'TACTICS'; 
 }
+
+const MentalitySelector = ({ value, onChange, disabled }: { value: Mentality, onChange: (val: Mentality) => void, disabled?: boolean }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [hovered, setHovered] = useState<Mentality | null>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const activeInfo = MENTALITY_INFO[hovered || value];
+    const currentInfo = MENTALITY_INFO[value];
+
+    return (
+        <div className="relative w-48" ref={menuRef}>
+            <button
+                onClick={() => !disabled && setIsOpen(!isOpen)}
+                disabled={disabled}
+                className={`w-full bg-slate-800 border ${isOpen ? 'border-yellow-500' : 'border-slate-600'} rounded px-3 py-1.5 flex items-center justify-between transition-colors hover:bg-slate-700 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+                <div className="flex flex-col items-start overflow-hidden">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase">Oyun Anlayışı</span>
+                    <div className={`flex items-center gap-2 text-xs font-bold truncate ${currentInfo.color}`}>
+                        <currentInfo.icon size={14} className="shrink-0" />
+                        <span className="truncate">{currentInfo.label}</span>
+                    </div>
+                </div>
+                <ChevronDown size={14} className={`text-slate-500 transition-transform duration-300 ml-2 ${isOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isOpen && (
+                <div className="absolute top-full right-0 mt-2 w-[340px] md:w-[400px] max-w-[90vw] bg-[#1b1e26]/95 backdrop-blur-md border border-slate-600 rounded-lg shadow-2xl flex overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 origin-top-right">
+                    <div className="w-1/2 border-r border-slate-700 p-1 flex flex-col gap-0.5">
+                        {Object.values(Mentality).map((m) => {
+                            const info = MENTALITY_INFO[m];
+                            const isSelected = value === m;
+                            return (
+                                <button
+                                    key={m}
+                                    onClick={() => { onChange(m); setIsOpen(false); }}
+                                    onMouseEnter={() => setHovered(m)}
+                                    onMouseLeave={() => setHovered(null)}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded text-xs font-bold text-left transition-all
+                                        ${isSelected ? 'bg-slate-700 text-white shadow-inner' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}
+                                    `}
+                                >
+                                    <info.icon size={14} className={isSelected ? info.color : 'text-slate-500'} />
+                                    {info.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <div className="w-1/2 p-4 flex flex-col justify-center bg-black/20">
+                        <div className={`flex items-center gap-2 mb-2 text-sm font-black uppercase ${activeInfo.color}`}>
+                            <activeInfo.icon size={18} />
+                            {activeInfo.label}
+                        </div>
+                        <p className="text-[10px] text-slate-300 leading-relaxed font-medium">
+                            {activeInfo.desc}
+                        </p>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const FormationSelector = ({ value, onChange, disabled }: { value: string, onChange: (val: string) => void, disabled?: boolean }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const currentInfo = FORMATION_INFO[value] || FORMATION_INFO['4-4-2'];
+    const availableFormations = Object.keys(FORMATION_INFO);
+
+    return (
+        <div className="relative w-48" ref={menuRef}>
+            <button
+                onClick={() => !disabled && setIsOpen(!isOpen)}
+                disabled={disabled}
+                className={`w-full bg-slate-800 border ${isOpen ? 'border-yellow-500' : 'border-slate-600'} rounded px-3 py-1.5 flex items-center justify-between transition-colors hover:bg-slate-700 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+                <div className="flex flex-col items-start overflow-hidden">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase">Diziliş</span>
+                    <div className={`flex items-center gap-2 text-xs font-bold truncate ${currentInfo.color}`}>
+                        <currentInfo.icon size={14} className="shrink-0" />
+                        <span className="truncate">{value}</span>
+                    </div>
+                </div>
+                <ChevronDown size={14} className={`text-slate-500 transition-transform duration-300 ml-2 ${isOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isOpen && (
+                <div className="absolute top-full left-0 mt-2 w-48 bg-[#1b1e26]/95 backdrop-blur-md border border-slate-600 rounded-lg shadow-2xl flex flex-col overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
+                    <div className="p-1 flex flex-col gap-0.5">
+                        {availableFormations.map((f) => {
+                            const info = FORMATION_INFO[f];
+                            const isSelected = value === f;
+                            return (
+                                <button
+                                    key={f}
+                                    onClick={() => { onChange(f); setIsOpen(false); }}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded text-xs font-bold text-left transition-all
+                                        ${isSelected ? 'bg-slate-700 text-white shadow-inner' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}
+                                    `}
+                                >
+                                    <info.icon size={14} className={isSelected ? info.color : 'text-slate-500'} />
+                                    {f}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 const TacticalInstructionCard = ({ 
     title, 
@@ -200,6 +396,7 @@ const SystemSelectionModal = ({ onClose, onSelect }: { onClose: () => void, onSe
                             case GameSystem.WING_PLAY: icon = <MoveHorizontal size={32}/>; desc = "Çizgiye in ve orta aç."; color = "bg-green-600"; break;
                             case GameSystem.LONG_BALL: icon = <ArrowUpFromLine size={32} className="rotate-45"/>; desc = "Risk alma, forvetlere şişir."; color = "bg-orange-600"; break;
                             case GameSystem.HARAMBALL: icon = <Shield size={32}/>; desc = "Otobüsü çek, 0-0'a yat."; color = "bg-slate-500 border-2 border-slate-400"; break;
+                            case GameSystem.CUSTOM: icon = <Settings size={32}/>; desc = "Kendi oyun felsefeni sıfırdan yarat."; color = "bg-slate-600"; break;
                         }
                         return (
                             <button key={sys} onClick={() => onSelect(sys)} className="relative group overflow-hidden rounded-xl border border-slate-700 hover:border-yellow-500 transition-all shadow-lg hover:shadow-yellow-900/20 text-left bg-slate-800"><div className={`h-24 ${color} flex items-center justify-center text-white group-hover:scale-105 transition-transform duration-500`}>{icon}</div><div className="p-4"><h3 className="font-bold text-white text-lg leading-tight mb-1">{GAME_SYSTEM_LABELS[sys]}</h3><p className="text-xs text-slate-400">{desc}</p></div></button>
@@ -211,9 +408,9 @@ const SystemSelectionModal = ({ onClose, onSelect }: { onClose: () => void, onSe
     );
 };
 
-const TacticsView = ({ team, setTeam, compact = false, isMatchActive = false, subsUsed = 0, maxSubs = 5, onSubstitution, currentMinute, currentWeek, forcedSubstitutionPlayerId, matchCompetitionId, redCardedPlayerIds = [] }: TacticsViewProps) => {
+const TacticsView = ({ team, setTeam, compact = false, isMatchActive = false, subsUsed = 0, maxSubs = 5, onSubstitution, currentMinute, currentWeek, forcedSubstitutionPlayerId, matchCompetitionId, redCardedPlayerIds = [], initialTab = 'XI' }: TacticsViewProps) => {
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'XI' | 'TACTICS'>('XI');
+    const [activeTab, setActiveTab] = useState<'XI' | 'TACTICS'>(initialTab);
     const [tacticalSubTab, setTacticalSubTab] = useState<'POSSESSION' | 'DEFENSE' | 'KEEPER' | 'SET_PIECES'>('POSSESSION');
     const [showSystemSelector, setShowSystemSelector] = useState(false);
     const [modalData, setModalData] = useState<{isOpen: boolean; key: string; title: string; currentVal: string; options: string[];}>({ isOpen: false, key: '', title: '', currentVal: '', options: [] });
@@ -268,6 +465,12 @@ const TacticsView = ({ team, setTeam, compact = false, isMatchActive = false, su
             case '4-1-4-1': return [Position.GK, Position.SLB, Position.STP, Position.STP, Position.SGB, Position.OS, Position.SLK, Position.OS, Position.OS, Position.SGK, Position.SNT];
             case '3-5-2': return [Position.GK, Position.STP, Position.STP, Position.STP, Position.SLB, Position.OS, Position.OS, Position.OS, Position.SGB, Position.SNT, Position.SNT];
             case '5-3-2': return [Position.GK, Position.SLB, Position.STP, Position.STP, Position.STP, Position.SGB, Position.OS, Position.OS, Position.OS, Position.SNT, Position.SNT];
+            // New Formations
+            case '3-2-4-1': return [Position.GK, Position.STP, Position.STP, Position.STP, Position.OS, Position.OS, Position.SLK, Position.OOS, Position.OOS, Position.SGK, Position.SNT];
+            case '4-2-2-2': return [Position.GK, Position.SLB, Position.STP, Position.STP, Position.SGB, Position.OS, Position.OS, Position.OOS, Position.OOS, Position.SNT, Position.SNT];
+            case '4-2-4': return [Position.GK, Position.SLB, Position.STP, Position.STP, Position.SGB, Position.OS, Position.OS, Position.SLK, Position.SGK, Position.SNT, Position.SNT];
+            case '4-3-2-1': return [Position.GK, Position.SLB, Position.STP, Position.STP, Position.SGB, Position.OS, Position.OS, Position.OS, Position.OOS, Position.OOS, Position.SNT];
+            case '3-4-3': return [Position.GK, Position.STP, Position.STP, Position.STP, Position.SLK, Position.OS, Position.OS, Position.SGK, Position.SLK, Position.SNT, Position.SGK];
             default: return [Position.GK, Position.SLB, Position.STP, Position.STP, Position.SGB, Position.SLK, Position.OS, Position.OS, Position.SGK, Position.SNT, Position.SNT];
         }
     };
@@ -433,9 +636,21 @@ const TacticsView = ({ team, setTeam, compact = false, isMatchActive = false, su
                     </div>
                     {activeTab === 'XI' && (
                         <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto justify-center lg:justify-end bg-slate-900/50 p-2 rounded-lg border border-slate-700">
-                            <div className="flex items-center gap-2"><span className="text-[10px] font-bold text-slate-500 uppercase">Diziliş</span><select value={team.formation} onChange={(e) => setTeam({...team, formation: e.target.value})} className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs font-bold text-white outline-none hover:border-yellow-500 transition-colors"><option value="4-4-2">4-4-2</option><option value="4-3-3">4-3-3</option><option value="4-2-3-1">4-2-3-1</option><option value="4-1-4-1">4-1-4-1</option><option value="3-5-2">3-5-2</option><option value="5-3-2">5-3-2</option></select></div>
+                            
+                            <FormationSelector 
+                                value={team.formation}
+                                onChange={(val) => setTeam({...team, formation: val})}
+                                disabled={isMatchActive && !!forcedSubstitutionPlayerId} // Disable if forced sub
+                            />
+
                             <div className="w-px h-6 bg-slate-700 mx-2"></div>
-                            <div className="flex items-center gap-2"><span className="text-[10px] font-bold text-slate-500 uppercase">Anlayış</span><select value={team.mentality} onChange={(e) => setTeam({...team, mentality: e.target.value as any})} className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs font-bold text-white outline-none hover:border-yellow-500 transition-colors">{Object.values(Mentality).map(m => <option key={m} value={m}>{m}</option>)}</select></div>
+                            
+                            <MentalitySelector 
+                                value={team.mentality}
+                                onChange={(val) => setTeam({...team, mentality: val})}
+                                disabled={false}
+                            />
+                            
                             <div className="w-px h-6 bg-slate-700 mx-2"></div>
                             <div className="flex items-center gap-3 pr-2"><div className="text-right"><div className="text-[10px] font-bold text-slate-500 uppercase leading-none mb-0.5">Kimya</div><div className={`text-sm font-black leading-none ${teamChemistry > 80 ? 'text-green-500' : teamChemistry > 60 ? 'text-yellow-500' : 'text-red-500'}`}>{teamChemistry}%</div></div><div className="w-16 h-2 bg-slate-700 rounded-full overflow-hidden"><div className={`h-full ${teamChemistry > 80 ? 'bg-green-500' : teamChemistry > 60 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{width: `${teamChemistry}%`}}></div></div></div>
                         </div>
