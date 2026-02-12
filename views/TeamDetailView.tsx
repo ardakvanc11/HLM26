@@ -10,6 +10,7 @@ import { isSameDay, getFormattedDate } from '../utils/calendarAndFixtures';
 import { GAME_CALENDAR } from '../data/gameConstants';
 import StandingsTable from '../components/shared/StandingsTable';
 import PlayerRow from '../components/shared/PlayerRow';
+import { COUNTRY_CODES } from '../data/uiConstants';
 
 interface TeamDetailViewProps {
     team: Team;
@@ -26,8 +27,8 @@ interface TeamDetailViewProps {
     yearsAtClub?: number; 
     lastSeasonGoalAchieved?: boolean; 
     consecutiveFfpYears?: number;
-    onFixtureClick?: (f: Fixture) => void; // Added
-    onCompetitionClick?: (compId: string) => void; // Added
+    onFixtureClick?: (f: Fixture) => void; 
+    onCompetitionClick?: (compId: string) => void; 
 }
 
 // --- HELPER COMPONENTS ---
@@ -133,11 +134,30 @@ const TeamDetailView = ({ team, allTeams, fixtures, currentDate, currentWeek, ma
     });
     const rank = sortedTeams.findIndex(t => t.id === team.id) + 1;
     
-    const leagueName = currentLeagueId === 'LEAGUE_1' ? "Hayvanlar 1. Ligi" : "Süper Toto Ligi";
+    const leagueName = currentLeagueId === 'LEAGUE_1' ? "Hayvanlar 1. Ligi" : (currentLeagueId === 'EUROPE_LEAGUE' ? "Avrupa Ligi" : "Süper Toto Ligi");
 
     const squadValue = team.players.reduce((sum, p) => sum + p.value, 0);
     const form = calculateForm(team.id, fixtures);
     const reputation = team.reputation || 1.0;
+    
+    // Determine Team Country
+    const teamCountry = useMemo(() => {
+        if (team.leagueId === 'LEAGUE' || team.leagueId === 'LEAGUE_1' || !team.leagueId) return 'Türkiye';
+        
+        // For European/Foreign teams, determine by majority player nationality
+        if (!team.players || team.players.length === 0) return 'Avrupa';
+
+        const counts: Record<string, number> = {};
+        team.players.forEach(p => {
+            counts[p.nationality] = (counts[p.nationality] || 0) + 1;
+        });
+        
+        // Sort by frequency
+        const topNation = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+        return topNation || 'Avrupa';
+    }, [team]);
+
+    const countryCode = COUNTRY_CODES[teamCountry] || 'un';
     
     // Use OPERATIONAL net flow (excludeTransfers=true) for status display
     const monthlyNet = calculateMonthlyNetFlow(team, fixtures, currentDate, manager, true);
@@ -352,11 +372,12 @@ const TeamDetailView = ({ team, allTeams, fixtures, currentDate, currentWeek, ma
                                 <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 hidden sm:block"></div>
                                 <div className="flex gap-1.5 items-center">
                                     <img 
-                                        src="https://flagcdn.com/w40/tr.png" 
+                                        src={`https://flagcdn.com/w40/${countryCode}.png`} 
                                         className="w-5 h-auto object-contain rounded-[2px] shadow-sm" 
-                                        alt="Türkiye" 
+                                        alt={teamCountry} 
+                                        onError={(e) => e.currentTarget.style.display='none'} 
                                     />
-                                    <span className="font-bold">Türkiye</span>
+                                    <span className="font-bold">{teamCountry}</span>
                                 </div>
                             </div>
                         </div>

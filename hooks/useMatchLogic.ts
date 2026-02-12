@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { MatchEvent, MatchStats, GameState, SeasonChampion } from '../types';
-import { simulateBackgroundMatch, processMatchPostGame, generateMatchTweets, calculateRatingsFromEvents, determineMVP } from '../utils/gameEngine';
+import { GameState, MatchEvent, MatchStats, Team, Fixture, SeasonChampion } from '../types';
+import { processMatchPostGame, simulateBackgroundMatch, recalculateTeamStrength } from '../utils/gameEngine';
 
 export const useMatchLogic = (
     gameState: GameState,
@@ -10,106 +10,85 @@ export const useMatchLogic = (
     coreSetters: any
 ) => {
 
-    const handleMatchFinish = async (hScore: number, aScore: number, events: MatchEvent[], stats: MatchStats, fixtureId?: string) => {
-        let currentFixture;
-        if (fixtureId) {
-            currentFixture = gameState.fixtures.find(f => f.id === fixtureId);
-        } else {
-            currentFixture = gameState.fixtures.find(f => (f.homeTeamId === gameState.myTeamId || f.awayTeamId === gameState.myTeamId) && !f.played);
+    const handleMatchFinish = (hScore: number, aScore: number, events: MatchEvent[], stats: MatchStats, fixtureId?: string) => {
+        const fId = fixtureId || gameState.activeFixtureId;
+        if (!fId) return;
+
+        const currentFixture = gameState.fixtures.find(f => f.id === fId);
+        if (!currentFixture) return;
+
+        // 1. Update Fixture
+        const updatedFixture = {
+            ...currentFixture,
+            played: true,
+            homeScore: hScore,
+            awayScore: aScore,
+            matchEvents: events,
+            stats: stats,
+            pkHome: stats.pkHome,
+            pkAway: stats.pkAway
+        };
+
+        // 2. Process Post Game (Injuries, Suspensions, Stats) for TEAMS
+        // Only update teams involved to save perf, but processMatchPostGame typically iterates all or takes list.
+        // We will pass current teams state.
+        let updatedTeams = processMatchPostGame(gameState.teams, events, gameState.currentWeek, [updatedFixture]);
+        
+        // 3. Update League Table Stats for Home/Away Team
+        const homeTeamIdx = updatedTeams.findIndex(t => t.id === currentFixture.homeTeamId);
+        const awayTeamIdx = updatedTeams.findIndex(t => t.id === currentFixture.awayTeamId);
+
+        if (homeTeamIdx !== -1 && awayTeamIdx !== -1) {
+            const h = updatedTeams[homeTeamIdx];
+            const a = updatedTeams[awayTeamIdx];
+
+            // Only update league table stats if it's a league match
+            if (!currentFixture.competitionId || currentFixture.competitionId === 'LEAGUE' || currentFixture.competitionId === 'LEAGUE_1') {
+                // Update Home
+                h.stats.played++;
+                h.stats.gf += hScore;
+                h.stats.ga += aScore;
+                if (hScore > aScore) { h.stats.won++; h.stats.points += 3; }
+                else if (hScore === aScore) { h.stats.drawn++; h.stats.points += 1; }
+                else { h.stats.lost++; }
+                
+                // Update Away
+                a.stats.played++;
+                a.stats.gf += aScore;
+                a.stats.ga += hScore;
+                if (aScore > hScore) { a.stats.won++; a.stats.points += 3; }
+                else if (aScore === hScore) { a.stats.drawn++; a.stats.points += 1; }
+                else { a.stats.lost++; }
+            }
+            
+            // Re-calc strength if dynamic progression enabled (implied by processMatchPostGame updates to players)
+             updatedTeams[homeTeamIdx] = recalculateTeamStrength(h);
+             updatedTeams[awayTeamIdx] = recalculateTeamStrength(a);
         }
 
-        if (!currentFixture) return;
-        
-        const fixtureIdx = gameState.fixtures.findIndex(f => f.id === currentFixture.id);
-        const myTeamId = gameState.myTeamId!;
+        // 4. Update Manager Stats
+        let updatedManager = { ...gameState.manager! };
+        const myTeamId = gameState.myTeamId;
         const isHome = currentFixture.homeTeamId === myTeamId;
-        const opponentId = isHome ? currentFixture.awayTeamId : currentFixture.homeTeamId;
-        const opponent = gameState.teams.find(t => t.id === opponentId)!;
-        const homeTeam = isHome ? gameState.teams.find(t => t.id === myTeamId)! : opponent;
-        const awayTeam = isHome ? opponent : gameState.teams.find(t => t.id === myTeamId)!;
         const myScore = isHome ? hScore : aScore;
         const oppScore = isHome ? aScore : hScore;
         
-        // RESULT DETERMINATION (Including Penalties)
-        let res: 'WIN'|'DRAW'|'LOSS' = 'DRAW';
+        let res: 'WIN' | 'DRAW' | 'LOSS' = 'DRAW';
         if (myScore > oppScore) res = 'WIN';
         else if (myScore < oppScore) res = 'LOSS';
-        else if (stats.pkHome !== undefined && stats.pkAway !== undefined) {
+        
+        // PK Check
+        if (myScore === oppScore && stats.pkHome !== undefined && stats.pkAway !== undefined) {
              const myPk = isHome ? stats.pkHome : stats.pkAway;
              const oppPk = isHome ? stats.pkAway : stats.pkHome;
              if (myPk > oppPk) res = 'WIN';
              else res = 'LOSS';
         }
-        
-        const { homeRatings, awayRatings } = calculateRatingsFromEvents(homeTeam, awayTeam, events, hScore, aScore);
-        const mvpInfo = determineMVP(homeRatings, awayRatings);
-        const updatedStats: MatchStats = { ...stats, homeRatings, awayRatings, mvpPlayerId: mvpInfo.id, mvpPlayerName: mvpInfo.name };
-        
-        const updatedFixtures = [...gameState.fixtures];
-        const completedFixture = { 
-            ...updatedFixtures[fixtureIdx], 
-            played: true, 
-            homeScore: hScore, 
-            awayScore: aScore, 
-            matchEvents: events, 
-            stats: updatedStats,
-            pkHome: stats.pkHome,
-            pkAway: stats.pkAway
-        };
-        updatedFixtures[fixtureIdx] = completedFixture;
-        
-        const processedTeams = processMatchPostGame(gameState.teams, events, gameState.currentWeek, updatedFixtures);
-        
-        let updatedManager = { ...gameState.manager! };
+
         updatedManager.stats.matchesManaged++;
         updatedManager.stats.goalsFor += myScore;
         updatedManager.stats.goalsAgainst += oppScore;
         
-        // Income/Expense from Match
-        let teamsWithBudget = processedTeams;
-        if (isHome) {
-            const userTeamIndex = processedTeams.findIndex(t => t.id === myTeamId);
-            if (userTeamIndex !== -1) {
-                const userTeam = processedTeams[userTeamIndex];
-                const financials = { ...userTeam.financialRecords };
-                const fanMillions = userTeam.fanBase / 1000000;
-                const gateReceipts = fanMillions * 0.01944444; 
-                const locaIncome = gateReceipts * 0.45;
-                const matchDayExpense = 0.15 / 4; 
-                financials.income.gate += gateReceipts;
-                financials.income.loca += locaIncome;
-                financials.expense.matchDay += matchDayExpense;
-                processedTeams[userTeamIndex] = { ...userTeam, financialRecords: financials };
-            }
-        } else {
-            const userTeamIndex = processedTeams.findIndex(t => t.id === myTeamId);
-            if (userTeamIndex !== -1) {
-                const userTeam = processedTeams[userTeamIndex];
-                const financials = { ...userTeam.financialRecords };
-                financials.expense.travel += 0.1 / 4;
-                processedTeams[userTeamIndex] = { ...userTeam, financialRecords: financials };
-            }
-        }
-
-        const teamsWithUpdatedStats = teamsWithBudget.map(team => {
-             const teamFixtures = updatedFixtures.filter(f => f.played && (f.homeTeamId === team.id || f.awayTeamId === team.id));
-             let played=0, won=0, drawn=0, lost=0, gf=0, ga=0, points=0;
-             teamFixtures.forEach(f => {
-                 // Only count LEAGUE games for league table
-                 if (f.competitionId !== 'LEAGUE' && f.competitionId !== 'LEAGUE_1' && f.competitionId) return;
-
-                 played++;
-                 const isHomeFix = f.homeTeamId === team.id;
-                 const tMyScore = isHomeFix ? f.homeScore! : f.awayScore!;
-                 const tOppScore = isHomeFix ? f.awayScore! : f.homeScore!;
-                 gf += tMyScore; ga += tOppScore;
-                 if(tMyScore > tOppScore) { won++; points += 3; }
-                 else if(tMyScore === tOppScore) { drawn++; points += 1; }
-                 else lost++;
-             });
-             return { ...team, stats: { played, won, drawn, lost, gf, ga, points } };
-        });
-
         if (res === 'WIN') {
             updatedManager.trust.board = Math.min(100, updatedManager.trust.board + 2);
             updatedManager.trust.fans = Math.min(100, updatedManager.trust.fans + 3);
@@ -117,153 +96,190 @@ export const useMatchLogic = (
         } else if (res === 'DRAW') updatedManager.stats.draws++;
         else {
             updatedManager.trust.board = Math.max(0, updatedManager.trust.board - 2);
-            updatedManager.trust.fans = Math.max(0, updatedManager.trust.fans - 5);
+            
+            // Avrupa maçlarında yenilgi taraftar güvenini %50 daha az düşürür (Normalde 5, Avrupa'da 2)
+            const isEurope = currentFixture.competitionId === 'EUROPE';
+            const fanTrustDrop = isEurope ? 2 : 5;
+
+            updatedManager.trust.fans = Math.max(0, updatedManager.trust.fans - fanTrustDrop);
             updatedManager.stats.losses++;
         }
 
         // --- TROPHY CHECK ---
         let wonTrophy: SeasonChampion | null = null;
-        
-        // 1. SUPER CUP (Week 91)
-        if (res === 'WIN' && currentFixture.competitionId === 'SUPER_CUP') {
-            if (currentFixture.week === 91) {
-                 const myTeamRef = teamsWithUpdatedStats.find(t => t.id === myTeamId);
-                 if (myTeamRef) {
-                     myTeamRef.superCups += 1; 
-                     updatedManager.stats.trophies += 1; 
-                     updatedManager.trust.board = Math.min(100, updatedManager.trust.board + 15);
-                     updatedManager.trust.fans = Math.min(100, updatedManager.trust.fans + 15);
-                     
-                     wonTrophy = {
-                        teamId: myTeamRef.id,
-                        teamName: myTeamRef.name,
-                        logo: myTeamRef.logo,
-                        colors: myTeamRef.colors,
-                        season: "2025/26 Süper Kupa"
-                     };
-                 }
+        if (currentFixture.week === 104 && currentFixture.competitionId === 'CUP' && res === 'WIN') {
+            // Cup Final
+            const t = updatedTeams.find(x => x.id === myTeamId);
+            if(t) {
+                wonTrophy = {
+                    teamId: t.id,
+                    teamName: t.name,
+                    logo: t.logo,
+                    colors: t.colors,
+                    season: new Date(gameState.currentDate).getFullYear().toString()
+                };
+                t.domesticCups++;
+                updatedManager.stats.domesticCups++;
+                updatedManager.stats.trophies++;
             }
-        }
-        
-        // 2. DOMESTIC CUP (Week 104)
-        if (res === 'WIN' && currentFixture.competitionId === 'CUP') {
-            if (currentFixture.week === 104) {
-                 const myTeamRef = teamsWithUpdatedStats.find(t => t.id === myTeamId);
-                 if (myTeamRef) {
-                     myTeamRef.domesticCups += 1; 
-                     updatedManager.stats.domesticCups += 1;
-                     updatedManager.stats.trophies += 1; 
-                     updatedManager.trust.board = Math.min(100, updatedManager.trust.board + 20);
-                     updatedManager.trust.fans = Math.min(100, updatedManager.trust.fans + 20);
-                     
-                     wonTrophy = {
-                        teamId: myTeamRef.id,
-                        teamName: myTeamRef.name,
-                        logo: myTeamRef.logo,
-                        colors: myTeamRef.colors,
-                        season: "2025/26 Hayvanlar Kupası"
-                     };
-                 }
+        } else if (currentFixture.week === 91 && currentFixture.competitionId === 'SUPER_CUP' && res === 'WIN') {
+             // Super Cup Final
+             const t = updatedTeams.find(x => x.id === myTeamId);
+             if(t) {
+                wonTrophy = {
+                    teamId: t.id,
+                    teamName: t.name,
+                    logo: t.logo,
+                    colors: t.colors,
+                    season: new Date(gameState.currentDate).getFullYear().toString()
+                };
+                t.superCups++;
+                // Manager stats for super cup? usually counts as domestic or trophy.
+                updatedManager.stats.trophies++;
+            }
+        } else if (currentFixture.week === 217 && currentFixture.competitionId === 'EUROPE' && res === 'WIN') {
+            // Euro Final
+             const t = updatedTeams.find(x => x.id === myTeamId);
+             if(t) {
+                wonTrophy = {
+                    teamId: t.id,
+                    teamName: t.name,
+                    logo: t.logo,
+                    colors: t.colors,
+                    season: new Date(gameState.currentDate).getFullYear().toString()
+                };
+                t.europeanCups++;
+                updatedManager.stats.europeanCups++;
+                updatedManager.stats.trophies++;
+            }
+        } else if (currentFixture.competitionId === 'PLAYOFF_FINAL' && res === 'WIN') {
+            // Playoff Final (Promotion)
+             const t = updatedTeams.find(x => x.id === myTeamId);
+             if(t) {
+                wonTrophy = {
+                    teamId: t.id,
+                    teamName: t.name,
+                    logo: t.logo,
+                    colors: t.colors,
+                    season: new Date(gameState.currentDate).getFullYear().toString()
+                };
+                // Not really a major trophy in stats usually but counts as success
+                updatedManager.stats.trophies++; // Promotion trophy
             }
         }
 
-        const matchTweets = generateMatchTweets(completedFixture, teamsWithUpdatedStats, true);
-        
-        if (updatedManager.trust.board < 30) {
-             coreSetters.setGameOverReason("Yönetim kurulu acil toplantısı sonrası görevine son verildi. Gerekçe: Başarısız sonuçlar ve güven kaybı.");
-             navigation.setViewHistory(['game_over']);
-             navigation.setHistoryIndex(0);
-        } else if (updatedManager.trust.fans < 35) {
-             coreSetters.setGameOverReason("Taraftar baskısı dayanılmaz hale geldi. Yönetim, taraftarların isteği üzerine sözleşmeni feshetti.");
-             navigation.setViewHistory(['game_over']);
-             navigation.setHistoryIndex(0);
+        if (wonTrophy) {
+            updatedManager.trust.board = 100;
+            updatedManager.trust.fans = 100;
         }
 
-        setGameState(prev => ({ 
-            ...prev, 
-            fixtures: updatedFixtures, 
-            teams: teamsWithUpdatedStats, 
-            manager: updatedManager, 
-            news: [...matchTweets, ...prev.news],
-            activeFixtureId: null // CLEAR LOCK
-        }));
-        
-        // Pass wonTrophy and competitionId in extra data
-        coreSetters.setMatchResultData({ 
-            homeTeam: homeTeam, 
-            awayTeam: awayTeam, 
-            homeScore: hScore, 
-            awayScore: aScore, 
-            stats: updatedStats, 
+        // Save Result Data for Modal
+        coreSetters.setMatchResultData({
+            homeTeam: updatedTeams.find(t => t.id === currentFixture.homeTeamId),
+            awayTeam: updatedTeams.find(t => t.id === currentFixture.awayTeamId),
+            homeScore: hScore,
+            awayScore: aScore,
+            stats: stats,
             events: events,
-            wonTrophy: wonTrophy,
-            competitionId: currentFixture.competitionId // ADDED
+            competitionId: currentFixture.competitionId
         });
-        
-        const newHistory = navigation.viewHistory.slice(0, navigation.historyIndex);
-        newHistory.push('match_result');
-        navigation.setViewHistory(newHistory);
-        navigation.setHistoryIndex(newHistory.length - 1);
+
+        setGameState(prev => ({
+            ...prev,
+            fixtures: prev.fixtures.map(f => f.id === fId ? updatedFixture : f),
+            teams: updatedTeams,
+            manager: updatedManager,
+            seasonChampion: wonTrophy || prev.seasonChampion,
+            activeFixtureId: null // Clear active match
+        }));
+
+        navigation.navigateTo('match_result');
     };
 
-    const handleFastSimulate = (specificFixtureId?: string) => {
-        let currentFixture;
-        if (specificFixtureId) {
-            currentFixture = gameState.fixtures.find(f => f.id === specificFixtureId);
-        } else {
-            currentFixture = gameState.fixtures.find(f => (f.homeTeamId === gameState.myTeamId || f.awayTeamId === gameState.myTeamId) && !f.played);
-        }
+    const handleFastSimulate = (fixtureId?: string) => {
+        const fId = fixtureId || gameState.activeFixtureId;
+        if (!fId) return;
 
-        if (!currentFixture || !gameState.myTeamId) return;
+        const fixture = gameState.fixtures.find(f => f.id === fId);
+        if (!fixture) return;
+
+        const homeTeam = gameState.teams.find(t => t.id === fixture.homeTeamId)!;
+        const awayTeam = gameState.teams.find(t => t.id === fixture.awayTeamId)!;
         
-        const homeTeam = gameState.teams.find(t => t.id === currentFixture.homeTeamId)!;
-        const awayTeam = gameState.teams.find(t => t.id === currentFixture.awayTeamId)!;
-        
-        // UPDATED: Central Knockout Logic for Fast Simulate
-        const isKnockout = ['SUPER_CUP', 'CUP', 'PLAYOFF', 'PLAYOFF_FINAL'].includes(currentFixture.competitionId) || (currentFixture.competitionId === 'EUROPE' && currentFixture.week > 208);
-        
-        const { homeScore, awayScore, stats, events } = simulateBackgroundMatch(homeTeam, awayTeam, isKnockout);
-        
-        handleMatchFinish(homeScore, awayScore, events, stats, currentFixture.id);
+        const isKnockout = ['CUP', 'SUPER_CUP', 'PLAYOFF', 'PLAYOFF_FINAL', 'EUROPE'].includes(fixture.competitionId || '');
+        const effectiveKnockout = isKnockout && (fixture.competitionId !== 'EUROPE' || fixture.week > 208); // Euro only KO after groups
+
+        const result = simulateBackgroundMatch(homeTeam, awayTeam, effectiveKnockout);
+
+        handleMatchFinish(result.homeScore, result.awayScore, result.events, result.stats, fId);
     };
 
     const handleInterviewComplete = (effect: any, relatedPlayerId?: string) => {
-        let newGameState = { ...gameState };
-        let myTeam = newGameState.teams.find(t => t.id === gameState.myTeamId)!;
-        
-        if (effect.teamMorale) {
-            myTeam = { ...myTeam, players: myTeam.players.map(p => ({ ...p, morale: Math.max(0, Math.min(100, p.morale + effect.teamMorale)) })), morale: Math.max(0, Math.min(100, myTeam.morale + effect.teamMorale)) };
-        }
-        if (effect.playerMorale && relatedPlayerId) {
-            const pIndex = myTeam.players.findIndex(p => p.id === relatedPlayerId);
-            if (pIndex !== -1) {
-                const p = myTeam.players[pIndex];
-                myTeam.players[pIndex] = { ...p, morale: Math.max(0, Math.min(100, p.morale + effect.playerMorale)) };
+        setGameState(prev => {
+            let updatedManager = { ...prev.manager! };
+            let updatedTeams = [...prev.teams];
+
+            if (effect.trustUpdate) {
+                if (effect.trustUpdate.board) updatedManager.trust.board = Math.max(0, Math.min(100, updatedManager.trust.board + effect.trustUpdate.board));
+                if (effect.trustUpdate.fans) updatedManager.trust.fans = Math.max(0, Math.min(100, updatedManager.trust.fans + effect.trustUpdate.fans));
+                if (effect.trustUpdate.players) updatedManager.trust.players = Math.max(0, Math.min(100, updatedManager.trust.players + effect.trustUpdate.players));
+                if (effect.trustUpdate.referees) updatedManager.trust.referees = Math.max(0, Math.min(100, updatedManager.trust.referees + effect.trustUpdate.referees));
+                if (effect.trustUpdate.media) updatedManager.trust.media = Math.max(0, Math.min(100, (updatedManager.trust.media || 50) + effect.trustUpdate.media));
             }
-        }
-        if (effect.trustUpdate && newGameState.manager) {
-            const trust = { ...newGameState.manager.trust };
-            if (effect.trustUpdate.board) trust.board = Math.max(0, Math.min(100, trust.board + effect.trustUpdate.board));
-            if (effect.trustUpdate.fans) trust.fans = Math.max(0, Math.min(100, trust.fans + effect.trustUpdate.fans));
-            if (effect.trustUpdate.players) trust.players = Math.max(0, Math.min(100, trust.players + effect.trustUpdate.players));
-            if (effect.trustUpdate.referees) trust.referees = Math.max(0, Math.min(100, trust.referees + effect.trustUpdate.referees));
-            if (effect.trustUpdate.media) trust.media = Math.max(0, Math.min(100, (trust.media || 50) + effect.trustUpdate.media));
-            newGameState.manager = { ...newGameState.manager, trust };
-        }
-        
-        newGameState.teams = newGameState.teams.map(t => t.id === myTeam.id ? myTeam : t);
-        setGameState(newGameState);
-        navigation.resetTo('home');
-        
-        coreSetters.setMatchResultData(null);
+
+            if (effect.teamMorale) {
+                const myTeamIndex = updatedTeams.findIndex(t => t.id === prev.myTeamId);
+                if (myTeamIndex !== -1) {
+                    updatedTeams[myTeamIndex] = {
+                        ...updatedTeams[myTeamIndex],
+                        players: updatedTeams[myTeamIndex].players.map(p => ({
+                            ...p,
+                            morale: Math.max(0, Math.min(100, p.morale + effect.teamMorale))
+                        })),
+                        morale: Math.max(0, Math.min(100, updatedTeams[myTeamIndex].morale + effect.teamMorale))
+                    };
+                }
+            }
+            
+            if (effect.playerMorale && relatedPlayerId) {
+                const myTeamIndex = updatedTeams.findIndex(t => t.id === prev.myTeamId);
+                if (myTeamIndex !== -1) {
+                     updatedTeams[myTeamIndex] = {
+                        ...updatedTeams[myTeamIndex],
+                        players: updatedTeams[myTeamIndex].players.map(p => {
+                            if (p.id === relatedPlayerId) {
+                                return { ...p, morale: Math.max(0, Math.min(100, p.morale + effect.playerMorale)) };
+                            }
+                            return p;
+                        })
+                    };
+                }
+            }
+
+            return {
+                ...prev,
+                manager: updatedManager,
+                teams: updatedTeams
+            };
+        });
+
+        navigation.navigateTo('home'); // Return to home after interview
+        coreSetters.setMatchResultData(null); // Clear result data
     };
 
     const handleSkipInterview = () => {
-        if (!gameState.manager) return;
-        const newManager = { ...gameState.manager };
-        newManager.trust.media = Math.max(0, newManager.trust.media - 3);
-        setGameState(prev => ({ ...prev, manager: newManager }));
-        navigation.resetTo('home');
+        // Penalty for skipping: -3 Media Trust
+        setGameState(prev => ({
+            ...prev,
+            manager: {
+                ...prev.manager!,
+                trust: {
+                    ...prev.manager!.trust,
+                    media: Math.max(0, (prev.manager!.trust.media || 50) - 3)
+                }
+            }
+        }));
+        navigation.navigateTo('home');
         coreSetters.setMatchResultData(null);
     };
 

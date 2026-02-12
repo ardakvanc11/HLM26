@@ -1,47 +1,176 @@
 
-import React from 'react';
-import { Trophy, History } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Trophy, History, Medal, Star, List, Scroll, Award, TrendingUp, Users, Maximize2, X, AlertCircle, StarHalf, Goal, Shield, Activity, TrendingDown, Clock, ArrowRight, ChevronDown, ArrowUp, ArrowDown, Minus, Globe, CalendarDays, CheckCircle2, User, Hand, ChevronRight, Briefcase, Target } from 'lucide-react';
+import { Player, Position, PlayerPersonality, Team, Fixture } from '../../types';
+import PlayerFace from '../shared/PlayerFace';
+import { FACE_ASSETS, COUNTRY_CODES } from '../../data/uiConstants';
+
+// Sub Components
+import { RecordsCard, RecordsModalContent } from './about/RecordsCard';
+import { ChampionsCard, ChampionsModalContent } from './about/ChampionsCard';
+import { RankingsCard, RankingsModalContent } from './about/RankingsCard';
+import { AwardsCard } from './about/AwardsCard';
+import { AwardsPodium } from './about/AwardsPodium';
+import { RulesModal } from './about/RulesModal';
 
 interface CompetitionAboutTabProps {
     competitionId: string;
     competitionName: string;
+    teams?: Team[]; // Now Optional but expected
+    fixtures?: Fixture[]; // Now Optional but expected
 }
 
-const CompetitionAboutTab: React.FC<CompetitionAboutTabProps> = ({ competitionId, competitionName }) => {
+const CompetitionAboutTab: React.FC<CompetitionAboutTabProps> = ({ competitionId, competitionName, teams = [], fixtures = [] }) => {
+    const [openDetail, setOpenDetail] = useState<string | null>(null);
+
+    // --- HISTORY AGGREGATION LOGIC (Required for Champions) ---
+    const fullHistory = useMemo(() => {
+        const historyMap: Record<string, { first: Team | null, second: Team | null, third: Team | null }> = {};
+        
+        let teamsToProcess = teams;
+        if (competitionId === 'LEAGUE') {
+            teamsToProcess = teams.filter(t => t.leagueId === 'LEAGUE' || !t.leagueId);
+        } else if (competitionId === 'LEAGUE_1') {
+            teamsToProcess = teams.filter(t => t.leagueId === 'LEAGUE_1');
+        }
+
+        teamsToProcess.forEach(team => {
+             if (team.leagueHistory) {
+                 team.leagueHistory.forEach(h => {
+                     if (!historyMap[h.year]) {
+                         historyMap[h.year] = { first: null, second: null, third: null };
+                     }
+                     if (h.rank === 1) historyMap[h.year].first = team;
+                     if (h.rank === 2) historyMap[h.year].second = team;
+                     if (h.rank === 3) historyMap[h.year].third = team;
+                 });
+             }
+        });
+
+        return Object.entries(historyMap)
+            .map(([year, ranks]) => ({ year, ...ranks }))
+            .sort((a, b) => parseInt(b.year.split('/')[0]) - parseInt(a.year.split('/')[0]));
+    }, [teams, competitionId]);
+
+    const getDetailTitle = (id: string) => {
+        switch(id) {
+            case 'RECORDS': return 'Detaylı Rekorlar';
+            case 'CHAMPIONS': return 'Tüm Şampiyonlar';
+            case 'AWARDS': return 'Ödül Kazananlar';
+            case 'RANKINGS': return 'Lig Sıralaması';
+            case 'RULES': return 'Kural Kitapçığı';
+            default: return 'Detay';
+        }
+    };
+
+    const isLeague = competitionId === 'LEAGUE' || competitionId === 'LEAGUE_1';
+
     return (
-        <div className="p-8 h-full overflow-y-auto custom-scrollbar bg-[#1b1b1b] text-slate-300">
-            <div className="max-w-3xl mx-auto space-y-8">
-                <div>
-                    <h3 className="text-2xl font-bold text-white mb-2 font-teko uppercase tracking-wide border-b border-[#333] pb-2">{competitionName} Hakkında</h3>
-                    <p className="leading-relaxed text-sm">
-                        {competitionId === 'LEAGUE' && "Türkiye'nin en üst düzey futbol ligidir. 18 takımın mücadele ettiği ligde şampiyon olan takım ve ilk sıraları alan takımlar Avrupa kupalarına katılmaya hak kazanır. Son 3 sıradaki takımlar 1. Lig'e düşer."}
-                        {competitionId === 'LEAGUE_1' && "Türkiye futbol sisteminin ikinci seviyesidir. İlk 2 takım doğrudan Süper Lig'e yükselirken, 3., 4., 5. ve 6. sıradaki takımlar Play-Off oynar."}
-                        {competitionId === 'CUP' && "Türkiye'deki tüm profesyonel takımların katıldığı eleme usulü turnuvadır. Kazanan takım Avrupa kupalarına katılma hakkı ve Süper Kupa finali oynama hakkı elde eder."}
-                        {competitionId === 'SUPER_CUP' && "Lig şampiyonu ile Türkiye Kupası şampiyonunun karşılaştığı, sezonun en prestijli tek maçlık finalidir."}
-                        {competitionId === 'EUROPE' && "Kıtanın en iyi takımlarının mücadele ettiği en büyük organizasyon. Lig usulü grup aşaması ve ardından gelen eleme turları ile şampiyon belirlenir."}
-                    </p>
+        <div className="p-4 md:p-8 h-full overflow-y-auto custom-scrollbar bg-[#1b1b1b] text-slate-300 relative">
+            
+            {/* DETAIL MODAL OVERLAY (RECORDS & OTHER DETAILS) */}
+            {openDetail && (
+                <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setOpenDetail(null)}>
+                    
+                    {/* The Record Viewer Modal */}
+                    <div className="bg-[#1e232e] w-full max-w-4xl h-[85vh] rounded-xl border border-slate-700 shadow-2xl flex flex-col relative overflow-hidden" onClick={e => e.stopPropagation()}>
+                        
+                        {/* Header */}
+                        <div className="p-4 border-b border-slate-700 bg-[#161a1f] flex justify-between items-center shrink-0">
+                            <h3 className="font-bold text-white uppercase tracking-wider flex items-center gap-2 text-xl font-teko">
+                                <List size={24} className="text-[#ff9f43]"/> {getDetailTitle(openDetail)}
+                            </h3>
+                            <button onClick={() => setOpenDetail(null)} className="text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full transition border border-slate-600">
+                                <X size={20}/>
+                            </button>
+                        </div>
+                        
+                        {/* CONTENT SWITCHING BASED ON TYPE */}
+                        {openDetail === 'RECORDS' ? (
+                            <RecordsModalContent competitionId={competitionId} teams={teams} fixtures={fixtures} />
+                        ) : openDetail === 'AWARDS' ? (
+                            <AwardsPodium teams={teams} />
+                        ) : openDetail === 'RANKINGS' ? (
+                            <RankingsModalContent />
+                        ) : openDetail === 'CHAMPIONS' ? (
+                            <ChampionsModalContent fullHistory={fullHistory} isLeague={isLeague} />
+                        ) : openDetail === 'RULES' ? (
+                            <RulesModal competitionId={competitionId} />
+                        ) : (
+                            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                                <div className="bg-slate-800 p-4 rounded-full mb-4">
+                                    <AlertCircle size={48} className="text-slate-500"/>
+                                </div>
+                                <h4 className="text-lg font-bold text-white mb-2">İçerik Hazırlanıyor</h4>
+                                <p className="text-slate-400 text-sm">Bu bölümdeki detaylı veriler yakında eklenecektir.</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
+            )}
+
+            <div className="w-full space-y-6 pb-10">
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="bg-[#252525] p-6 rounded-xl border border-[#333]">
-                        <h4 className="text-[#ff9f43] font-bold text-sm uppercase mb-4 flex items-center gap-2"><Trophy size={16}/> Ödüller & Kurallar</h4>
-                        <ul className="space-y-2 text-xs">
-                            <li className="flex gap-2"><div className="w-1.5 h-1.5 bg-slate-500 rounded-full mt-1.5"></div><span>3 Puan Sistemi uygulanır.</span></li>
-                            <li className="flex gap-2"><div className="w-1.5 h-1.5 bg-slate-500 rounded-full mt-1.5"></div><span>Eşitlik halinde ikili averaj, sonra genel averaj.</span></li>
-                            <li className="flex gap-2"><div className="w-1.5 h-1.5 bg-slate-500 rounded-full mt-1.5"></div><span>Sarı kart cezası sınırı 4 karttır.</span></li>
-                            <li className="flex gap-2"><div className="w-1.5 h-1.5 bg-slate-500 rounded-full mt-1.5"></div><span>Devre arası ve sezon sonu transfer dönemleri vardır.</span></li>
-                        </ul>
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-[#333] pb-4 mb-2">
+                    <div>
+                        <h3 className="text-3xl font-bold text-white mb-1 font-teko uppercase tracking-wide">{competitionName}</h3>
+                        <p className="text-slate-500 text-sm">Detaylı Organizasyon Bilgileri</p>
+                    </div>
+                    {competitionId.includes('LEAGUE') ? <Trophy size={40} className="text-[#ff9f43] opacity-80"/> : <Star size={40} className="text-yellow-500 opacity-80"/>}
+                </div>
+
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    
+                    {/* LEFT COLUMN: Records & Past Champions */}
+                    <div className="flex flex-col gap-6">
+                        
+                        <RecordsCard 
+                            competitionId={competitionId} 
+                            teams={teams} 
+                            onOpenDetail={() => setOpenDetail('RECORDS')} 
+                        />
+
+                        <ChampionsCard 
+                            fullHistory={fullHistory} 
+                            onOpenDetail={() => setOpenDetail('CHAMPIONS')} 
+                        />
+
                     </div>
 
-                    <div className="bg-[#252525] p-6 rounded-xl border border-[#333]">
-                        <h4 className="text-[#ff9f43] font-bold text-sm uppercase mb-4 flex items-center gap-2"><History size={16}/> Tarihçe</h4>
-                        <div className="space-y-2 text-xs">
-                            <div className="flex justify-between border-b border-[#333] pb-1"><span>Kuruluş</span> <span className="text-white">1959</span></div>
-                            <div className="flex justify-between border-b border-[#333] pb-1"><span>En Çok Şampiyon</span> <span className="text-white">Eşşekboğanspor FK</span></div>
-                            <div className="flex justify-between border-b border-[#333] pb-1"><span>Son Şampiyon</span> <span className="text-white text-right">Ayıboğanspor SK</span></div>
-                        </div>
+                    {/* RIGHT COLUMN: Rankings & Awards */}
+                    <div className="flex flex-col gap-6">
+
+                        <RankingsCard 
+                            competitionId={competitionId} 
+                            onOpenDetail={() => setOpenDetail('RANKINGS')} 
+                        />
+
+                        <AwardsCard 
+                            onOpenDetail={() => setOpenDetail('AWARDS')} 
+                        />
+
                     </div>
                 </div>
+
+                {/* 5. KUTUCUK: LİG KURALLARI (EN ALTTA, TAM GENİŞLİK) */}
+                <div 
+                    onClick={() => setOpenDetail('RULES')}
+                    className="bg-[#252525] rounded-2xl border border-[#333] overflow-hidden shadow-lg group hover:border-red-500/50 transition-all duration-300 relative cursor-pointer hover:scale-[1.01]"
+                >
+                     {/* Detay Butonu */}
+                    <button className="absolute top-4 right-4 z-20 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg transition-transform hover:scale-105 pointer-events-none">
+                        <Maximize2 size={14} /> Detaylı Gör
+                    </button>
+
+                    <div className="bg-[#2a2f38] p-4 flex items-center gap-3">
+                        <div className="bg-red-500/20 p-2 rounded-lg text-red-500">
+                            <Scroll size={20}/>
+                        </div>
+                        <h4 className="text-white font-bold text-lg uppercase tracking-wider">Lig Kuralları</h4>
+                    </div>
+                </div>
+
             </div>
         </div>
     );

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Team, TrainingConfig, TrainingType, TrainingIntensity, Player, ManagerProfile, TrainingReportItem } from '../types';
-import { Check, Swords, Shield, Dumbbell, Brain, Crosshair, Zap, Activity, Users, AlertTriangle, Calendar, Info, Play, ClipboardList, TrendingUp, Target, UserCheck, ToggleLeft, ToggleRight, Lock, Trophy, Frown } from 'lucide-react';
+import { Check, Swords, Shield, Dumbbell, Brain, Crosshair, Zap, Activity, Users, AlertTriangle, Calendar, Info, Play, ClipboardList, TrendingUp, Target, UserCheck, ToggleLeft, ToggleRight, Lock, Trophy, Frown, Heart, Smile } from 'lucide-react';
 import PlayerFace from '../components/shared/PlayerFace';
 
 interface TrainingViewProps {
@@ -32,6 +32,16 @@ const TrainingView: React.FC<TrainingViewProps> = ({ onTrain, performed, team, m
     
     const assistantQuality = assistant ? assistant.value : 50;
     const fitnessQuality = fitnessCoach ? fitnessCoach.value : 50;
+
+    // Calculate Team Averages for new Panel
+    const avgMorale = Math.round(team.players.reduce((acc, p) => acc + p.morale, 0) / team.players.length);
+    const avgCondition = Math.round(team.players.reduce((acc, p) => acc + (p.condition !== undefined ? p.condition : p.stats.stamina), 0) / team.players.length);
+
+    const getStatusColor = (val: number) => {
+        if (val >= 80) return 'bg-green-500 text-green-500';
+        if (val >= 50) return 'bg-yellow-500 text-yellow-500';
+        return 'bg-red-500 text-red-500';
+    };
 
     const trainingOptions = [
         { 
@@ -266,6 +276,46 @@ const TrainingView: React.FC<TrainingViewProps> = ({ onTrain, performed, team, m
                         </div>
                     </div>
 
+                    {/* NEW: TEAM STATUS PANEL (MORALE & CONDITION) */}
+                    <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 min-h-[240px] flex flex-col justify-center">
+                        <h3 className="text-sm font-bold text-slate-400 uppercase mb-5 flex items-center gap-2">
+                           <Users size={16} className="text-blue-500"/> Takım Genel Durumu
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {/* Morale Bar */}
+                            <div>
+                                 <div className="flex justify-between items-end mb-2">
+                                     <div className="flex items-center gap-2 font-bold text-slate-300 text-xs uppercase">
+                                         <Smile size={16} className={getStatusColor(avgMorale).split(' ')[1]}/> Takım Morali
+                                     </div>
+                                     <span className={`font-black text-lg ${getStatusColor(avgMorale).split(' ')[1]}`}>%{avgMorale}</span>
+                                 </div>
+                                 <div className="h-3 bg-slate-700 rounded-full overflow-hidden shadow-inner">
+                                     <div className={`h-full ${getStatusColor(avgMorale).split(' ')[0]} transition-all duration-1000 ease-out`} style={{width: `${avgMorale}%`}}></div>
+                                 </div>
+                                 <p className="text-[10px] text-slate-500 mt-1.5 italic">
+                                     {avgMorale > 80 ? "Oyuncuların morali çok yüksek, antrenman verimi artıyor." : avgMorale < 50 ? "Takımda mutsuzluk hakim, gelişim yavaşlıyor." : "Moral seviyesi dengeli."}
+                                 </p>
+                            </div>
+                            
+                            {/* Condition Bar */}
+                            <div>
+                                 <div className="flex justify-between items-end mb-2">
+                                     <div className="flex items-center gap-2 font-bold text-slate-300 text-xs uppercase">
+                                         <Heart size={16} className={getStatusColor(avgCondition).split(' ')[1]} fill="currentColor"/> Fiziksel Kondisyon
+                                     </div>
+                                     <span className={`font-black text-lg ${getStatusColor(avgCondition).split(' ')[1]}`}>%{avgCondition}</span>
+                                 </div>
+                                 <div className="h-3 bg-slate-700 rounded-full overflow-hidden shadow-inner">
+                                     <div className={`h-full ${getStatusColor(avgCondition).split(' ')[0]} transition-all duration-1000 ease-out`} style={{width: `${avgCondition}%`}}></div>
+                                 </div>
+                                 <p className="text-[10px] text-slate-500 mt-1.5 italic">
+                                     {avgCondition > 85 ? "Takım zinde, ağır antrenmanları kaldırabilir." : avgCondition < 60 ? "Oyuncular yorgun, dinlenme veya hafif antrenman önerilir." : "Kondisyon seviyesi maç temposu için ideal."}
+                                 </p>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
 
                 {/* RIGHT: STAFF & PLAYERS (Col 4) */}
@@ -390,7 +440,7 @@ const TrainingView: React.FC<TrainingViewProps> = ({ onTrain, performed, team, m
                     </div>
 
                     {/* Development Center Link */}
-                    <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 flex flex-col items-center text-center">
+                    <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 flex flex-col items-center text-center justify-center min-h-[240px]">
                         <div className="bg-blue-900/30 p-3 rounded-full mb-3 text-blue-400">
                             <TrendingUp size={32}/>
                         </div>

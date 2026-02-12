@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Team, Player, Mentality, PassingStyle, Tempo, Width, AttackingTransition, CreativeFreedom, SetPiecePlay, PlayStrategy, GoalKickType, GKDistributionTarget, SupportRuns, Dribbling, FocusArea, PassTarget, Patience, LongShots, CrossingType, GKDistributionSpeed, PressingLine, DefensiveLine, DefLineMobility, PressIntensity, DefensiveTransition, Tackling, PreventCrosses, PressingFocus, Position, SetPieceTakers, TimeWasting, GameSystem } from '../types';
 import PitchVisual from '../components/shared/PitchVisual';
@@ -66,7 +65,6 @@ const MENTALITY_INFO: Record<Mentality, { label: string, desc: string, color: st
 };
 
 // --- FORMATION DATA ---
-// Added new formations. Descriptions removed as requested from UI, but keys kept for logic.
 const FORMATION_INFO: Record<string, { label: string, desc: string, color: string, icon: any }> = {
     '4-4-2': { label: "4-4-2", desc: "", color: "text-emerald-400", icon: LayoutTemplate },
     '4-3-3': { label: "4-3-3", desc: "", color: "text-blue-400", icon: LayoutTemplate },
@@ -289,15 +287,11 @@ interface CompactPlayerRowProps {
 
 const CompactPlayerRow: React.FC<CompactPlayerRowProps> = ({ p, index, onClick, isSelected, label, currentWeek, isReserve, isForcedSub, competitionId, isRedCarded }) => {
     let isSuspended = false;
-    
-    // Check specific competition if provided
-    // If competitionId is empty, we default to LEAGUE logic or safety check
     const effectiveCompId = competitionId || 'LEAGUE';
 
     if (p.suspensions && p.suspensions[effectiveCompId] && p.suspensions[effectiveCompId] > 0) {
         isSuspended = true;
     } else {
-        // Fallback for legacy data or mismatched IDs
         isSuspended = (p.suspendedUntilWeek && currentWeek && p.suspendedUntilWeek > currentWeek) || false;
     }
 
@@ -338,7 +332,7 @@ const CompactPlayerRow: React.FC<CompactPlayerRowProps> = ({ p, index, onClick, 
                 ${isForcedSub ? 'bg-red-900/40 border-red-500 animate-pulse ring-1 ring-red-500' : 
                   isSelected ? 'bg-yellow-600/20 border-slate-800/50' : 
                   isRedCarded ? 'bg-red-950/60 border-red-900 opacity-80 grayscale-[50%]' :
-                  isUnavailable ? 'bg-red-500/20 border-red-500/40' : // RED HIGHLIGHT FOR UNAVAILABLE
+                  isUnavailable ? 'bg-red-500/20 border-red-500/40' : 
                   'hover:bg-slate-800 bg-slate-900 border-slate-800/50'} 
                 ${isUnavailable && !isRedCarded ? 'opacity-95' : ''}
             `}
@@ -415,12 +409,18 @@ const TacticsView = ({ team, setTeam, compact = false, isMatchActive = false, su
     const [showSystemSelector, setShowSystemSelector] = useState(false);
     const [modalData, setModalData] = useState<{isOpen: boolean; key: string; title: string; currentVal: string; options: string[];}>({ isOpen: false, key: '', title: '', currentVal: '', options: [] });
 
-    // Ensure we have a valid competition ID (default to LEAGUE)
+    // Ensure we have a valid competition ID
     const effectiveCompId = matchCompetitionId || 'LEAGUE';
 
     useEffect(() => { if (!team.gameSystem && !isMatchActive) setShowSystemSelector(true); }, [team.gameSystem, isMatchActive]);
 
+    // DERIVED STATS FOR HEADER BARS
+    const startingXI = team.players.slice(0, 11);
     const teamChemistry = Math.round((team.morale + team.strength) / 2);
+    const avgCondition = Math.round(startingXI.reduce((sum, p) => sum + (p.condition !== undefined ? p.condition : p.stats.stamina), 0) / 11);
+    // Yatkınlık (Proxy: Morale/Skill weighted or a constant adaptation value if we had one, let's use a formula)
+    const avgFamiliarity = Math.round(team.morale * 0.8 + (team.strength / 100) * 20);
+
     const openTacticModal = (key: string, title: string, currentVal: string, options: string[]) => setModalData({ isOpen: true, key, title, currentVal, options });
     const handleApplySystem = (system: GameSystem) => { const preset = TACTICAL_PRESETS[system]; if (preset) { setTeam({ ...team, ...preset }); setShowSystemSelector(false); } };
 
@@ -456,7 +456,6 @@ const TacticsView = ({ team, setTeam, compact = false, isMatchActive = false, su
         setTeam({ ...team, ...update });
     };
 
-    // FORMASYON BAZLI MEVKİ GEREKSİNİMLERİ (DİNAMİK SEÇİM İÇİN)
     const getFormationPosRequirements = (formation: string): Position[] => {
         switch(formation) {
             case '4-4-2': return [Position.GK, Position.SLB, Position.STP, Position.STP, Position.SGB, Position.SLK, Position.OS, Position.OS, Position.SGK, Position.SNT, Position.SNT];
@@ -465,7 +464,6 @@ const TacticsView = ({ team, setTeam, compact = false, isMatchActive = false, su
             case '4-1-4-1': return [Position.GK, Position.SLB, Position.STP, Position.STP, Position.SGB, Position.OS, Position.SLK, Position.OS, Position.OS, Position.SGK, Position.SNT];
             case '3-5-2': return [Position.GK, Position.STP, Position.STP, Position.STP, Position.SLB, Position.OS, Position.OS, Position.OS, Position.SGB, Position.SNT, Position.SNT];
             case '5-3-2': return [Position.GK, Position.SLB, Position.STP, Position.STP, Position.STP, Position.SGB, Position.OS, Position.OS, Position.OS, Position.SNT, Position.SNT];
-            // New Formations
             case '3-2-4-1': return [Position.GK, Position.STP, Position.STP, Position.STP, Position.OS, Position.OS, Position.SLK, Position.OOS, Position.OOS, Position.SGK, Position.SNT];
             case '4-2-2-2': return [Position.GK, Position.SLB, Position.STP, Position.STP, Position.SGB, Position.OS, Position.OS, Position.OOS, Position.OOS, Position.SNT, Position.SNT];
             case '4-2-4': return [Position.GK, Position.SLB, Position.STP, Position.STP, Position.SGB, Position.OS, Position.OS, Position.SLK, Position.SGK, Position.SNT, Position.SNT];
@@ -481,26 +479,14 @@ const TacticsView = ({ team, setTeam, compact = false, isMatchActive = false, su
         team.players.forEach(p => {
             const isInjured = p.injury && p.injury.daysRemaining > 0;
             let isSuspended = false;
-            
-            if (p.suspensions && p.suspensions[effectiveCompId] && p.suspensions[effectiveCompId] > 0) {
-                isSuspended = true;
-            } else if (p.suspendedUntilWeek && currentWeek && p.suspendedUntilWeek > currentWeek) {
-                isSuspended = true;
-            }
-
-            // RED CARD CHECK FOR AUTO PICK (if match is active)
+            if (p.suspensions && p.suspensions[effectiveCompId] && p.suspensions[effectiveCompId] > 0) isSuspended = true;
+            else if (p.suspendedUntilWeek && currentWeek && p.suspendedUntilWeek > currentWeek) isSuspended = true;
             const isRed = redCardedPlayerIds.includes(p.id);
-
             if (isInjured || isSuspended || isRed) unavailablePlayers.push(p); else availablePool.push(p);
         });
-
-        // Havuzu güce göre sırala (En iyiler en başta)
         availablePool.sort((a, b) => b.skill - a.skill);
-
         const newStartingXI: (Player | null)[] = new Array(11).fill(null);
         const requirements = getFormationPosRequirements(team.formation);
-
-        // AŞAMA 1: Ana mevkilerine göre yerleştir (Öncelik SLK'nın SLK olması gibi)
         requirements.forEach((reqPos, index) => {
             let candidateIndex = availablePool.findIndex(p => p.position === reqPos);
             if (candidateIndex !== -1) {
@@ -508,8 +494,6 @@ const TacticsView = ({ team, setTeam, compact = false, isMatchActive = false, su
                 availablePool.splice(candidateIndex, 1);
             }
         });
-
-        // AŞAMA 2: Boş kalan yerlere ikincil mevkilerine göre yerleştir
         newStartingXI.forEach((slot, index) => {
             if (slot === null) {
                 const reqPos = requirements[index];
@@ -520,15 +504,12 @@ const TacticsView = ({ team, setTeam, compact = false, isMatchActive = false, su
                 }
             }
         });
-
-        // AŞAMA 3: Hala boş yer varsa en iyi kalan oyuncuları sıradan yerleştir (Zorunlu doluluk)
         newStartingXI.forEach((slot, index) => {
             if (slot === null && availablePool.length > 0) {
                 newStartingXI[index] = availablePool[0];
                 availablePool.shift();
             }
         });
-
         const bench = availablePool.splice(0, 7);
         const finalRoster = [...(newStartingXI.filter(p => p !== null) as Player[]), ...bench, ...availablePool, ...unavailablePlayers];
         setTeam({ ...team, players: finalRoster });
@@ -538,58 +519,27 @@ const TacticsView = ({ team, setTeam, compact = false, isMatchActive = false, su
         if (!selectedPlayerId) setSelectedPlayerId(clickedPlayer.id); 
         else {
             if (selectedPlayerId === clickedPlayer.id) { setSelectedPlayerId(null); return; }
-            
             const idx1 = team.players.findIndex(p => p.id === selectedPlayerId);
             const idx2 = team.players.findIndex(p => p.id === clickedPlayer.id);
             if (idx1 !== -1 && idx2 !== -1) {
                 const p1 = team.players[idx1]; const p2 = team.players[idx2];
                 if (isMatchActive) {
                     const isPitch1 = idx1 < 11; const isPitch2 = idx2 < 11; const isBench1 = idx1 >= 11 && idx1 < 18; const isBench2 = idx2 >= 11 && idx2 < 18;
-                    
-                    // Determine who is coming ONTO the pitch
                     const playerComingOn = (idx1 >= 11 && idx2 < 11) ? p1 : (idx2 >= 11 && idx1 < 11) ? p2 : null;
-                    
-                    if (playerComingOn) {
-                        if (playerComingOn.injury && playerComingOn.injury.daysRemaining > 0) {
-                             alert("Sakatlanan oyuncu oyuna tekrar giremez!");
-                             setSelectedPlayerId(null);
-                             return;
-                        }
-                    }
-
-                    // --- RED CARD LOGIC: Prevent subbing OFF a red carded player ---
-                    const isRed1 = redCardedPlayerIds.includes(p1.id);
-                    const isRed2 = redCardedPlayerIds.includes(p2.id);
-
+                    if (playerComingOn && playerComingOn.injury && playerComingOn.injury.daysRemaining > 0) { alert("Sakatlanan oyuncu oyuna tekrar giremez!"); setSelectedPlayerId(null); return; }
+                    const isRed1 = redCardedPlayerIds.includes(p1.id); const isRed2 = redCardedPlayerIds.includes(p2.id);
                     if (isRed1 || isRed2) {
-                        // Allow position swap ON PITCH ONLY
                         if (isPitch1 && isPitch2) {
-                             const newPlayers = [...team.players]; 
-                             [newPlayers[idx1], newPlayers[idx2]] = [newPlayers[idx2], newPlayers[idx1]]; 
-                             setTeam({ ...team, players: newPlayers });
-                        } else {
-                            alert("Kırmızı kart gören oyuncu değiştirilemez, sadece saha içi pozisyonu değiştirilebilir!");
-                        }
-                        setSelectedPlayerId(null);
-                        return;
+                             const newPlayers = [...team.players]; [newPlayers[idx1], newPlayers[idx2]] = [newPlayers[idx2], newPlayers[idx1]]; setTeam({ ...team, players: newPlayers });
+                        } else alert("Kırmızı kart gören oyuncu değiştirilemez!");
+                        setSelectedPlayerId(null); return;
                     }
-
-                    // Allow swapping only if at least one is on pitch and other on bench/pitch
                     if ((isPitch1 && isBench2) || (isPitch2 && isBench1)) {
-                        // FORCE SUB LOGIC: If a forced sub is pending, one of the players MUST be the injured one
-                        if (forcedSubstitutionPlayerId) {
-                            if (p1.id !== forcedSubstitutionPlayerId && p2.id !== forcedSubstitutionPlayerId) {
-                                alert("Önce sakatlanan oyuncuyu değiştirmelisiniz!");
-                                setSelectedPlayerId(null);
-                                return;
-                            }
-                        }
-
+                        if (forcedSubstitutionPlayerId && p1.id !== forcedSubstitutionPlayerId && p2.id !== forcedSubstitutionPlayerId) { alert("Önce sakatlanan oyuncuyu değiştirmelisiniz!"); setSelectedPlayerId(null); return; }
                         if (subsUsed >= maxSubs) { alert(`Değişiklik hakkınız doldu! (Max: ${maxSubs})`); setSelectedPlayerId(null); return; }
                         if (onSubstitution) onSubstitution(isPitch1 ? p2 : p1, isPitch1 ? p1 : p2);
                         const newPlayers = [...team.players]; [newPlayers[idx1], newPlayers[idx2]] = [newPlayers[idx2], newPlayers[idx1]]; setTeam({ ...team, players: newPlayers });
                     } else if (isPitch1 && isPitch2) { 
-                         // Position swap on pitch is allowed even during forced sub
                          const newPlayers = [...team.players]; [newPlayers[idx1], newPlayers[idx2]] = [newPlayers[idx2], newPlayers[idx1]]; setTeam({ ...team, players: newPlayers }); 
                     } 
                     else { if (idx1 >= 18 || idx2 >= 18) alert("Maç sırasında kadro dışı oyuncularla işlem yapamazsınız."); }
@@ -598,9 +548,8 @@ const TacticsView = ({ team, setTeam, compact = false, isMatchActive = false, su
                         if (p.suspensions && p.suspensions[effectiveCompId] && p.suspensions[effectiveCompId] > 0) return true;
                         return p.suspendedUntilWeek && currentWeek && p.suspendedUntilWeek > currentWeek;
                     }
-
-                    if (idx2 < 18 && checkSuspension(p1)) { alert(`UYARI: ${p1.name} cezalı (${effectiveCompId})!`); setSelectedPlayerId(null); return; }
-                    if (idx1 < 18 && checkSuspension(p2)) { alert(`UYARI: ${p2.name} cezalı (${effectiveCompId})!`); setSelectedPlayerId(null); return; }
+                    if (idx2 < 18 && checkSuspension(p1)) { alert(`UYARI: ${p1.name} cezalı!`); setSelectedPlayerId(null); return; }
+                    if (idx1 < 18 && checkSuspension(p2)) { alert(`UYARI: ${p2.name} cezalı!`); setSelectedPlayerId(null); return; }
                     if (idx2 < 18 && p1.injury && p1.injury.daysRemaining > 0) { alert(`UYARI: ${p1.name} sakat!`); setSelectedPlayerId(null); return; }
                     if (idx1 < 18 && p2.injury && p2.injury.daysRemaining > 0) { alert(`UYARI: ${p2.name} sakat!`); setSelectedPlayerId(null); return; }
                     const newPlayers = [...team.players]; [newPlayers[idx1], newPlayers[idx2]] = [newPlayers[idx2], newPlayers[idx1]]; setTeam({ ...team, players: newPlayers });
@@ -635,24 +584,57 @@ const TacticsView = ({ team, setTeam, compact = false, isMatchActive = false, su
                         {isMatchActive && (<div className="bg-slate-700 px-4 py-1.5 rounded-full border border-slate-600 text-xs font-bold text-slate-300 flex items-center gap-2"><Timer size={14} className="text-red-500"/>{currentMinute}' / Değişiklik: <span className={`${subsUsed >= maxSubs ? 'text-red-500' : 'text-green-500'}`}>{subsUsed}/{maxSubs}</span></div>)}
                     </div>
                     {activeTab === 'XI' && (
-                        <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto justify-center lg:justify-end bg-slate-900/50 p-2 rounded-lg border border-slate-700">
+                        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-center lg:justify-end bg-slate-900/50 p-2 rounded-lg border border-slate-700">
                             
                             <FormationSelector 
                                 value={team.formation}
                                 onChange={(val) => setTeam({...team, formation: val})}
-                                disabled={isMatchActive && !!forcedSubstitutionPlayerId} // Disable if forced sub
+                                disabled={isMatchActive && !!forcedSubstitutionPlayerId}
                             />
 
-                            <div className="w-px h-6 bg-slate-700 mx-2"></div>
-                            
                             <MentalitySelector 
                                 value={team.mentality}
                                 onChange={(val) => setTeam({...team, mentality: val})}
                                 disabled={false}
                             />
                             
-                            <div className="w-px h-6 bg-slate-700 mx-2"></div>
-                            <div className="flex items-center gap-3 pr-2"><div className="text-right"><div className="text-[10px] font-bold text-slate-500 uppercase leading-none mb-0.5">Kimya</div><div className={`text-sm font-black leading-none ${teamChemistry > 80 ? 'text-green-500' : teamChemistry > 60 ? 'text-yellow-500' : 'text-red-500'}`}>{teamChemistry}%</div></div><div className="w-16 h-2 bg-slate-700 rounded-full overflow-hidden"><div className={`h-full ${teamChemistry > 80 ? 'bg-green-500' : teamChemistry > 60 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{width: `${teamChemistry}%`}}></div></div></div>
+                            <div className="w-px h-10 bg-slate-700 mx-2 hidden sm:block"></div>
+
+                            {/* DYNAMIC HEADER BARS - ENLARGED & REORDERED */}
+                            <div className="flex items-center gap-6 px-2">
+                                {/* Familiarity (Yatkınlık) - Moved to first position */}
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between items-center px-0.5">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-tight">Yatkınlık</span>
+                                        <span className="text-xs font-black text-blue-400">%{avgFamiliarity}</span>
+                                    </div>
+                                    <div className="w-20 sm:w-28 h-2.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700 shadow-inner">
+                                        <div className={`h-full ${avgFamiliarity > 80 ? 'bg-blue-500' : avgFamiliarity > 60 ? 'bg-blue-600' : 'bg-slate-600'} transition-all duration-700`} style={{width: `${avgFamiliarity}%`}}></div>
+                                    </div>
+                                </div>
+                                
+                                {/* Condition - Stays in middle */}
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between items-center px-0.5">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-tight">Kondisyon</span>
+                                        <span className="text-xs font-black text-green-400">%{avgCondition}</span>
+                                    </div>
+                                    <div className="w-20 sm:w-28 h-2.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700 shadow-inner">
+                                        <div className={`h-full ${avgCondition > 85 ? 'bg-green-500' : avgCondition > 70 ? 'bg-green-600' : 'bg-red-500'} transition-all duration-700`} style={{width: `${avgCondition}%`}}></div>
+                                    </div>
+                                </div>
+
+                                {/* Chemistry (Kimya) - Moved to third position */}
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between items-center px-0.5">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-tight">Kimya</span>
+                                        <span className="text-xs font-black text-slate-200">%{teamChemistry}</span>
+                                    </div>
+                                    <div className="w-20 sm:w-28 h-2.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700 shadow-inner">
+                                        <div className={`h-full ${teamChemistry > 80 ? 'bg-yellow-500' : teamChemistry > 60 ? 'bg-yellow-600' : 'bg-red-500'} transition-all duration-700`} style={{width: `${teamChemistry}%`}}></div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>

@@ -1,5 +1,4 @@
 
-
 import { Team, Fixture } from '../types';
 import { generateId, GAME_CALENDAR } from '../constants';
 
@@ -323,8 +322,12 @@ export const generateCupRoundFixtures = (teams: Team[], fixtures: Fixture[], rou
 
     // --- IDENTIFY PARTICIPANTS ---
     if (round === 'R32') {
-        // Filter out banned teams
-        pool = teams.filter(t => !t.cupBan);
+        // Filter out banned teams AND Ensure only Turkish teams participate
+        // This explicitly filters out teams that are in 'EUROPE_LEAGUE' (Foreign)
+        pool = teams.filter(t => 
+            !t.cupBan && 
+            (t.leagueId === 'LEAGUE' || t.leagueId === 'LEAGUE_1' || !t.leagueId)
+        );
     } else {
         // Find winners from previous round
         const prevWeek = round === 'R16' ? 100 : round === 'QF' ? 101 : round === 'SF' ? 102 : 103;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { GameState, Team, Player, Fixture, MatchEvent, MatchStats, PendingTransfer, IncomingOffer, BoardInteraction, TransferViewState, SquadViewState } from '../types';
+import { GameState, Team, Player, Fixture, MatchEvent, MatchStats, PendingTransfer, IncomingOffer, BoardInteraction, TransferViewState, SquadViewState, CompetitionViewState } from '../types';
 import { GAME_CALENDAR } from '../data/gameConstants';
 import { INITIAL_MESSAGES } from '../data/messagePool';
 
@@ -50,6 +50,7 @@ export const useCoreState = () => {
     // Persisted UI States (For back navigation)
     const [transferViewState, setTransferViewState] = useState<TransferViewState | null>(null);
     const [squadViewState, setSquadViewState] = useState<SquadViewState | null>(null);
+    const [competitionViewState, setCompetitionViewState] = useState<CompetitionViewState | null>(null);
 
     // Match UI States
     const [liveMatchPhase, setLiveMatchPhase] = useState<string>('FIRST_HALF');
@@ -92,6 +93,7 @@ export const useCoreState = () => {
         incomingTransfer, setIncomingTransfer,
         transferViewState, setTransferViewState,
         squadViewState, setSquadViewState,
+        competitionViewState, setCompetitionViewState,
         theme, toggleTheme,
         liveMatchPhase, setLiveMatchPhase,
         matchActionSignal, setMatchActionSignal

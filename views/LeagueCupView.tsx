@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Team, Fixture, Player } from '../types';
-import { Trophy, Globe, Shield, Star, Calendar, Eye, TrendingUp, BarChart, Clock, Swords, List, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Team, Fixture, Player, CompetitionViewState } from '../types';
+import { Trophy, Globe, Shield, Star, Calendar, Eye, TrendingUp, BarChart, Clock, Swords, List, X, ChevronLeft, ChevronRight, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { getFormattedDate } from '../utils/calendarAndFixtures';
 import CompetitionDetailModal from '../modals/CompetitionDetailModal';
 
@@ -14,7 +14,9 @@ interface LeagueCupViewProps {
     onFixtureClick: (f: Fixture) => void;
     myTeam: Team;
     onPlayerClick: (p: Player) => void; 
-    initialCompetitionId?: string | null; // ADDED
+    initialCompetitionId?: string | null; 
+    savedState?: CompetitionViewState | null; // SAVED STATE
+    onSaveState?: (state: CompetitionViewState) => void; // SAVE HANDLER
 }
 
 const COMPETITIONS = [
@@ -68,11 +70,31 @@ const COMPETITIONS = [
     }
 ];
 
-const LeagueCupView: React.FC<LeagueCupViewProps> = ({ teams, fixtures, myTeamId, currentWeek, currentDate, myTeam, onTeamClick, onPlayerClick, initialCompetitionId }) => {
-    const [selectedCompId, setSelectedCompId] = useState<string | null>(null);
+const LeagueCupView: React.FC<LeagueCupViewProps> = ({ teams, fixtures, myTeamId, currentWeek, currentDate, myTeam, onTeamClick, onPlayerClick, initialCompetitionId, savedState, onSaveState }) => {
+    // Initialize State from Props or Default
+    const [selectedCompId, setSelectedCompId] = useState<string | null>(initialCompetitionId || savedState?.selectedCompId || null);
     const [showOtherCompetitions, setShowOtherCompetitions] = useState(false);
     
-    // Auto-open specific competition if passed via props (from player stats click)
+    // Update global state when local selection changes
+    useEffect(() => {
+        if (onSaveState) {
+            onSaveState({
+                selectedCompId,
+                activeTab: savedState?.activeTab || 'OVERVIEW' // Preserve existing tab or default
+            });
+        }
+    }, [selectedCompId]); // Only trigger when ID changes here. Tab updates handled via callback.
+
+    const handleTabChange = (tab: string) => {
+        if (onSaveState) {
+            onSaveState({
+                selectedCompId,
+                activeTab: tab
+            });
+        }
+    };
+
+    // Auto-open specific competition if passed via props (from player stats click) - this overrides saved state temporarily
     useEffect(() => {
         if (initialCompetitionId) {
             setSelectedCompId(initialCompetitionId);
@@ -159,10 +181,14 @@ const LeagueCupView: React.FC<LeagueCupViewProps> = ({ teams, fixtures, myTeamId
                 teams={teams}
                 fixtures={fixtures}
                 currentWeek={currentWeek}
+                currentDate={currentDate} // Added Prop
                 onClose={() => setSelectedCompId(null)}
                 onTeamClick={onTeamClick}
                 onPlayerClick={onPlayerClick}
                 variant="embedded"
+                initialTab={savedState?.activeTab || 'OVERVIEW'} // Pass saved tab
+                onTabChange={handleTabChange} // Handle tab change to save state
+                myTeamId={myTeamId} // Pass myTeamId
             />
         );
     }
@@ -220,6 +246,7 @@ const LeagueCupView: React.FC<LeagueCupViewProps> = ({ teams, fixtures, myTeamId
 
                         // --- FIX: DYNAMIC FIXTURE LOGIC FOR CUPS ---
                         let displayFixtures: Fixture[] = [];
+                        
                         if (comp.id !== 'LEAGUE' && comp.id !== 'LEAGUE_1') {
                             const compFixtures = fixtures
                                 .filter(f => f.competitionId === comp.id || (comp.id === 'PLAYOFF' && f.competitionId === 'PLAYOFF_FINAL'))
@@ -248,6 +275,145 @@ const LeagueCupView: React.FC<LeagueCupViewProps> = ({ teams, fixtures, myTeamId
                         // Determine league teams for mini table
                         const leagueFilter = comp.id === 'LEAGUE' ? 'LEAGUE' : comp.id === 'LEAGUE_1' ? 'LEAGUE_1' : null;
                         const leagueTeams = leagueFilter ? teams.filter(t => t.leagueId === leagueFilter).sort((a,b) => b.stats.points - a.stats.points) : [];
+
+                        // --- SPECIAL EUROPE LOGIC (Status Box vs Fixtures) ---
+                        let europeStatusNode = null;
+                        let europeTableNode = null;
+                        let europeRankNode = null;
+
+                        if (comp.id === 'EUROPE') {
+                            const euroFixtures = fixtures.filter(f => f.competitionId === 'EUROPE');
+                            const myEuroFixtures = euroFixtures.filter(f => f.homeTeamId === myTeamId || f.awayTeamId === myTeamId);
+                            const nextMatch = myEuroFixtures.find(f => !f.played);
+                            const lastMatch = [...myEuroFixtures].filter(f => f.played).sort((a,b) => b.week - a.week)[0];
+                            
+                            // --- EUROPE LEAGUE TABLE CALCULATIONS ---
+                            const leaguePhaseFixtures = fixtures.filter(f => f.competitionId === 'EUROPE' && f.week >= 201 && f.week <= 208 && f.played);
+                            const statsMap = new Map<string, { id: string, name: string, points: number, gf: number, ga: number }>();
+                            
+                            // Find participating teams
+                            const euroTeamsList = teams.filter(t => {
+                                return fixtures.some(f => f.competitionId === 'EUROPE' && (f.homeTeamId === t.id || f.awayTeamId === t.id));
+                            });
+
+                            euroTeamsList.forEach(t => {
+                                statsMap.set(t.id, { id: t.id, name: t.name, points: 0, gf: 0, ga: 0 });
+                            });
+
+                            leaguePhaseFixtures.forEach(f => {
+                                const h = statsMap.get(f.homeTeamId);
+                                const a = statsMap.get(f.awayTeamId);
+                                if (h && a) {
+                                    if (f.homeScore! > f.awayScore!) { h.points += 3; }
+                                    else if (f.homeScore! < f.awayScore!) { a.points += 3; }
+                                    else { h.points += 1; a.points += 1; }
+                                    h.gf += f.homeScore!; h.ga += f.awayScore!;
+                                    a.gf += f.awayScore!; a.ga += f.homeScore!;
+                                }
+                            });
+
+                            const euroSorted = Array.from(statsMap.values()).sort((a, b) => {
+                                if (b.points !== a.points) return b.points - a.points;
+                                return (b.gf - b.ga) - (a.gf - a.ga);
+                            });
+
+                            if (euroSorted.length > 0) {
+                                const myRank = euroSorted.findIndex(t => t.id === myTeamId) + 1;
+                                if (myRank > 0) {
+                                    europeRankNode = (
+                                        <div className="bg-slate-800 p-3 rounded border border-slate-700 flex justify-between items-center mb-4">
+                                            <span className="text-xs text-slate-400">Sıralamanız</span>
+                                            <span className="text-xl font-black text-white">{myRank}.</span>
+                                        </div>
+                                    );
+                                }
+                                europeTableNode = (
+                                    <div className="mb-4">
+                                        <div className="text-xs font-bold text-slate-500 uppercase mb-2">Liderlik Tablosu</div>
+                                        {euroSorted.slice(0, 5).map((t, i) => (
+                                            <div key={t.id} className={`flex justify-between text-xs py-1 ${t.id === myTeamId ? 'text-yellow-400 font-bold' : 'text-slate-400'}`}>
+                                                <span className="truncate max-w-[180px]">{i+1}. {t.name}</span>
+                                                <span>{t.points}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            }
+
+                            // 1. Next Match (Draw Done)
+                            if (nextMatch) {
+                                 const opponentId = nextMatch.homeTeamId === myTeamId ? nextMatch.awayTeamId : nextMatch.homeTeamId;
+                                 const opponent = teams.find(t => t.id === opponentId);
+                                 
+                                 europeStatusNode = (
+                                     <div className="bg-slate-800 p-3 rounded-lg border border-slate-700 mb-3 flex flex-col items-center">
+                                         <div className="text-[10px] font-bold text-yellow-500 uppercase tracking-widest mb-2">Sıradaki Rakip</div>
+                                         <div className="flex items-center justify-between w-full">
+                                              <div className="flex flex-col items-center w-1/3">
+                                                  {myTeam.logo ? <img src={myTeam.logo} className="w-8 h-8 object-contain"/> : <div className={`w-8 h-8 rounded-full ${myTeam.colors[0]}`}></div>}
+                                                  <span className="text-[10px] font-bold text-white mt-1 truncate w-full text-center">{myTeam.name}</span>
+                                              </div>
+                                              <div className="text-xl font-black text-slate-500">VS</div>
+                                              <div className="flex flex-col items-center w-1/3">
+                                                  {opponent?.logo ? <img src={opponent.logo} className="w-8 h-8 object-contain"/> : <div className={`w-8 h-8 rounded-full ${opponent ? opponent.colors[0] : 'bg-gray-500'}`}></div>}
+                                                  <span className="text-[10px] font-bold text-white mt-1 truncate w-full text-center">{opponent?.name}</span>
+                                              </div>
+                                         </div>
+                                         <div className="mt-2 text-[9px] text-slate-400">
+                                            {getFormattedDate(nextMatch.date).label}
+                                         </div>
+                                     </div>
+                                 );
+                            } 
+                            // 2. Status Logic (Eliminated or Waiting)
+                            else {
+                                let statusText = "";
+                                let statusColor = "";
+                                let nextDateText = "";
+                                
+                                if (currentWeek > 208) {
+                                    if (lastMatch && lastMatch.week <= 208) {
+                                        statusText = "Lig Aşamasında Elendi";
+                                        statusColor = "text-red-500";
+                                    } else if (lastMatch) {
+                                        if (lastMatch.competitionId === 'EUROPE') {
+                                             statusText = "Avrupa Macerası Sona Erdi";
+                                             statusColor = "text-red-500";
+                                        }
+                                    }
+                                } else {
+                                    statusText = "Lig Aşaması Devam Ediyor";
+                                    statusColor = "text-blue-400";
+                                }
+
+                                if (currentWeek === 209 && !nextMatch) {
+                                     // Placeholder logic for qualification simulation
+                                     if (myTeam.strength > 80) {
+                                         statusText = "Son 16 Turuna Kalındı";
+                                         statusColor = "text-green-500";
+                                         nextDateText = "Maç Tarihi: 4 Mart 2026";
+                                     } else {
+                                         statusText = "Play-Off Turuna Kalındı";
+                                         statusColor = "text-green-500";
+                                         nextDateText = "Maç Tarihi: 19 Şubat 2026";
+                                     }
+                                }
+                                
+                                europeStatusNode = (
+                                    <div className={`bg-slate-800 p-4 rounded-lg border border-slate-700 mb-3 flex flex-col items-center justify-center text-center`}>
+                                        {statusColor.includes('red') ? <AlertCircle size={24} className="text-red-500 mb-2"/> : <CheckCircle2 size={24} className="text-green-500 mb-2"/>}
+                                        <div className={`text-lg font-black uppercase tracking-wide ${statusColor}`}>
+                                            {statusText}
+                                        </div>
+                                        {nextDateText && (
+                                            <div className="text-xs text-slate-400 mt-1 font-bold">
+                                                {nextDateText}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            }
+                        }
 
                         return (
                             <div 
@@ -323,48 +489,63 @@ const LeagueCupView: React.FC<LeagueCupViewProps> = ({ teams, fixtures, myTeamId
                                                     </div>
                                                 ) : (
                                                     <div className="text-sm text-slate-400">
-                                                        <div className="text-xs font-bold text-slate-500 uppercase mb-3 border-b border-slate-700 pb-1">Sonuçlar & Fikstür</div>
+                                                        {/* EUROPE SPECIFIC: RANK & TABLE BEFORE STATUS */}
+                                                        {comp.id === 'EUROPE' && (
+                                                            <>
+                                                                {europeRankNode}
+                                                                {europeTableNode}
+                                                            </>
+                                                        )}
                                                         
-                                                        {displayFixtures.length > 0 ? (
-                                                            <div className="space-y-2 font-mono text-xs">
-                                                                {displayFixtures.map(f => {
-                                                                    const h = teams.find(t => t.id === f.homeTeamId);
-                                                                    const a = teams.find(t => t.id === f.awayTeamId);
-                                                                    const isUserMatch = f.homeTeamId === myTeamId || f.awayTeamId === myTeamId;
+                                                        {europeStatusNode}
 
-                                                                    // Stage Logic
-                                                                    let stage = '';
-                                                                    if (f.week === 91 || f.competitionId === 'PLAYOFF_FINAL') stage = 'Final';
-                                                                    else if (f.week === 90 || f.competitionId === 'PLAYOFF') stage = 'Yarı Final';
-                                                                    else if (comp.id === 'EUROPE') stage = 'Grup';
+                                                        {/* HIDE RESULTS FOR EUROPE DURING LEAGUE PHASE (WEEKS 201-208) */}
+                                                        {(comp.id !== 'EUROPE' || currentWeek > 208) && (
+                                                            <>
+                                                                <div className="text-xs font-bold text-slate-500 uppercase mb-3 border-b border-slate-700 pb-1">Sonuçlar & Fikstür</div>
+                                                                
+                                                                {displayFixtures.length > 0 ? (
+                                                                    <div className="space-y-2 font-mono text-xs">
+                                                                        {displayFixtures.map(f => {
+                                                                            const h = teams.find(t => t.id === f.homeTeamId);
+                                                                            const a = teams.find(t => t.id === f.awayTeamId);
+                                                                            const isUserMatch = f.homeTeamId === myTeamId || f.awayTeamId === myTeamId;
 
-                                                                    // Penalty Display Condition
-                                                                    const showPK = f.played && f.pkHome !== undefined && f.pkAway !== undefined && f.homeScore === f.awayScore && ['CUP', 'SUPER_CUP', 'PLAYOFF', 'PLAYOFF_FINAL', 'EUROPE'].includes(f.competitionId || '');
+                                                                            // Stage Logic
+                                                                            let stage = '';
+                                                                            if (f.week === 91 || f.competitionId === 'PLAYOFF_FINAL') stage = 'Final';
+                                                                            else if (f.week === 90 || f.competitionId === 'PLAYOFF') stage = 'Yarı Final';
+                                                                            else if (comp.id === 'EUROPE') stage = 'Grup';
 
-                                                                    return (
-                                                                        <div key={f.id} className={`flex flex-col gap-1 p-2 rounded ${isUserMatch ? 'bg-slate-800 border border-slate-600' : 'bg-slate-800/30'}`}>
-                                                                            {stage && <div className="text-[9px] text-yellow-500 font-bold uppercase mb-0.5">{stage}</div>}
-                                                                            <div className="flex justify-between items-center">
-                                                                                <span className={`truncate w-24 text-right ${h?.id === myTeamId ? 'text-white font-bold' : 'text-slate-400'}`}>{h?.name.split(' ')[0]}</span>
-                                                                                <div className="flex flex-col items-center">
-                                                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${f.played ? 'bg-slate-700 text-white' : 'bg-slate-700/50 text-slate-500'}`}>
-                                                                                        {f.played ? `${f.homeScore}-${f.awayScore}` : 'VS'}
-                                                                                    </span>
-                                                                                    {showPK && <span className="text-[8px] text-yellow-500 font-bold mt-0.5">P: {f.pkHome}-{f.pkAway}</span>}
+                                                                            // Penalty Display Condition
+                                                                            const showPK = f.played && f.pkHome !== undefined && f.pkAway !== undefined && f.homeScore === f.awayScore && ['CUP', 'SUPER_CUP', 'PLAYOFF', 'PLAYOFF_FINAL', 'EUROPE'].includes(f.competitionId || '');
+
+                                                                            return (
+                                                                                <div key={f.id} className={`flex flex-col gap-1 p-2 rounded ${isUserMatch ? 'bg-slate-800 border border-slate-600' : 'bg-slate-800/30'}`}>
+                                                                                    {stage && <div className="text-[9px] text-yellow-500 font-bold uppercase mb-0.5">{stage}</div>}
+                                                                                    <div className="flex justify-between items-center">
+                                                                                        <span className={`truncate w-24 text-right ${h?.id === myTeamId ? 'text-white font-bold' : 'text-slate-400'}`}>{h?.name.split(' ')[0]}</span>
+                                                                                        <div className="flex flex-col items-center">
+                                                                                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${f.played ? 'bg-slate-700 text-white' : 'bg-slate-700/50 text-slate-500'}`}>
+                                                                                                {f.played ? `${f.homeScore}-${f.awayScore}` : 'VS'}
+                                                                                            </span>
+                                                                                            {showPK && <span className="text-[8px] text-yellow-500 font-bold mt-0.5">P: {f.pkHome}-{f.pkAway}</span>}
+                                                                                        </div>
+                                                                                        <span className={`truncate w-24 text-left ${a?.id === myTeamId ? 'text-white font-bold' : 'text-slate-400'}`}>{a?.name.split(' ')[0]}</span>
+                                                                                    </div>
+                                                                                    {!f.played && (
+                                                                                        <div className="flex items-center justify-center gap-1 text-[9px] text-slate-600 mt-0.5">
+                                                                                            <Clock size={8}/> {getFormattedDate(f.date).label}
+                                                                                        </div>
+                                                                                    )}
                                                                                 </div>
-                                                                                <span className={`truncate w-24 text-left ${a?.id === myTeamId ? 'text-white font-bold' : 'text-slate-400'}`}>{a?.name.split(' ')[0]}</span>
-                                                                            </div>
-                                                                            {!f.played && (
-                                                                                <div className="flex items-center justify-center gap-1 text-[9px] text-slate-600 mt-0.5">
-                                                                                    <Clock size={8}/> {getFormattedDate(f.date).label}
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        ) : (
-                                                            <div className="text-center italic opacity-50 py-4">Fikstür veya sonuç bekleniyor...</div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                ) : (
+                                                                    !europeStatusNode && <div className="text-center italic opacity-50 py-4">Fikstür veya sonuç bekleniyor...</div>
+                                                                )}
+                                                            </>
                                                         )}
                                                     </div>
                                                 )}

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Team, Fixture, Player, Position } from '../types';
 import { Trophy, X, ChevronLeft, ChevronRight, Star, Activity, Flame, ShieldAlert, History, Goal, Zap, Shield, Award, AlertTriangle, GitCommit, LayoutDashboard, ListTree, CalendarDays, BarChart2, ArrowRightLeft, Users, Info, ArrowRight, Filter, ChevronDown, Presentation, Calendar, Clock, Disc } from 'lucide-react';
@@ -20,10 +21,14 @@ interface CompetitionDetailModalProps {
     teams: Team[];
     fixtures: Fixture[];
     currentWeek: number;
+    currentDate: string; 
     onClose: () => void;
     onTeamClick: (id: string) => void;
     onPlayerClick: (p: Player) => void;
     variant?: 'modal' | 'embedded';
+    initialTab?: string; 
+    onTabChange?: (tab: string) => void; 
+    myTeamId: string; // Added Prop
 }
 
 const PAST_SUPER_CUP_WINNERS = [
@@ -125,7 +130,7 @@ const MatchBox: React.FC<{ f: Fixture, teams: Team[], onScoreClick: (f: Fixture)
 };
 
 // --- DETAILED LEAGUE TABLE COMPONENT ---
-const DetailedLeagueTable = ({ teams, fixtures, onTeamClick, competitionId, onShowPreview, minimal }: { teams: Team[], fixtures: Fixture[], onTeamClick: (id: string) => void, competitionId: string, onShowPreview: () => void, minimal?: boolean }) => {
+const DetailedLeagueTable = ({ teams, fixtures, onTeamClick, competitionId, onShowPreview, minimal, myTeamId }: { teams: Team[], fixtures: Fixture[], onTeamClick: (id: string) => void, competitionId: string, onShowPreview: () => void, minimal?: boolean, myTeamId: string }) => {
     const [filter, setFilter] = useState<'OVERALL' | 'HOME' | 'AWAY' | 'FIRST_HALF' | 'SECOND_HALF'>('OVERALL');
 
     // Calculate Table Data based on filter
@@ -207,7 +212,7 @@ const DetailedLeagueTable = ({ teams, fixtures, onTeamClick, competitionId, onSh
                             </span>
                             <ChevronDown size={14} className="text-slate-400"/>
                         </button>
-                        <div className="absolute top-full left-0 mt-2 w-48 bg-[#333] border border-[#444] rounded shadow-xl hidden group-hover:block z-50">
+                        <div className="absolute top-full left-0 w-48 bg-[#333] border border-[#444] rounded-b shadow-xl hidden group-hover:block z-50">
                             <button onClick={() => setFilter('OVERALL')} className="w-full text-left px-4 py-2 text-xs hover:bg-black hover:text-[#ff9f43] text-slate-300">Genel</button>
                             <button onClick={() => setFilter('HOME')} className="w-full text-left px-4 py-2 text-xs hover:bg-black hover:text-[#ff9f43] text-slate-300">İç Saha</button>
                             <button onClick={() => setFilter('AWAY')} className="w-full text-left px-4 py-2 text-xs hover:bg-black hover:text-[#ff9f43] text-slate-300">Dış Saha</button>
@@ -251,6 +256,7 @@ const DetailedLeagueTable = ({ teams, fixtures, onTeamClick, competitionId, onSh
             <div className="flex-1 overflow-y-auto custom-scrollbar">
                 {tableData.map((row, index) => {
                     const rank = index + 1;
+                    const isMyTeam = row.team.id === myTeamId;
                     
                     let barColor = '';
                     let infoText = '-';
@@ -280,7 +286,7 @@ const DetailedLeagueTable = ({ teams, fixtures, onTeamClick, competitionId, onSh
                             <div className="text-center text-[10px] font-bold text-slate-500">{infoText !== '-' ? infoText : ''}</div>
                             <div className="flex items-center gap-2 pl-2 overflow-hidden">
                                 {row.team.logo ? <img src={row.team.logo} className="w-5 h-5 object-contain"/> : <div className={`w-5 h-5 rounded-full ${row.team.colors[0]}`}></div>}
-                                <span className="font-bold text-slate-200 text-xs truncate group-hover:text-[#ff9f43] transition-colors">{row.team.name}</span>
+                                <span className={`font-bold text-xs truncate transition-colors ${isMyTeam ? 'text-yellow-500' : 'text-slate-200 group-hover:text-[#ff9f43]'}`}>{row.team.name}</span>
                             </div>
                             <div className="text-center text-slate-400 text-xs">{row.played}</div>
                             <div className="text-center text-green-500 font-bold text-xs">{row.won}</div>
@@ -310,16 +316,26 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
     teams, 
     fixtures, 
     currentWeek, 
+    currentDate,
     onClose, 
     onTeamClick, 
     onPlayerClick, 
-    variant = 'modal' 
+    variant = 'modal',
+    initialTab = 'OVERVIEW',
+    onTabChange,
+    myTeamId // Added Prop
 }) => {
     const [viewWeek, setViewWeek] = useState<number>(currentWeek);
-    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'ROUNDS' | 'FIXTURES' | 'STATS' | 'TRANSFERS' | 'CLUBS' | 'ABOUT'>('OVERVIEW');
+    const [activeTab, setActiveTab] = useState<string>(initialTab);
     const [showSeasonPreview, setShowSeasonPreview] = useState(false);
     const [selectedMatchForDetail, setSelectedMatchForDetail] = useState<Fixture | null>(null);
     const [overviewStatTab, setOverviewStatTab] = useState<'GOAL' | 'RATING' | 'ASSIST' | 'CLEANSHEET' | 'MVP' | 'CARD'>('GOAL');
+
+    // Handle tab change with callback
+    const handleTabChange = (tab: string) => {
+        setActiveTab(tab);
+        if (onTabChange) onTabChange(tab);
+    };
 
     // Initialize viewWeek based on Competition Type
     useEffect(() => {
@@ -580,17 +596,19 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
         return sorted.slice(0, 5).map(p => ({ ...p, displayValue: displayFormat(valueKey(p)) }));
     };
 
-    // Transfers Logic
+    // Transfers Logic - UPDATED TO INCLUDE ALL TRANSFER TYPES
     const competitionTransfers = useMemo(() => {
         const transfers: any[] = [];
         competitionTeams.forEach(t => {
             if (t.transferHistory) {
-                t.transferHistory.filter(th => th.type === 'BOUGHT' || th.type === 'LOAN_IN').forEach(th => {
+                // Include all types of transfers
+                t.transferHistory.forEach(th => {
                     transfers.push({
                         ...th,
                         teamName: t.name,
                         teamLogo: t.logo,
-                        teamColors: t.colors
+                        teamColors: t.colors,
+                        type: th.type // Ensure type is passed
                     });
                 });
             }
@@ -777,7 +795,7 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                                                         <span className="text-white font-bold">{time}</span>
                                                     </div>
                                                     <div className="flex-1 flex items-center justify-end gap-3 cursor-pointer" onClick={() => h && onTeamClick(h.id)}>
-                                                        <span className={`font-bold truncate ${f.played && (f.homeScore! > f.awayScore!) ? 'text-white' : 'text-slate-300'}`}>{h?.name}</span>
+                                                        <span className={`font-bold truncate transition-colors ${h?.id === myTeamId ? 'text-yellow-500' : f.played && (f.homeScore! > f.awayScore!) ? 'text-white' : 'text-slate-300'}`}>{h?.name}</span>
                                                         {h?.logo ? <img src={h.logo} className="w-6 h-6 object-contain"/> : <div className={`w-6 h-6 rounded-full ${h?.colors[0]}`}></div>}
                                                     </div>
                                                     <div className="px-4 flex justify-center" onClick={(e) => { e.stopPropagation(); if(f.played) setSelectedMatchForDetail(f); }}>
@@ -787,8 +805,12 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                                                         </div>
                                                     </div>
                                                     <div className="flex-1 flex items-center justify-start gap-3 cursor-pointer" onClick={() => a && onTeamClick(a.id)}>
-                                                        {a?.logo && <img src={a.logo} className="w-6 h-6 object-contain"/> : <div className={`w-6 h-6 rounded-full ${a?.colors[0]}`}></div>}
-                                                        <span className={`font-bold truncate ${f.played && (f.awayScore! > f.homeScore!) ? 'text-white' : 'text-slate-300'}`}>{a?.name}</span>
+                                                        {a?.logo ? (
+                                                            <img src={a.logo} className="w-6 h-6 object-contain"/> 
+                                                        ) : (
+                                                            <div className={`w-6 h-6 rounded-full ${a?.colors[0]}`}></div>
+                                                        )}
+                                                        <span className={`font-bold truncate transition-colors ${a?.id === myTeamId ? 'text-yellow-500' : f.played && (f.awayScore! > f.homeScore!) ? 'text-white' : 'text-slate-300'}`}>{a?.name}</span>
                                                     </div>
                                                 </div>
                                                 {f.played && goals.length > 0 && (
@@ -842,6 +864,7 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                                 competitionId={competitionId} 
                                 onShowPreview={() => setShowSeasonPreview(true)}
                                 minimal={true}
+                                myTeamId={myTeamId} // Pass myTeamId
                             />
                         ) : (
                             renderBracket()
@@ -884,7 +907,7 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                                                 className="flex-1 text-right flex items-center justify-end gap-3 cursor-pointer group/team"
                                                 onClick={(e) => { e.stopPropagation(); if(h) onTeamClick(h.id); }}
                                             >
-                                                <span className="text-sm font-bold text-slate-300 truncate group-hover/team:text-[#ff9f43] transition-colors">{h?.name}</span>
+                                                <span className={`text-sm font-bold truncate group-hover/team:text-[#ff9f43] transition-colors ${h?.id === myTeamId ? 'text-yellow-500' : 'text-slate-300'}`}>{h?.name}</span>
                                                 {h?.logo && <img src={h.logo} className="w-6 h-6 object-contain" />}
                                             </div>
                                             
@@ -908,8 +931,12 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                                                 className="flex-1 text-left flex items-center justify-start gap-3 cursor-pointer group/team"
                                                 onClick={(e) => { e.stopPropagation(); if(a) onTeamClick(a.id); }}
                                             >
-                                                {a?.logo && <img src={a.logo} className="w-6 h-6 object-contain" />}
-                                                <span className="text-sm font-bold text-slate-300 truncate group-hover/team:text-[#ff9f43] transition-colors">{a?.name}</span>
+                                                {a?.logo ? (
+                                                    <img src={a.logo} className="w-6 h-6 object-contain" />
+                                                ) : (
+                                                    <div className={`w-6 h-6 rounded-full ${a?.colors[0]}`}></div>
+                                                )}
+                                                <span className={`text-sm font-bold truncate group-hover/team:text-[#ff9f43] transition-colors ${a?.id === myTeamId ? 'text-yellow-500' : 'text-slate-300'}`}>{a?.name}</span>
                                             </div>
                                         </div>
                                     );
@@ -1090,7 +1117,7 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                      return (
                         <button
                             key={item.id}
-                            onClick={() => setActiveTab(item.id as any)}
+                            onClick={() => handleTabChange(item.id)} // Use Handler
                             className={`
                                 flex items-center gap-2 px-4 md:px-6 py-3 text-sm font-bold transition-all relative rounded-t-lg group whitespace-nowrap shrink-0
                                 ${isActive
@@ -1122,6 +1149,7 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
                                 competitionId={competitionId} 
                                 onShowPreview={() => setShowSeasonPreview(true)}
                                 minimal={false}
+                                myTeamId={myTeamId} // Pass myTeamId
                             />
                         ) : (
                             renderBracket()
@@ -1150,19 +1178,34 @@ const CompetitionDetailModal: React.FC<CompetitionDetailModalProps> = ({
 
                 {activeTab === 'TRANSFERS' && (
                     <div className="h-full p-0">
-                        <CompetitionTransfersTab transfers={competitionTransfers} />
+                        <CompetitionTransfersTab 
+                            transfers={competitionTransfers} 
+                            teams={teams}
+                            onPlayerClick={onPlayerClick}
+                            onTeamClick={onTeamClick}
+                            currentDate={currentDate} // Added Prop
+                        />
                     </div>
                 )}
 
                 {activeTab === 'CLUBS' && (
                     <div className="h-full p-0">
-                        <CompetitionClubsTab teams={competitionTeams} onTeamClick={onTeamClick} />
+                        <CompetitionClubsTab 
+                            teams={competitionTeams} // FIX: Pass competitionTeams here!
+                            onTeamClick={onTeamClick} 
+                            fixtures={fixtures} // Pass fixtures
+                        />
                     </div>
                 )}
 
                 {activeTab === 'ABOUT' && (
                     <div className="h-full p-0">
-                        <CompetitionAboutTab competitionId={competitionId} competitionName={competitionName} />
+                        <CompetitionAboutTab 
+                            competitionId={competitionId} 
+                            competitionName={competitionName} 
+                            teams={teams} // Pass Teams
+                            fixtures={fixtures} // Pass Fixtures
+                        />
                     </div>
                 )}
             </div>

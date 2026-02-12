@@ -1,4 +1,5 @@
 
+
 import { useCoreState } from './useCoreState';
 import { useNavigation } from './useNavigation';
 import { useGameLifecycle } from './useGameLifecycle';
@@ -183,6 +184,8 @@ export const useGameState = () => {
         setTransferViewState: core.setTransferViewState,
         squadViewState: core.squadViewState,
         setSquadViewState: core.setSquadViewState,
+        competitionViewState: core.competitionViewState,
+        setCompetitionViewState: core.setCompetitionViewState,
 
         // Match States
         liveMatchPhase: core.liveMatchPhase,

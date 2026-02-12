@@ -89,7 +89,7 @@ export const TEAM_TEMPLATES = [
         debt: 105, // M€
         leagueHistory: [
             {year: '1983/84', rank: 1}, {year: '1984/85', rank: 1}, {year: '1985/86', rank: 2}, {year: '1986/87', rank: 3},
-            {year: '1987/88', rank: 2}, {year: '1988/89', rank: 2}, {year: '1989/90', rank: 3}, {year: '1990/91', rank: 1},
+            {year: '1887/88', rank: 2}, {year: '1988/89', rank: 2}, {year: '1989/90', rank: 3}, {year: '1990/91', rank: 1},
             {year: '1991/92', rank: 2}, {year: '1992/93', rank: 2}, {year: '1993/94', rank: 2}, {year: '1994/95', rank: 1},
             {year: '1995/96', rank: 1}, {year: '1996/97', rank: 3}, {year: '1997/98', rank: 4}, {year: '1998/99', rank: 2},
             {year: '1999/00', rank: 4}, {year: '2000/01', rank: 1}, {year: '2001/02', rank: 18}, {year: '2002/03', rank: 10},
@@ -119,7 +119,7 @@ export const TEAM_TEMPLATES = [
         debt: 66, // M€
         leagueHistory: [
             {year: '1983/84', rank: 2}, {year: '1984/85', rank: 2}, {year: '1985/86', rank: 1}, {year: '1986/87', rank: 1},
-            {year: '1987/88', rank: 1}, {year: '1988/89', rank: 1}, {year: '1989/90', rank: 2}, {year: '1990/91', rank: 3},
+            {year: '1887/88', rank: 1}, {year: '1988/89', rank: 1}, {year: '1989/90', rank: 2}, {year: '1990/91', rank: 3},
             {year: '1991/92', rank: 6}, {year: '1992/93', rank: 3}, {year: '1993/94', rank: 7}, {year: '1994/95', rank: 7},
             {year: '1995/96', rank: 15}, {year: '1996/97', rank: 12}, {year: '1997/98', rank: 7}, {year: '1998/99', rank: 18},
             {year: '1999/00', rank: 9}, {year: '2000/01', rank: 9}, {year: '2001/02', rank: 13}, {year: '2002/03', rank: 5},
@@ -150,7 +150,7 @@ export const TEAM_TEMPLATES = [
         debt: 64, // M€
         leagueHistory: [
             {year: '1983/84', rank: 16}, {year: '1984/85', rank: 15}, {year: '1985/86', rank: 16}, {year: '1986/87', rank: 12},
-            {year: '1987/88', rank: 4}, {year: '1988/89', rank: 14}, {year: '1989/90', rank: 14}, {year: '1990/91', rank: 10},
+            {year: '1887/88', rank: 4}, {year: '1988/89', rank: 14}, {year: '1989/90', rank: 14}, {year: '1990/91', rank: 10},
             {year: '1991/92', rank: 13}, {year: '1992/93', rank: 12}, {year: '1993/94', rank: 10}, {year: '1994/95', rank: 15},
             {year: '1995/96', rank: 13}, {year: '1996/97', rank: 12}, {year: '1997/98', rank: 11}, {year: '1998/99', rank: 11},
             {year: '1999/00', rank: 14}, {year: '2000/01', rank: 14}, {year: '2001/02', rank: 8}, {year: '2002/03', rank: 17},
@@ -181,7 +181,7 @@ export const TEAM_TEMPLATES = [
         debt: 77, // M€
         leagueHistory: [
             {year: '1983/84', rank: 3}, {year: '1984/85', rank: 14}, {year: '1985/86', rank: 12}, {year: '1986/87', rank: 16},
-            {year: '1987/88', rank: 5}, {year: '1988/89', rank: 10}, {year: '1989/90', rank: 7}, {year: '1990/91', rank: 6},
+            {year: '1887/88', rank: 5}, {year: '1988/89', rank: 10}, {year: '1989/90', rank: 7}, {year: '1990/91', rank: 6},
             {year: '1991/92', rank: 3}, {year: '1992/93', rank: 5}, {year: '1993/94', rank: 3}, {year: '1994/95', rank: 3},
             {year: '1995/96', rank: 4}, {year: '1996/97', rank: 2}, {year: '1997/98', rank: 3}, {year: '1998/99', rank: 3},
             {year: '1999/00', rank: 3}, {year: '2000/01', rank: 5}, {year: '2001/02', rank: 3}, {year: '2002/03', rank: 2},
@@ -212,7 +212,7 @@ export const TEAM_TEMPLATES = [
         debt: 14, // M€
         leagueHistory: [
             {year: '1983/84', rank: 15}, {year: '1984/85', rank: 10}, {year: '1985/86', rank: 17}, {year: '1986/87', rank: 15},
-            {year: '1987/88', rank: 14}, {year: '1988/89', rank: 12}, {year: '1989/90', rank: 13}, {year: '1990/91', rank: 11},
+            {year: '1887/88', rank: 14}, {year: '1988/89', rank: 12}, {year: '1989/90', rank: 13}, {year: '1990/91', rank: 11},
             {year: '1991/92', rank: 13}, {year: '1992/93', rank: 11}, {year: '1993/94', rank: 10}, {year: '1994/95', rank: 11},
             {year: '1995/96', rank: 5}, {year: '1996/97', rank: 15}, {year: '1997/98', rank: 14}, {year: '1998/99', rank: 13},
             {year: '1999/00', rank: 17}, {year: '2000/01', rank: 8}, {year: '2001/02', rank: 14}, {year: '2002/03', rank: 16},
@@ -243,7 +243,7 @@ export const TEAM_TEMPLATES = [
         debt: 21, // M€
         leagueHistory: [
             {year: '1983/84', rank: 8}, {year: '1984/85', rank: 7}, {year: '1985/86', rank: 4}, {year: '1986/87', rank: 5},
-            {year: '1987/88', rank: 12}, {year: '1988/89', rank: 4}, {year: '1989/90', rank: 9}, {year: '1990/91', rank: 8},
+            {year: '1887/88', rank: 12}, {year: '1988/89', rank: 4}, {year: '1989/90', rank: 9}, {year: '1990/91', rank: 8},
             {year: '1991/92', rank: 11}, {year: '1992/93', rank: 9}, {year: '1993/94', rank: 8}, {year: '1994/95', rank: 6},
             {year: '1995/96', rank: 13}, {year: '1996/97', rank: 13}, {year: '1997/98', rank: 9}, {year: '1998/99', rank: 12},
             {year: '1999/00', rank: 13}, {year: '2000/01', rank: 15}, {year: '2001/02', rank: 12}, {year: '2002/03', rank: 11},
@@ -274,7 +274,7 @@ export const TEAM_TEMPLATES = [
         debt: 19, // M€
         leagueHistory: [
             {year: '1983/84', rank: 12}, {year: '1984/85', rank: 18}, {year: '1985/86', rank: 6}, {year: '1986/87', rank: 11},
-            {year: '1987/88', rank: 9}, {year: '1988/89', rank: 5}, {year: '1989/90', rank: 16}, {year: '1990/91', rank: 7},
+            {year: '1887/88', rank: 9}, {year: '1988/89', rank: 5}, {year: '1989/90', rank: 16}, {year: '1990/91', rank: 7},
             {year: '1991/92', rank: 9}, {year: '1992/93', rank: 8}, {year: '1993/94', rank: 11}, {year: '1994/95', rank: 10},
             {year: '1995/96', rank: 8}, {year: '1996/97', rank: 8}, {year: '1997/98', rank: 12}, {year: '1998/99', rank: 7},
             {year: '1999/00', rank: 5}, {year: '2000/01', rank: 2}, {year: '2001/02', rank: 5}, {year: '2002/03', rank: 9},
@@ -305,7 +305,7 @@ export const TEAM_TEMPLATES = [
         debt: 8, // M€
         leagueHistory: [
             {year: '1983/84', rank: 14}, {year: '1984/85', rank: 12}, {year: '1985/86', rank: 8}, {year: '1986/87', rank: 14},
-            {year: '1987/88', rank: 11}, {year: '1988/89', rank: 8}, {year: '1989/90', rank: 12}, {year: '1990/91', rank: 14},
+            {year: '1887/88', rank: 11}, {year: '1988/89', rank: 8}, {year: '1989/90', rank: 12}, {year: '1990/91', rank: 14},
             {year: '1991/92', rank: 10}, {year: '1992/93', rank: 7}, {year: '1993/94', rank: 9}, {year: '1994/95', rank: 13},
             {year: '1995/96', rank: 14}, {year: '1996/97', rank: 6}, {year: '1997/98', rank: 6}, {year: '1998/99', rank: 17},
             {year: '1999/00', rank: 16}, {year: '2000/01', rank: 17}, {year: '2001/02', rank: 9}, {year: '2002/03', rank: 18},
@@ -367,7 +367,7 @@ export const TEAM_TEMPLATES = [
         debt: 19, // M€
         leagueHistory: [
             {year: '1983/84', rank: 17}, {year: '1984/85', rank: 17}, {year: '1985/86', rank: 15}, {year: '1986/87', rank: 8},
-            {year: '1987/88', rank: 18}, {year: '1988/89', rank: 17}, {year: '1989/90', rank: 18}, {year: '1990/91', rank: 15},
+            {year: '1887/88', rank: 18}, {year: '1988/89', rank: 17}, {year: '1989/90', rank: 18}, {year: '1990/91', rank: 15},
             {year: '1991/92', rank: 18}, {year: '1992/93', rank: 18}, {year: '1993/94', rank: 17}, {year: '1994/95', rank: 18},
             {year: '1995/96', rank: 18}, {year: '1996/97', rank: 9}, {year: '1997/98', rank: 5}, {year: '1998/99', rank: 11},
             {year: '1999/00', rank: 15}, {year: '2000/01', rank: 16}, {year: '2001/02', rank: 15}, {year: '2002/03', rank: 13},
@@ -398,7 +398,7 @@ export const TEAM_TEMPLATES = [
         debt: 17, // M€
         leagueHistory: [
             {year: '1983/84', rank: 16}, {year: '1984/85', rank: 13}, {year: '1985/86', rank: 14}, {year: '1986/87', rank: 18},
-            {year: '1987/88', rank: 16}, {year: '1988/89', rank: 18}, {year: '1989/90', rank: 17}, {year: '1990/91', rank: 18},
+            {year: '1887/88', rank: 16}, {year: '1988/89', rank: 18}, {year: '1989/90', rank: 17}, {year: '1990/91', rank: 18},
             {year: '1991/92', rank: 17}, {year: '1992/93', rank: 13}, {year: '1993/94', rank: 14}, {year: '1994/95', rank: 15},
             {year: '1995/96', rank: 17}, {year: '1996/97', rank: 16}, {year: '1997/98', rank: 16}, {year: '1998/99', rank: 8},
             {year: '1999/00', rank: 11}, {year: '2000/01', rank: 13}, {year: '2001/02', rank: 6}, {year: '2002/03', rank: 10},
@@ -429,7 +429,7 @@ export const TEAM_TEMPLATES = [
         debt: 33, // M€
         leagueHistory: [
             {year: '1983/84', rank: 7}, {year: '1984/85', rank: 6}, {year: '1985/86', rank: 9}, {year: '1986/87', rank: 6},
-            {year: '1987/88', rank: 8}, {year: '1988/89', rank: 13}, {year: '1989/90', rank: 5}, {year: '1990/91', rank: 4},
+            {year: '1887/88', rank: 8}, {year: '1988/89', rank: 13}, {year: '1989/90', rank: 5}, {year: '1990/91', rank: 4},
             {year: '1991/92', rank: 4}, {year: '1992/93', rank: 4}, {year: '1993/94', rank: 4}, {year: '1994/95', rank: 2},
             {year: '1995/96', rank: 6}, {year: '1996/97', rank: 14}, {year: '1997/98', rank: 10}, {year: '1998/99', rank: 14},
             {year: '1999/00', rank: 10}, {year: '2000/01', rank: 10}, {year: '2001/02', rank: 10}, {year: '2002/03', rank: 6},
@@ -460,7 +460,7 @@ export const TEAM_TEMPLATES = [
         debt: 11, // M€
         leagueHistory: [
             {year: '1983/84', rank: 11}, {year: '1984/85', rank: 16}, {year: '1985/86', rank: 13}, {year: '1986/87', rank: 4},
-            {year: '1987/88', rank: 15}, {year: '1988/89', rank: 15}, {year: '1989/90', rank: 8}, {year: '1990/91', rank: 13},
+            {year: '1887/88', rank: 15}, {year: '1988/89', rank: 15}, {year: '1989/90', rank: 8}, {year: '1990/91', rank: 13},
             {year: '1991/92', rank: 7}, {year: '1992/93', rank: 16}, {year: '1993/94', rank: 15}, {year: '1994/95', rank: 14},
             {year: '1995/96', rank: 9}, {year: '1996/97', rank: 17}, {year: '1997/98', rank: 13}, {year: '1998/99', rank: 10},
             {year: '1999/00', rank: 8}, {year: '2000/01', rank: 12}, {year: '2001/02', rank: 4}, {year: '2002/03', rank: 7},
@@ -482,7 +482,7 @@ export const TEAM_TEMPLATES = [
         cups: 0,
         s_cups: 0, 
         euro_cups: 0,
-        stadium: 'Şehir Stadı',
+        stadium: 'Karakoçan Park',
         capacity: 29000,
         fans: 1600000, 
         budget: 13, 
@@ -491,7 +491,7 @@ export const TEAM_TEMPLATES = [
         debt: 15, // M€
         leagueHistory: [
             {year: '1983/84', rank: 10}, {year: '1984/85', rank: 4}, {year: '1985/86', rank: 11}, {year: '1986/87', rank: 7},
-            {year: '1987/88', rank: 10}, {year: '1988/89', rank: 11}, {year: '1989/90', rank: 4}, {year: '1990/91', rank: 12},
+            {year: '1887/88', rank: 10}, {year: '1988/89', rank: 11}, {year: '1989/90', rank: 4}, {year: '1990/91', rank: 12},
             {year: '1991/92', rank: 12}, {year: '1992/93', rank: 10}, {year: '1993/94', rank: 13}, {year: '1994/95', rank: 8},
             {year: '1995/96', rank: 16}, {year: '1996/97', rank: 10}, {year: '1997/98', rank: 15}, {year: '1998/99', rank: 16},
             {year: '1999/00', rank: 6}, {year: '2000/01', rank: 18}, {year: '2001/02', rank: 18}, {year: '2002/03', rank: 14},
@@ -513,7 +513,7 @@ export const TEAM_TEMPLATES = [
         cups: 3,
         s_cups: 0,
         euro_cups: 0,
-        stadium: 'Hipodrom Arena',
+        stadium: 'Bozkır Arena',
         capacity: 30300,
         fans: 450000, 
         budget: 8, 
@@ -522,7 +522,7 @@ export const TEAM_TEMPLATES = [
         debt: 16, // M€
         leagueHistory: [
             {year: '1983/84', rank: 18}, {year: '1984/85', rank: 5}, {year: '1985/86', rank: 5}, {year: '1986/87', rank: 10},
-            {year: '1987/88', rank: 7}, {year: '1988/89', rank: 9}, {year: '1989/90', rank: 6}, {year: '1990/91', rank: 16},
+            {year: '1887/88', rank: 7}, {year: '1988/89', rank: 9}, {year: '1989/90', rank: 6}, {year: '1990/91', rank: 16},
             {year: '1991/92', rank: 16}, {year: '1992/93', rank: 12}, {year: '1993/94', rank: 18}, {year: '1994/95', rank: 16},
             {year: '1995/96', rank: 7}, {year: '1996/97', rank: 7}, {year: '1997/98', rank: 17}, {year: '1998/99', rank: 6},
             {year: '1999/00', rank: 12}, {year: '2000/01', rank: 11}, {year: '2001/02', rank: 11}, {year: '2002/03', rank: 12},
@@ -544,7 +544,7 @@ export const TEAM_TEMPLATES = [
         cups: 0,
         s_cups: 0, 
         euro_cups: 0,
-        stadium: 'Barış Parkı',
+        stadium: 'Vefa Stadı',
         capacity: 33100,
         fans: 1950000, 
         budget: 15, 
@@ -553,7 +553,7 @@ export const TEAM_TEMPLATES = [
         debt: 7, // M€
         leagueHistory: [
             {year: '1983/84', rank: 13}, {year: '1984/85', rank: 8}, {year: '1985/86', rank: 18}, {year: '1986/87', rank: 17},
-            {year: '1987/88', rank: 17}, {year: '1988/89', rank: 16}, {year: '1989/90', rank: 11}, {year: '1990/91', rank: 9},
+            {year: '1887/88', rank: 17}, {year: '1988/89', rank: 16}, {year: '1989/90', rank: 11}, {year: '1990/91', rank: 9},
             {year: '1991/92', rank: 8}, {year: '1992/93', rank: 14}, {year: '1993/94', rank: 12}, {year: '1994/95', rank: 12},
             {year: '1995/96', rank: 10}, {year: '1996/97', rank: 5}, {year: '1997/98', rank: 8}, {year: '1998/99', rank: 5},
             {year: '1999/00', rank: 7}, {year: '2000/01', rank: 6}, {year: '2001/02', rank: 7}, {year: '2002/03', rank: 15},
@@ -571,10 +571,11 @@ export const TEAM_TEMPLATES = [
         colors: ['bg-black', 'text-white'], 
         targetStrength: 70, 
         baseReputation: 2.8, 
-        budget: 3, 
-        fans: 1500000, 
+        budget: 8, 
+        debt: 15,
+        fans: 1200000, 
         stadium: 'Kartal Yuvası', 
-        capacity: 15000, 
+        capacity: 18500, 
         championships: 3, 
         leagueHistory: [
             {year: '2004/05', rank: 3}, {year: '2005/06', rank: 6}, {year: '2006/07', rank: 2}, {year: '2007/08', rank: 8},
@@ -590,8 +591,9 @@ export const TEAM_TEMPLATES = [
         colors: ['bg-yellow-500', 'text-red-600'], 
         targetStrength: 66, 
         baseReputation: 2.5, 
-        budget: 2, 
-        fans: 1300000, 
+        budget: 4, 
+        debt: 8,
+        fans: 600000, 
         stadium: 'Çakal İni', 
         capacity: 12000, 
         championships: 2, 
@@ -609,10 +611,11 @@ export const TEAM_TEMPLATES = [
         colors: ['bg-gray-900', 'text-purple-500'], 
         targetStrength: 69, 
         baseReputation: 2.7, 
-        budget: 2, 
-        fans: 1400000, 
+        budget: 6, 
+        debt: 12,
+        fans: 900000, 
         stadium: 'Kara Orman', 
-        capacity: 7000, 
+        capacity: 15000, 
         championships: 1, 
         leagueHistory: [
             {year: '2004/05', rank: 12}, {year: '2005/06', rank: 10}, {year: '2006/07', rank: 11}, {year: '2007/08', rank: 11},
@@ -629,6 +632,7 @@ export const TEAM_TEMPLATES = [
         targetStrength: 66, 
         baseReputation: 2.5, 
         budget: 4, 
+        debt: 9,
         fans: 1650000, 
         stadium: 'Atatürk Anadolu Stadı', 
         capacity: 80000, 
@@ -647,7 +651,8 @@ export const TEAM_TEMPLATES = [
         colors: ['bg-blue-900', 'text-yellow-400'], 
         targetStrength: 65, 
         baseReputation: 2.4, 
-        budget: 1, 
+        budget: 3, 
+        debt: 7,
         fans: 1200000, 
         stadium: 'Pars Arena', 
         capacity: 4500, 
@@ -666,7 +671,8 @@ export const TEAM_TEMPLATES = [
         colors: ['bg-black', 'text-gray-400'], 
         targetStrength: 65, 
         baseReputation: 2.4, 
-        budget: 1, 
+        budget: 3, 
+        debt: 6,
         fans: 180000, 
         stadium: 'Karga Yuvası', 
         capacity: 6500, 
@@ -685,7 +691,8 @@ export const TEAM_TEMPLATES = [
         colors: ['bg-cyan-500', 'text-white'], 
         targetStrength: 64, 
         baseReputation: 2.3, 
-        budget: 1, 
+        budget: 2, 
+        debt: 8,
         fans: 350000, 
         stadium: 'Akvaryum', 
         capacity: 8500, 
@@ -704,7 +711,8 @@ export const TEAM_TEMPLATES = [
         colors: ['bg-amber-800', 'text-yellow-300'], 
         targetStrength: 64, 
         baseReputation: 2.3, 
-        budget: 1, 
+        budget: 2, 
+        debt: 10,
         fans: 240000, 
         stadium: 'Sansar Stadı', 
         capacity: 8000, 
@@ -714,7 +722,7 @@ export const TEAM_TEMPLATES = [
             {year: '2008/09', rank: 11}, {year: '2009/10', rank: 9}, {year: '2010/11', rank: 8}, {year: '2011/12', rank: 9},
             {year: '2012/13', rank: 9}, {year: '2013/14', rank: 9}, {year: '2014/15', rank: 10}, {year: '2015/16', rank: 9},
             {year: '2016/17', rank: 9}, {year: '2017/18', rank: 1}, {year: '2018/19', rank: 10}, {year: '2019/20', rank: 10},
-            {year: '2020/21', rank: 9}, {year: '2021/22', rank: 10}, {year: '2022/23', rank: 9}, {year: '2023/24', rank: 10}, {year: '2024/25', rank: 10}
+            {year: '2020/21', rank: 10}, {year: '2021/22', rank: 10}, {year: '2022/23', rank: 9}, {year: '2023/24', rank: 10}, {year: '2024/25', rank: 10}
         ] 
     },
     { 
@@ -724,6 +732,7 @@ export const TEAM_TEMPLATES = [
         targetStrength: 62, 
         baseReputation: 2.1, 
         budget: 1, 
+        debt: 7,
         fans: 420000, 
         stadium: 'Gece Parkı', 
         capacity: 7500, 
@@ -743,6 +752,7 @@ export const TEAM_TEMPLATES = [
         targetStrength: 63, 
         baseReputation: 2.2, 
         budget: 2, 
+        debt: 9,
         fans: 2130000, 
         stadium: 'Bozkurt Arena', 
         capacity: 8000, 
@@ -761,7 +771,8 @@ export const TEAM_TEMPLATES = [
         colors: ['bg-red-900', 'text-white'], 
         targetStrength: 68, 
         baseReputation: 2.6, 
-        budget: 1, 
+        budget: 5, 
+        debt: 14,
         fans: 350000, 
         stadium: 'Pençe Stadı', 
         capacity: 13000, 
@@ -780,7 +791,8 @@ export const TEAM_TEMPLATES = [
         colors: ['bg-blue-900', 'text-white'], 
         targetStrength: 69, 
         baseReputation: 2.7, 
-        budget: 1, 
+        budget: 6, 
+        debt: 11,
         fans: 380000, 
         stadium: 'Gök Kubbe', 
         capacity: 16500, 
@@ -799,7 +811,8 @@ export const TEAM_TEMPLATES = [
         colors: ['bg-green-600', 'text-white'], 
         targetStrength: 66, 
         baseReputation: 2.5, 
-        budget: 3, 
+        budget: 4, 
+        debt: 8,
         fans: 480000, 
         stadium: 'Yeşil Vadi', 
         capacity: 11500, 
@@ -818,7 +831,8 @@ export const TEAM_TEMPLATES = [
         colors: ['bg-yellow-400', 'text-black'], 
         targetStrength: 64, 
         baseReputation: 2.3, 
-        budget: 1, 
+        budget: 3, 
+        debt: 5,
         fans: 460000, 
         stadium: 'Savana Park', 
         capacity: 9500, 
@@ -837,7 +851,8 @@ export const TEAM_TEMPLATES = [
         colors: ['bg-stone-200', 'text-black'], 
         targetStrength: 65, 
         baseReputation: 2.4, 
-        budget: 2, 
+        budget: 4, 
+        debt: 12,
         fans: 1620000, 
         stadium: 'Sivas Arena', 
         capacity: 20500, 
@@ -856,7 +871,8 @@ export const TEAM_TEMPLATES = [
         colors: ['bg-orange-500', 'text-black'], 
         targetStrength: 62, 
         baseReputation: 2.1, 
-        budget: 1, 
+        budget: 2, 
+        debt: 6,
         fans: 410000, 
         stadium: 'Dağ Evi', 
         capacity: 7000, 
@@ -875,7 +891,8 @@ export const TEAM_TEMPLATES = [
         colors: ['bg-green-700', 'text-white'], 
         targetStrength: 63, 
         baseReputation: 2.2, 
-        budget: 2, 
+        budget: 3, 
+        debt: 8,
         fans: 225000, 
         stadium: 'Yayla Stadı', 
         capacity: 7500, 
@@ -894,7 +911,8 @@ export const TEAM_TEMPLATES = [
         colors: ['bg-black', 'text-red-700'], 
         targetStrength: 62, 
         baseReputation: 2.1, 
-        budget: 1, 
+        budget: 2, 
+        debt: 7,
         fans: 200000, 
         stadium: 'Kaya Park', 
         capacity: 6500, 
@@ -910,37 +928,169 @@ export const TEAM_TEMPLATES = [
 ];
 
 export const EUROPEAN_TEAMS = [
-    { name: 'Gorilla United', country: 'İngiltere', targetStrength: 90, colors: ['bg-red-800', 'text-black'] },
-    { name: 'Gorilla City', country: 'İngiltere', targetStrength: 87, colors: ['bg-cyan-400', 'text-white'] },
-    { name: 'Kaplanspor SK', country: 'İspanya', targetStrength: 89, colors: ['bg-orange-500', 'text-black'] },
-    { name: 'Aslanspor SK', country: 'İspanya', targetStrength: 90, colors: ['bg-yellow-400', 'text-red-700'] },
-    { name: 'Götten Tothennam', country: 'İngiltere', targetStrength: 86, colors: ['bg-white', 'text-blue-900'] },
-    { name: 'Shefield Karakoçan', country: 'İngiltere', targetStrength: 83, colors: ['bg-red-600', 'text-white'] },
-    { name: 'El-Katir', country: 'Arabistan', targetStrength: 83, colors: ['bg-green-700', 'text-white'] },
-    { name: 'Kartalcelona', country: 'İspanya', targetStrength: 85, colors: ['bg-blue-800', 'text-red-600'] },
-    { name: 'Yılanspor FK', country: 'İtalya', targetStrength: 86, colors: ['bg-black', 'text-blue-600'] },
-    { name: 'Tezkeresport', country: 'İngiltere', targetStrength: 78, colors: ['bg-blue-500', 'text-white'] },
-    { name: 'Ejderspor', country: 'İtalya', targetStrength: 83, colors: ['bg-red-700', 'text-yellow-400'] },
-    { name: 'Timsahboğanspor', country: 'Almanya', targetStrength: 77, colors: ['bg-green-600', 'text-white'] },
-    { name: 'Pandaspor', country: 'Almanya', targetStrength: 76, colors: ['bg-black', 'text-white'] },
-    { name: 'Gergedanspor FK', country: 'Fransa', targetStrength: 81, colors: ['bg-gray-400', 'text-blue-900'] },
-    { name: 'Zirafaspor', country: 'İsrail', targetStrength: 76, colors: ['bg-yellow-500', 'text-blue-500'] },
-    { name: 'Orangutanboğanspor', country: 'Portekiz', targetStrength: 79, colors: ['bg-orange-600', 'text-green-700'] },
-    { name: 'Kediboğanspor', country: 'İspanya', targetStrength: 74, colors: ['bg-red-500', 'text-blue-500'] },
-    { name: 'Boğaboğanspor', country: 'Fransa', targetStrength: 80, colors: ['bg-blue-800', 'text-red-500'] },
-    { name: 'Domuzboğanspor', country: 'İtalya', targetStrength: 77, colors: ['bg-pink-400', 'text-black'] },
-    { name: 'Octopusspor', country: 'Fransa', targetStrength: 76, colors: ['bg-purple-600', 'text-white'] },
-    { name: 'Deveboğanspor', country: 'Arabistan', targetStrength: 75, colors: ['bg-yellow-200', 'text-black'] },
-    { name: 'Tilkiboğanspor', country: 'Fransa', targetStrength: 78, colors: ['bg-orange-500', 'text-white'] },
-    { name: 'Çitaboğanspor', country: 'Arabistan', targetStrength: 79, colors: ['bg-yellow-400', 'text-black'] },
-    { name: 'Saqr United', country: 'Arabistan', targetStrength: 73, colors: ['bg-green-600', 'text-white'] },
-    { name: 'Baykuşboğanspor', country: 'Almanya', targetStrength: 74, colors: ['bg-slate-700', 'text-white'] },
-    { name: 'Alageyikspor', country: 'Almanya', targetStrength: 76, colors: ['bg-green-800', 'text-white'] },
-    { name: 'Jaguaryiyenspor', country: 'Portekiz', targetStrength: 82, colors: ['bg-green-500', 'text-red-600'] },
-    { name: 'Pirhanakundakçısıspor', country: 'Rusya', targetStrength: 80, colors: ['bg-blue-700', 'text-white'] },
-    { name: 'Pumadeğleyenspor', country: 'Rusya', targetStrength: 78, colors: ['bg-red-800', 'text-white'] },
-    { name: 'Köpekboğanspor', country: 'Hollanda', targetStrength: 76, colors: ['bg-orange-500', 'text-white'] },
-    { name: 'Keçiboğanspor', country: 'Belçika', targetStrength: 79, colors: ['bg-red-600', 'text-black'] }
+    { 
+        name: 'Gorilla United', 
+        logo: 'https://i.imgur.com/vJv7a8e.png', 
+        country: 'İngiltere', 
+        targetStrength: 91, 
+        colors: ['bg-red-800', 'text-black'],
+        stadium: 'Gorilfield',
+        capacity: 85000,
+        fans: 72000000,
+        budget: 175,
+        baseReputation: 5.0,
+        debt: 440
+    },
+    { 
+        name: 'Gorilla City', 
+        logo: 'https://i.imgur.com/xIUzDSl.png', 
+        country: 'İngiltere', 
+        targetStrength: 89, 
+        colors: ['bg-cyan-400', 'text-white'],
+        stadium: 'Gorilhad',
+        capacity: 65000,
+        fans: 12000000,
+        budget: 185,
+        baseReputation: 4.9,
+        debt: 590
+    },
+    { 
+        name: 'Kaplanspor SK', 
+        logo: 'https://i.imgur.com/YTCtKhQ.png', 
+        country: 'İspanya', 
+        targetStrength: 89, 
+        colors: ['bg-orange-500', 'text-black'],
+        stadium: 'Kaplanham',
+        capacity: 105000,
+        fans: 69000000,
+        budget: 105,
+        baseReputation: 5.0,
+        debt: 405
+    },
+    { 
+        name: 'Aslanspor SK', 
+        logo: 'https://i.imgur.com/3Dm90GK.png', 
+        country: 'İspanya', 
+        targetStrength: 91, 
+        colors: ['bg-yellow-400', 'text-red-700'],
+        stadium: 'Aslanbau',
+        capacity: 100000,
+        fans: 94000000,
+        budget: 180,
+        baseReputation: 5.0,
+        debt: 545
+    },
+    { 
+        name: 'Götten Totthennam', 
+        logo: 'https://i.imgur.com/5t04goR.png', 
+        country: 'İngiltere', 
+        targetStrength: 87, 
+        colors: ['bg-white', 'text-blue-900'],
+        stadium: 'Götten Arena',
+        capacity: 55000,
+        fans: 15000000,
+        budget: 110,
+        baseReputation: 4.8,
+        debt: 350
+    },
+    { 
+        name: 'Shefield Karakoçan', 
+        logo: 'https://i.imgur.com/MmXgNT5.png', 
+        country: 'İngiltere', 
+        targetStrength: 83, 
+        colors: ['bg-red-600', 'text-white'],
+        stadium: 'Koçanllanz',
+        capacity: 50000,
+        fans: 11000000,
+        budget: 80,
+        baseReputation: 4.6,
+        debt: 545
+    },
+    { 
+        name: 'El-Katir', 
+        logo: 'https://i.imgur.com/cXOfAyQ.png', 
+        country: 'Arabistan', 
+        targetStrength: 85, 
+        colors: ['bg-green-700', 'text-white'],
+        stadium: 'El Kaheffel',
+        capacity: 130000,
+        fans: 19000000,
+        budget: 240,
+        baseReputation: 4.7,
+        debt: 0
+    },
+    { 
+        name: 'Kartalcelona', 
+        logo: 'https://i.imgur.com/jrHFTWg.png', 
+        country: 'İspanya', 
+        targetStrength: 86, 
+        colors: ['bg-blue-800', 'text-red-600'],
+        stadium: 'Kartal Park',
+        capacity: 60000,
+        fans: 23000000,
+        budget: 85,
+        baseReputation: 4.7,
+        debt: 155
+    },
+    { 
+        name: 'Yılanspor', 
+        logo: 'https://i.imgur.com/MuINBKM.png', 
+        country: 'İtalya', 
+        targetStrength: 86, 
+        colors: ['bg-black', 'text-blue-600'],
+        stadium: 'Yılan Siro',
+        capacity: 72000,
+        fans: 38000000,
+        budget: 95,
+        baseReputation: 4.8,
+        debt: 290
+    },
+    { 
+        name: 'Tezkeresport', 
+        logo: 'https://i.imgur.com/cbE2L3K.png', 
+        country: 'İngiltere', 
+        targetStrength: 79, 
+        colors: ['bg-blue-500', 'text-white'],
+        stadium: 'Tezkere Arena',
+        capacity: 35000,
+        fans: 6000000,
+        budget: 65,
+        baseReputation: 4.2,
+        debt: 65
+    },
+    { 
+        name: 'Ejderspor', 
+        logo: 'https://i.imgur.com/84GbIjt.png', 
+        country: 'İtalya', 
+        targetStrength: 82, 
+        colors: ['bg-red-700', 'text-yellow-400'],
+        stadium: 'Ejder Emirates',
+        capacity: 55000,
+        fans: 21000000,
+        budget: 80,
+        baseReputation: 4.5,
+        debt: 110
+    },
+    { name: 'Timsahboğanspor', logo: 'https://i.imgur.com/MRlbSXk.png', country: 'Almanya', targetStrength: 75, colors: ['bg-green-600', 'text-white'], stadium: 'Timsah Stadium', capacity: 32000, fans: 4500000, budget: 35, baseReputation: 3.8, debt: 45 },
+    { name: 'Pandaspor', logo: 'https://i.imgur.com/GTAF9ww.png', country: 'Almanya', targetStrength: 76, colors: ['bg-black', 'text-white'], stadium: 'Panda Park', capacity: 28000, fans: 3800000, budget: 28, baseReputation: 3.7, debt: 30 },
+    { name: 'Gergedanspor FK', logo: 'https://i.imgur.com/j4hzube.png', country: 'Fransa', targetStrength: 81, colors: ['bg-gray-400', 'text-blue-900'], stadium: 'Rhino Arena', capacity: 45000, fans: 8500000, budget: 55, baseReputation: 4.1, debt: 65 },
+    { name: 'Zirafaspor', logo: 'https://i.imgur.com/tbkOThn.png', country: 'Belçika', targetStrength: 76, colors: ['bg-yellow-500', 'text-blue-500'], stadium: 'Zirafa Field', capacity: 22000, fans: 2100000, budget: 20, baseReputation: 3.6, debt: 22 },
+    { name: 'Orangutanboğanspor', logo: 'https://i.imgur.com/v5B7kK0.png', country: 'Portekiz', targetStrength: 79, colors: ['bg-orange-600', 'text-green-700'], stadium: 'Orangutan Stadium', capacity: 38000, fans: 5200000, budget: 42, baseReputation: 3.9, debt: 40 },
+    { name: 'Kediboğanspor', logo: 'https://i.imgur.com/vwqnynH.png', country: 'İspanya', targetStrength: 74, colors: ['bg-red-500', 'text-blue-500'], stadium: 'Cat Arena', capacity: 25000, fans: 1900000, budget: 18, baseReputation: 3.5, debt: 12 },
+    { name: 'Boğaboğanspor', logo: 'https://i.imgur.com/2n1yT8B.png', country: 'Fransa', targetStrength: 80, colors: ['bg-blue-800', 'text-red-500'], stadium: 'Bull Park', capacity: 42000, fans: 7800000, budget: 48, baseReputation: 4.1, debt: 55 },
+    { name: 'Domuzboğanspor', logo: 'https://i.imgur.com/yzfKh1S.png', country: 'İtalya', targetStrength: 77, colors: ['bg-pink-400', 'text-black'], stadium: 'Piggy Stadium', capacity: 29000, fans: 3200000, budget: 32, baseReputation: 3.8, debt: 25 },
+    { name: 'Octopusspor', logo: 'https://i.imgur.com/ud3aDbO.png', country: 'Fransa', targetStrength: 76, colors: ['bg-purple-600', 'text-white'], stadium: 'Octo Arena', capacity: 26000, fans: 2800000, budget: 25, baseReputation: 3.7, debt: 20 },
+    { name: 'Deveboğanspor', logo: 'https://i.imgur.com/Yy78v0q.png', country: 'Arabistan', targetStrength: 75, colors: ['bg-yellow-200', 'text-black'], stadium: 'Camel Field', capacity: 55000, fans: 4200000, budget: 110, baseReputation: 3.6, debt: 65 },
+    { name: 'Tilkiboğanspor', logo: 'https://i.imgur.com/WyN74ec.png', country: 'Fransa', targetStrength: 80, colors: ['bg-orange-500', 'text-white'], stadium: 'Fox Arena', capacity: 52000, fans: 14000000, budget: 65, baseReputation: 4.0, debt: 120 },
+    { name: 'Çitaboğanspor', logo: 'https://i.imgur.com/Xy10nJY.png', country: 'Yunanistan', targetStrength: 79, colors: ['bg-yellow-400', 'text-black'], stadium: 'Cheetah Stadium', capacity: 31000, fans: 3500000, budget: 25, baseReputation: 3.9, debt: 23 },
+    { name: 'Saqr United', logo: 'https://i.imgur.com/cmP5f0a.png', country: 'Arabistan', targetStrength: 73, colors: ['bg-green-600', 'text-white'], stadium: 'Falcon Park', capacity: 48000, fans: 2200000, budget: 155, baseReputation: 3.2, debt: 0 },
+    { name: 'Baykuşboğanspor', logo: 'https://i.imgur.com/ZxaZS1f.png', country: 'Almanya', targetStrength: 73, colors: ['bg-slate-700', 'text-white'], stadium: 'Owl Stadium', capacity: 24000, fans: 1800000, budget: 15, baseReputation: 3.5, debt: 10 },
+    { name: 'Alageyikspor', logo: 'https://i.imgur.com/5KQhrsc.png', country: 'Almanya', targetStrength: 70, colors: ['bg-green-800', 'text-white'], stadium: 'Deer Park', capacity: 27000, fans: 2500000, budget: 20, baseReputation: 3.7, debt: 18 },
+    { name: 'Jaguaryiyenspor', logo: 'https://i.imgur.com/hjYIDtz.png', country: 'İspanya', targetStrength: 82, colors: ['bg-green-500', 'text-red-600'], stadium: 'Jaguar Arena', capacity: 48000, fans: 9000000, budget: 65, baseReputation: 4.3, debt: 80 },
+    { name: 'Pirhanakundakçısıspor', logo: 'https://i.imgur.com/M4QxarE.png', country: 'Belçika', targetStrength: 80, colors: ['bg-blue-700', 'text-white'], stadium: 'Piranha Bowl', capacity: 30000, fans: 3200000, budget: 35, baseReputation: 4.1, debt: 25 },
+    { name: 'Pumadeğleyenspor', logo: 'https://i.imgur.com/tDUo8jp.png', country: 'Hollanda', targetStrength: 78, colors: ['bg-red-800', 'text-white'], stadium: 'Puma Field', capacity: 35000, fans: 4800000, budget: 40, baseReputation: 3.9, debt: 35 },
+    { name: 'Köpekboğanspor', logo: 'https://i.imgur.com/0LuJMXJ.png', country: 'Yunanistan', targetStrength: 74, colors: ['bg-orange-500', 'text-white'], stadium: 'Dog Arena', capacity: 28000, fans: 2500000, budget: 18, baseReputation: 3.7, debt: 20 },
+    { name: 'Keçiboğanspor', logo: 'https://i.imgur.com/MohCzIO.png', country: 'Hollanda', targetStrength: 79, colors: ['bg-red-600', 'text-black'], stadium: 'Goat Park', capacity: 32000, fans: 3900000, budget: 32, baseReputation: 4.0, debt: 22 }
 ];
 
 export const RIVALRIES = [
@@ -1162,7 +1312,7 @@ export const initializeTeams = (): Team[] => {
         // Similar simplified generation for Europe
         const createPlayer = (pos: Position, strength: number) => {
             const p = generatePlayer(pos, strength, teamId, true, undefined, tmpl.name);
-            p.nationality = tmpl.country === 'İngiltere' ? 'İngiltere' : tmpl.country === 'İspanya' ? 'İspanya' : tmpl.country === 'İtalya' ? 'İtalya' : tmpl.country === 'Almanya' ? 'Almanya' : tmpl.country === 'Fransa' ? 'Fransa' : 'Yabancı';
+            p.nationality = tmpl.country;
             return p;
         }
 
@@ -1184,26 +1334,40 @@ export const initializeTeams = (): Team[] => {
         const players = [gk, slb, stp1, stp2, sgb, slk, os1, os2, sgk, snt1, snt2, ...reserves];
         const rawStrength = calculateRawTeamStrength(players);
         
+        // Use user defined values if they exist in template (Gorilla, Aslan etc)
+        // @ts-ignore
+        const budget = tmpl.budget !== undefined ? tmpl.budget : 100;
+        // @ts-ignore
+        const reputation = tmpl.baseReputation !== undefined ? tmpl.baseReputation : 4.5;
+        // @ts-ignore
+        const stadiumName = tmpl.stadium || `${tmpl.name} Arena`;
+        // @ts-ignore
+        const stadiumCapacity = tmpl.capacity || 50000;
+        // @ts-ignore
+        const fanBase = tmpl.fans || 10000000;
+        // @ts-ignore
+        const debt = tmpl.debt || 0;
+
         return {
             id: teamId,
             leagueId: leagueId,
             name: tmpl.name,
             colors: tmpl.colors as [string, string],
             championships: 0, domesticCups: 0, superCups: 0, europeanCups: 0,
-            fanBase: 10000000,
-            stadiumName: `${tmpl.name} Arena`,
-            stadiumCapacity: 50000,
-            budget: 100,
-            initialDebt: 0,
+            fanBase: fanBase,
+            stadiumName: stadiumName,
+            stadiumCapacity: stadiumCapacity,
+            budget: budget,
+            initialDebt: debt,
             wageBudget: 100,
             players,
-            reputation: 4.5,
-            initialReputation: 4.5,
+            reputation: reputation,
+            initialReputation: reputation,
             leagueHistory: [],
             sponsors: { main: { name: 'EURO', yearlyValue: 20, expiryYear: 2030 }, stadium: { name: 'Arena', yearlyValue: 10, expiryYear: 2030 }, sleeve: { name: 'Sleeve', yearlyValue: 5, expiryYear: 2030 } },
             board: { presidentName: 'CEO', expectations: 'Avrupa', patience: 20 },
             boardRequests: { stadiumBuilt: true, trainingUpgradesCount: 5, youthUpgradesCount: 5, trainingLastRep: 5, youthLastRep: 5 },
-            staff: generateStaff(4.5),
+            staff: generateStaff(reputation),
             facilities: { trainingCenterName: 'Elite Center', trainingLevel: 18, youthAcademyName: 'Elite Youth', youthLevel: 18, corporateLevel: 18 },
             financialRecords: { income: {} as any, expense: {} as any },
             transferHistory: [],
@@ -1243,7 +1407,8 @@ export const initializeTeams = (): Team[] => {
             rawStrength: rawStrength,
             strengthDelta: tmpl.targetStrength - rawStrength,
             morale: 80,
-            cupBan: false
+            cupBan: false,
+            logo: tmpl.logo 
         };
     });
 

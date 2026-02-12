@@ -303,6 +303,9 @@ export interface Team {
     financialRecords: FinancialRecords;
     transferHistory: TransferRecord[];
     
+    // AI Transfer Logic
+    lastTransferActivityDate?: string; // Tracks the last date this team bought/sold a player
+
     // Tactics
     formation: string;
     mentality: Mentality;
@@ -642,6 +645,11 @@ export interface TransferViewState {
 export interface SquadViewState {
     viewMode: 'SQUAD' | 'DYNAMICS';
     sortConfig: { key: string, direction: 'asc' | 'desc' } | null;
+}
+
+export interface CompetitionViewState {
+    selectedCompId: string | null;
+    activeTab: string;
 }
 
 export interface TransferImpact {}

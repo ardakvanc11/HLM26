@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { GameState, Team, Player, Fixture, MatchEvent, MatchStats, PendingTransfer, SponsorDeal, IncomingOffer, TrainingConfig, IndividualTrainingType, BoardInteraction, Position, TransferViewState, SquadViewState, UIAlert } from '../types';
+import { GameState, Team, Player, Fixture, MatchEvent, MatchStats, PendingTransfer, SponsorDeal, IncomingOffer, TrainingConfig, IndividualTrainingType, BoardInteraction, Position, TransferViewState, SquadViewState, CompetitionViewState, UIAlert } from '../types';
 import { FileWarning, LogOut, Trophy, Building2, BarChart3, ArrowRightLeft, Wallet, Clock, TrendingUp, TrendingDown, Crown } from 'lucide-react';
 import { isSameDay } from '../utils/calendarAndFixtures';
 
@@ -107,6 +107,8 @@ interface MainContentProps {
     setTransferViewState: React.Dispatch<React.SetStateAction<TransferViewState | null>>; 
     squadViewState: SquadViewState | null; 
     setSquadViewState: React.Dispatch<React.SetStateAction<SquadViewState | null>>; 
+    competitionViewState: CompetitionViewState | null;
+    setCompetitionViewState: React.Dispatch<React.SetStateAction<CompetitionViewState | null>>;
     liveMatchPhase: string;
     setLiveMatchPhase: React.Dispatch<React.SetStateAction<string>>;
     matchActionSignal: string | null;
@@ -182,6 +184,8 @@ const MainContent: React.FC<MainContentProps> = (props) => {
         setTransferViewState,
         squadViewState,
         setSquadViewState,
+        competitionViewState,
+        setCompetitionViewState,
         liveMatchPhase,
         setLiveMatchPhase,
         matchActionSignal,
@@ -266,6 +270,9 @@ const MainContent: React.FC<MainContentProps> = (props) => {
     // Handler for clicking competition in player stats OR fixture list
     const handleCompetitionClick = (compId: string) => {
         setTargetCompetitionId(compId);
+        // Force reset the saved state if we are clicking a specific comp ID to ensure we go there
+        // NOTE: We don't nullify competitionViewState here completely to preserve tabs for other comps if needed, 
+        // but targetCompetitionId takes precedence in LeagueCupView
         navigateTo('competitions');
     };
 
@@ -534,7 +541,9 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     navigateTo('locker_room');
                 } else {
                     if (view === 'competitions') {
+                        // RESETTING STATE FOR COMPETITION VIEW ON SIDEBAR CLICK
                         setTargetCompetitionId(null);
+                        setCompetitionViewState(prev => prev ? { ...prev, selectedCompId: null } : null);
                     }
                     navigateTo(view);
                 }
@@ -684,6 +693,8 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     myTeam={myTeam}
                     onPlayerClick={handleShowPlayerDetail}
                     initialCompetitionId={targetCompetitionId} 
+                    savedState={competitionViewState} // PASS STATE
+                    onSaveState={setCompetitionViewState} // PASS SETTER
                 />
             )}
             

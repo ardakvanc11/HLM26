@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Team, Fixture } from '../../types';
 import { calculateForm } from '../../utils/gameEngine';
@@ -107,7 +106,7 @@ const StandingsTable = ({ teams, myTeamId, compact, onTeamClick, liveScores, fix
                                 if (index < 4) { // Top 4 (Europe)
                                     rankClass = 'text-green-600 dark:text-green-400';
                                     barClass = 'bg-green-500';
-                                } else if (index > sorted.length - 4) { // Relegation
+                                } else if (index > sorted.length - 4) { // Relegation (Last 3)
                                     rankClass = 'text-red-600 dark:text-red-400';
                                     barClass = 'bg-red-500';
                                 }
