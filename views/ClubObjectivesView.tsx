@@ -1,9 +1,21 @@
 
 import React, { useState, useMemo } from 'react';
-import { Team, ManagerProfile, Fixture } from '../types';
+import { Team, ManagerProfile, Fixture, FanCulture } from '../types';
 import { Target, ThumbsUp, ThumbsDown, Minus, CheckCircle2, XCircle, Clock, Award, Users, Building2, Activity, Star, Globe, Shield, Wallet, Coins, School, Swords, Hourglass, Hammer, TrendingDown, Landmark, Flag, Heart, Megaphone } from 'lucide-react';
 import { calculatePlayerWage } from '../utils/teamCalculations';
 import { RIVALRIES } from '../constants';
+
+const FAN_CULTURE_CONFIG: Record<FanCulture, { label: string, color: string, border: string }> = {
+    [FanCulture.PATIENT]: { label: 'Sabırlı', color: 'bg-blue-900/30 text-blue-400', border: 'border-blue-800' },
+    [FanCulture.ATTACKING]: { label: 'Hücum Futbolu', color: 'bg-red-900/30 text-red-400', border: 'border-red-800' },
+    [FanCulture.DISCIPLINED]: { label: 'Disiplinci', color: 'bg-slate-800 text-slate-300', border: 'border-slate-600' },
+    [FanCulture.SUCCESS_ORIENTED]: { label: 'Başarı Odaklı', color: 'bg-yellow-900/30 text-yellow-400', border: 'border-yellow-800' },
+    [FanCulture.REALIST]: { label: 'Realist', color: 'bg-gray-700 text-gray-300', border: 'border-gray-500' },
+    [FanCulture.DERBY_LOVER]: { label: 'Derbici', color: 'bg-orange-900/30 text-orange-400', border: 'border-orange-800' },
+    [FanCulture.DREAMER]: { label: 'Hayalperest', color: 'bg-purple-900/30 text-purple-400', border: 'border-purple-800' },
+    [FanCulture.MEDIA_SAVVY]: { label: 'Medyacı', color: 'bg-cyan-900/30 text-cyan-400', border: 'border-cyan-800' },
+    [FanCulture.ACADEMIC]: { label: 'Akademisyen', color: 'bg-emerald-900/30 text-emerald-400', border: 'border-emerald-800' }
+};
 
 interface ClubObjectivesViewProps {
     team: Team;
@@ -714,9 +726,18 @@ const ClubObjectivesView: React.FC<ClubObjectivesViewProps> = ({ team, manager, 
                                 </h3>
                                 <div className="flex flex-wrap gap-2 mb-6">
                                     {/* Dynamic Tags */}
-                                    <span className="px-3 py-1 bg-red-900/30 text-red-400 rounded-full text-xs font-bold border border-red-800">Ateşli</span>
-                                    <span className="px-3 py-1 bg-blue-900/30 text-blue-400 rounded-full text-xs font-bold border border-blue-800">Sadık</span>
-                                    <span className="px-3 py-1 bg-yellow-900/30 text-yellow-400 rounded-full text-xs font-bold border border-yellow-800">Besteci</span>
+                                    {team.fanCultures && team.fanCultures.length > 0 ? (
+                                        team.fanCultures.map((culture, idx) => {
+                                            const config = FAN_CULTURE_CONFIG[culture] || { label: culture, color: 'bg-slate-800 text-slate-400', border: 'border-slate-600' };
+                                            return (
+                                                <span key={idx} className={`px-3 py-1 rounded-full text-xs font-bold border ${config.color} ${config.border}`}>
+                                                    {config.label}
+                                                </span>
+                                            );
+                                        })
+                                    ) : (
+                                        <span className="px-3 py-1 bg-slate-800 text-slate-400 rounded-full text-xs font-bold border border-slate-600">Standart</span>
+                                    )}
                                 </div>
 
                                 <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2">

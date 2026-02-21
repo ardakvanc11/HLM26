@@ -63,6 +63,18 @@ export enum AttackStyle { MIXED = 'MIXED' }
 export enum PressingStyle { BALANCED = 'BALANCED', HIGH_PRESS = 'HIGH_PRESS' }
 export enum GameSystem { POSSESSION = 'POSSESSION', GEGENPRESS = 'GEGENPRESS', TIKI_TAKA = 'TIKI_TAKA', VERTICAL_TIKI_TAKA = 'VERTICAL_TIKI_TAKA', WING_PLAY = 'WING_PLAY', LONG_BALL = 'LONG_BALL', HARAMBALL = 'HARAMBALL', CUSTOM = 'CUSTOM' }
 
+export enum FanCulture {
+    PATIENT = 'PATIENT',
+    ATTACKING = 'ATTACKING',
+    DISCIPLINED = 'DISCIPLINED',
+    SUCCESS_ORIENTED = 'SUCCESS_ORIENTED',
+    REALIST = 'REALIST',
+    DERBY_LOVER = 'DERBY_LOVER',
+    DREAMER = 'DREAMER',
+    MEDIA_SAVVY = 'MEDIA_SAVVY',
+    ACADEMIC = 'ACADEMIC'
+}
+
 // Holiday Types
 export enum HolidayType {
     DATE = 'DATE',
@@ -353,6 +365,8 @@ export interface Team {
     attackStyle?: AttackStyle;
     pressingStyle?: PressingStyle;
     gameSystem?: GameSystem;
+
+    fanCultures?: FanCulture[];
 
     setPieceTakers?: SetPieceTakers;
     trainingConfig?: TrainingConfig;

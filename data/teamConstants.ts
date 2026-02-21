@@ -1,10 +1,17 @@
 
 
-import { Team, Position, Mentality, PassingStyle, Tempo, Width, CreativeFreedom, DefensiveLine, Tackling, PressingFocus, TimeWasting, TacticStyle, AttackStyle, PressingStyle, AttackingTransition, SetPiecePlay, PlayStrategy, GoalKickType, GKDistributionTarget, SupportRuns, Dribbling, FocusArea, PassTarget, Patience, LongShots, CrossingType, GKDistributionSpeed, PressingLine, DefLineMobility, PressIntensity, DefensiveTransition, PreventCrosses, ClubStaff } from '../types';
+import { Team, Position, Mentality, PassingStyle, Tempo, Width, CreativeFreedom, DefensiveLine, Tackling, PressingFocus, TimeWasting, TacticStyle, AttackStyle, PressingStyle, AttackingTransition, SetPiecePlay, PlayStrategy, GoalKickType, GKDistributionTarget, SupportRuns, Dribbling, FocusArea, PassTarget, Patience, LongShots, CrossingType, GKDistributionSpeed, PressingLine, DefLineMobility, PressIntensity, DefensiveTransition, PreventCrosses, ClubStaff, FanCulture } from '../types';
 import { generateId } from './gameConstants';
 import { generatePlayer, FIRST_NAMES, LAST_NAMES } from './playerConstants';
 import { calculateRawTeamStrength } from '../utils/teamCalculations';
 import { getRandomSponsorForReputation } from './sponsorData';
+
+// Helper to get random fan cultures
+const getRandomFanCultures = (): FanCulture[] => {
+    const allCultures = Object.values(FanCulture);
+    const shuffled = allCultures.sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, 2);
+};
 
 // User Defined Teams with provided Imgur Logos and Stadium Capacities
 export const TEAM_TEMPLATES = [
@@ -1301,7 +1308,8 @@ export const initializeTeams = (): Team[] => {
             rawStrength: rawStrength,      
             strengthDelta: strengthDelta,  
             morale: 70,
-            cupBan: isCupBanned 
+            cupBan: isCupBanned,
+            fanCultures: getRandomFanCultures()
         };
     });
 
@@ -1409,7 +1417,8 @@ export const initializeTeams = (): Team[] => {
             strengthDelta: tmpl.targetStrength - rawStrength,
             morale: 80,
             cupBan: false,
-            logo: tmpl.logo 
+            logo: tmpl.logo,
+            fanCultures: getRandomFanCultures()
         };
     });
 
