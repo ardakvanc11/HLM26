@@ -1,33 +1,23 @@
 {
-  "name": "hayvanlar-ligi-manager",
-  "version": "1.0.0",
-  "main": "main.js",
+  "name": "süper-toto-hayvanlar-ligi",
+  "private": true,
+  "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "start": "electron .",
-    "build:win": "vite build && electron-builder --win"
+    "preview": "vite preview"
   },
-  "build": {
-    "appId": "com.hayvanlar.ligi",
-    "productName": "Hayvanlar Ligi Manager 26",
-    "directories": {
-      "output": "dist_electron"
-    },
-    "files": [
-      "dist/**/*",
-      "main.js",
-      "package.json"
-    ],
-    "win": {
-      "target": "portable",
-      "icon": "icon.png"
-    }
+  "dependencies": {
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "lucide-react": "^0.556.0",
+    "@google/genai": "^1.31.0"
   },
   "devDependencies": {
-    "electron": "^40.6.0",
-    "electron-builder": "^26.8.1",
-    "vite": "^6.0.0"
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
   }
 }
