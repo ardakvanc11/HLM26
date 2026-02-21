@@ -1,0 +1,111 @@
+
+<!DOCTYPE html>
+<html lang="tr" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Süper Toto Hayvanlar Ligi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Roboto Condensed', 'sans-serif'],
+              teko: ['Teko', 'sans-serif'],
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&family=Teko:wght@400;600&display=swap');
+
+        /* Global Scrollbar Styles (Chrome, Safari, Edge) */
+        ::-webkit-scrollbar {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Scrollbar Track - Arka Plan */
+        ::-webkit-scrollbar-track {
+            background: #0a0a0a;
+            border-left: 1px solid #222;
+        }
+
+        /* Scrollbar Thumb - Hareket Eden Çubuk */
+        ::-webkit-scrollbar-thumb {
+            background: #2a2a2a;
+            border: 2px solid #0a0a0a; /* Kenarlardan boşluk hissi verir */
+            border-radius: 2px;
+            box-shadow: inset 0 0 1px 1px rgba(255,255,255,0.05);
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3a3a3a;
+        }
+
+        ::-webkit-scrollbar-thumb:active {
+            background: #4a4a4a;
+        }
+
+        /* Scrollbar Buttons - Ok Tuşları */
+        ::-webkit-scrollbar-button {
+            display: block;
+            background-color: #1a1a1a;
+            background-repeat: no-repeat;
+            background-position: center;
+            border: 1px solid #333;
+            height: 14px;
+            width: 14px;
+        }
+
+        /* Yukarı Ok */
+        ::-webkit-scrollbar-button:vertical:decrement {
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='white'><polygon points='5,2 1,8 9,8'/></svg>");
+        }
+
+        /* Aşağı Ok */
+        ::-webkit-scrollbar-button:vertical:increment {
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='white'><polygon points='5,8 1,2 9,2'/></svg>");
+        }
+
+        /* Yatay Sol Ok */
+        ::-webkit-scrollbar-button:horizontal:decrement {
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='white'><polygon points='2,5 8,1 8,9'/></svg>");
+        }
+
+        /* Yatay Sağ Ok */
+        ::-webkit-scrollbar-button:horizontal:increment {
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='white'><polygon points='8,5 2,1 2,9'/></svg>");
+        }
+
+        ::-webkit-scrollbar-corner {
+            background: #0a0a0a;
+        }
+
+        /* Firefox Support */
+        * {
+            scrollbar-width: auto;
+            scrollbar-color: #2a2a2a #0a0a0a;
+        }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.31.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 overflow-hidden transition-colors duration-300">
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

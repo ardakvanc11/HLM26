@@ -1,0 +1,33 @@
+{
+  "name": "hayvanlar-ligi-manager",
+  "version": "1.0.0",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "start": "electron .",
+    "build:win": "vite build && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.hayvanlar.ligi",
+    "productName": "Hayvanlar Ligi Manager 26",
+    "directories": {
+      "output": "dist_electron"
+    },
+    "files": [
+      "dist/**/*",
+      "main.js",
+      "package.json"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "icon.png"
+    }
+  },
+  "devDependencies": {
+    "electron": "^40.6.0",
+    "electron-builder": "^26.8.1",
+    "vite": "^6.0.0"
+  }
+}
